@@ -25,3 +25,7 @@ go.work
 *.swp
 *.swo
 *~
+
+
+# 
+.github
