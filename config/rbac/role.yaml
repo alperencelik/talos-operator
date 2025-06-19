@@ -1,0 +1,38 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - talos.alperen.cloud
+  resources:
+  - talosclusters
+  - taloscontrolplanes
+  - talosworkers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - talos.alperen.cloud
+  resources:
+  - talosclusters/finalizers
+  - taloscontrolplanes/finalizers
+  - talosworkers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - talos.alperen.cloud
+  resources:
+  - talosclusters/status
+  - taloscontrolplanes/status
+  - talosworkers/status
+  verbs:
+  - get
+  - patch
+  - update

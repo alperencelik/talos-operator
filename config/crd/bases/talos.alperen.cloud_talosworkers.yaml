@@ -1,0 +1,118 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.4
+  name: talosworkers.talos.alperen.cloud
+spec:
+  group: talos.alperen.cloud
+  names:
+    kind: TalosWorker
+    listKind: TalosWorkerList
+    plural: talosworkers
+    singular: talosworker
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: TalosWorker is the Schema for the talosworkers API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TalosWorkerSpec defines the desired state of TalosWorker.
+            properties:
+              configRef:
+                description: Reference to a ConfigMap containing the Talos cluster
+                  configuration
+                properties:
+                  key:
+                    description: The key to select.
+                    type: string
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                  optional:
+                    description: Specify whether the ConfigMap or its key must be
+                      defined
+                    type: boolean
+                required:
+                - key
+                type: object
+                x-kubernetes-map-type: atomic
+              controlPlaneRef:
+                description: ControlPlaneRef is a reference to the TalosControlPlane
+                  that this worker belongs to
+                format: objectreference
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              kubeVersion:
+                default: v1.33.1
+                description: KubeVersion is the version of Kubernetes to use for the
+                  control plane
+                pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                type: string
+              mode:
+                enum:
+                - container
+                type: string
+              replicas:
+                default: 1
+                description: Number of control-plane machines to maintain
+                format: int32
+                minimum: 1
+                type: integer
+              version:
+                default: v1.33.1
+                description: Version of Talos to use for the control plane(controller-manager,
+                  scheduler, kube-apiserver, etcd) -- e.g "v1.33.1"
+                pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                type: string
+            required:
+            - controlPlaneRef
+            - kubeVersion
+            - mode
+            - replicas
+            - version
+            type: object
+          status:
+            description: TalosWorkerStatus defines the observed state of TalosWorker.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
