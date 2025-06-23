@@ -1,8 +1,6 @@
 package talos
 
 import (
-	"fmt"
-
 	"github.com/siderolabs/talos/pkg/machinery/config/encoder"
 	"github.com/siderolabs/talos/pkg/machinery/config/machine"
 )
@@ -14,8 +12,8 @@ func GenerateWorkerConfig(cfg *BundleConfig) (*[]byte, error) {
 		return nil, err
 	}
 	// // DEBUG
-	dir := fmt.Sprintf("./")
-	bundle.Write(dir, encoder.CommentsDisabled, machine.TypeWorker)
+	// dir := fmt.Sprintf("./")
+	// bundle.Write(dir, encoder.CommentsDisabled, machine.TypeWorker)
 	// // DEBUG END
 
 	// Generate the worker configuration

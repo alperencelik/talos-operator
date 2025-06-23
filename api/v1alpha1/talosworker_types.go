@@ -51,6 +51,11 @@ type TalosWorkerSpec struct {
 	// +kubebuilder:default="v1.33.1"
 	KubeVersion string `json:"kubeVersion,omitempty"`
 
+	// StorageClassName is the name of the storage class to use for persistent volumes
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$`
+	StorageClassName string `json:"storageClassName,omitempty"`
+
 	// ControlPlaneRef is a reference to the TalosControlPlane that this worker belongs to
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Format=objectreference
@@ -65,6 +70,8 @@ type TalosWorkerSpec struct {
 type TalosWorkerStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	Config     string             `json:"config,omitempty"` // Serialized Talos configuration for the worker
 }
 
 // +kubebuilder:object:root=true

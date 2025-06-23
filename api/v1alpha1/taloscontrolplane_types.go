@@ -62,6 +62,11 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:default="cluster.local"
 	ClusterDomain string `json:"clusterDomain,omitempty"`
 
+	// StorageClassName is the name of the storage class to use for persistent volumes
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$`
+	StorageClassName string `json:"storageClassName,omitempty"`
+
 	// PodCIDRs is the list of CIDR ranges for pod IPs in the cluster.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Items=pattern=`^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$`
@@ -81,8 +86,10 @@ type TalosControlPlaneSpec struct {
 type TalosControlPlaneStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Config       string `json:"config,omitempty"`       // Reference to the Talos configuration used for the control plane
-	SecretBundle string `json:"secretBundle,omitempty"` // Reference to the secrets bundle used for the control plane
+	// Conditions is a list of conditions for the Talos control plane
+	Conditions   []metav1.Condition `json:"conditions,omitempty"`
+	Config       string             `json:"config,omitempty"`       // Reference to the Talos configuration used for the control plane
+	SecretBundle string             `json:"secretBundle,omitempty"` // Reference to the secrets bundle used for the control plane
 }
 
 // +kubebuilder:object:root=true

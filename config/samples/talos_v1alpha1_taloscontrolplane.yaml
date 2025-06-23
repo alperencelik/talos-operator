@@ -10,12 +10,11 @@ spec:
   mode: container 
   replicas: 2
   kubeVersion: v1.33.0
-
-  podCIDR: 
-  - 10.100.0.0/16
-  - 10.150.0.0/16
-  serviceCIDR:
-  - 10.200.0.0/12
+# podCIDR: 
+# - 10.100.0.0/16
+# - 10.150.0.0/16
+# serviceCIDR:
+# - 10.200.0.0/12
 #  configRef: 
 #    name: taloscontrolplane-sample-config
 #    key: controlplane.yaml

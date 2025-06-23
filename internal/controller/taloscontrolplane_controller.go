@@ -24,7 +24,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,7 +39,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 )
 
 // TalosControlPlaneReconciler reconciles a TalosControlPlane object
@@ -220,214 +218,11 @@ func (r *TalosControlPlaneReconciler) reconcileStatefulSet(ctx context.Context, 
 	if err := controllerutil.SetControllerReference(tcp, sts, r.Scheme); err != nil {
 		return fmt.Errorf("failed to set controller reference for StatefulSet %s: %w", stsName, err)
 	}
-	var extraEnvs []corev1.EnvVar
 
-	if tcp.Spec.ConfigRef.Name != "" && tcp.Spec.ConfigRef.Key != "" {
-		extraEnvs = []corev1.EnvVar{
-			{
-				Name: "USERDATA",
-				ValueFrom: &corev1.EnvVarSource{
-					ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: tcp.Spec.ConfigRef.Name,
-						},
-						Key: tcp.Spec.ConfigRef.Key,
-					},
-				},
-			},
-		}
-	} else {
-		// If no ConfigMap reference is provided, we will generate the Talos config on the fly
-		extraEnvs = []corev1.EnvVar{
-			{
-				Name: "USERDATA",
-				ValueFrom: &corev1.EnvVarSource{
-					ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: fmt.Sprintf("%s-config", tcp.Name),
-						},
-						Key: "controlplane.yaml",
-					},
-				},
-			},
-		}
-	}
+	extraEnvs := BuildUserDataEnvVar(&tcp.Spec.ConfigRef, tcp.Name, TalosMachineTypeControlPlane)
 
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
-		sts.Spec = appsv1.StatefulSetSpec{
-			ServiceName: stsName,
-			Replicas:    &tcp.Spec.Replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": tcp.Name,
-				},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app": tcp.Name,
-					},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "talos-control-plane",
-							Image: fmt.Sprintf("%s:%s", TalosImage, tcp.Spec.Version),
-							Env: append(extraEnvs,
-								corev1.EnvVar{
-									Name:  TalosPlatformKey,
-									Value: TalosPlatformContainer,
-								},
-							),
-							Ports: []corev1.ContainerPort{
-								{
-									Name:          "talos-api",
-									ContainerPort: 50000,
-								},
-								{
-									Name:          "k8s-api",
-									ContainerPort: 6443,
-								},
-							},
-							SecurityContext: &corev1.SecurityContext{
-								Privileged:             pointer.Bool(true),
-								ReadOnlyRootFilesystem: pointer.Bool(true),
-								SeccompProfile: &corev1.SeccompProfile{
-									Type: corev1.SeccompProfileTypeUnconfined,
-								},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "run",
-									MountPath: "/run",
-								},
-								{
-									Name:      "system",
-									MountPath: "/system",
-								},
-								{
-									Name:      "tmp",
-									MountPath: "/tmp",
-								},
-								{
-									Name:      "var",
-									MountPath: "/var",
-								},
-								{
-									Name:      "etc-cni",
-									MountPath: "/etc/cni",
-								},
-								{
-									Name:      "etc-kubernetes",
-									MountPath: "/etc/kubernetes",
-								},
-								{
-									Name:      "usr-libexec-kubernetes",
-									MountPath: "/usr/libexec/kubernetes",
-								},
-							},
-						},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "run",
-							VolumeSource: corev1.VolumeSource{
-								EmptyDir: &corev1.EmptyDirVolumeSource{},
-							},
-						},
-						{
-							Name: "system",
-							VolumeSource: corev1.VolumeSource{
-								EmptyDir: &corev1.EmptyDirVolumeSource{},
-							},
-						},
-						{
-							Name: "tmp",
-							VolumeSource: corev1.VolumeSource{
-								EmptyDir: &corev1.EmptyDirVolumeSource{},
-							},
-						},
-					},
-				},
-			},
-			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "system-state",
-					},
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{
-							corev1.ReadWriteOnce,
-						},
-						Resources: corev1.VolumeResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceStorage: resource.MustParse("1Gi"),
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "var",
-					},
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{
-							corev1.ReadWriteOnce,
-						},
-						Resources: corev1.VolumeResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceStorage: resource.MustParse("20Gi"),
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "etc-cni",
-					},
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{
-							corev1.ReadWriteOnce,
-						},
-						Resources: corev1.VolumeResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceStorage: resource.MustParse("1Gi"),
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "etc-kubernetes",
-					},
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{
-							corev1.ReadWriteOnce,
-						},
-						Resources: corev1.VolumeResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceStorage: resource.MustParse("1Gi"),
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "usr-libexec-kubernetes",
-					},
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{
-							corev1.ReadWriteOnce,
-						},
-						Resources: corev1.VolumeResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceStorage: resource.MustParse("1Gi"),
-							},
-						},
-					},
-				},
-			},
-		}
+		sts.Spec = BuildStsSpec(tcp.Name, tcp.Spec.Replicas, tcp.Spec.Version, TalosMachineTypeControlPlane, extraEnvs)
 		return nil
 	})
 	if err != nil {
@@ -464,6 +259,7 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 		return fmt.Errorf("failed to write Talos config for %s: %w", tcp.Name, err)
 	}
 	logger.Info("Generated Talos ControlPlane config", "name", tcp.Name)
+	// Update the status condition to indicate the config is generated
 	return nil
 }
 

@@ -54,9 +54,10 @@ func BuildUserDataEnvVar(configRef *corev1.ConfigMapKeySelector, name string, ma
 		}
 	} else {
 		var key string
-		if machineType == TalosMachineTypeWorker {
+		switch machineType {
+		case TalosMachineTypeWorker:
 			key = "worker.yaml"
-		} else if machineType == TalosMachineTypeControlPlane {
+		case TalosMachineTypeControlPlane:
 			key = "controlplane.yaml"
 		}
 		return []corev1.EnvVar{
