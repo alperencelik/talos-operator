@@ -38,6 +38,200 @@ spec:
             type: object
           spec:
             description: TalosClusterSpec defines the desired state of TalosCluster.
+            properties:
+              controlPlane:
+                description: ControlPlane defines the control plane configuration
+                  for the Talos cluster.
+                properties:
+                  clusterDomain:
+                    default: cluster.local
+                    description: ClusterDomain is the domain for the Kubernetes cluster
+                    pattern: ^([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+[a-z]{2,}$
+                    type: string
+                  configRef:
+                    description: Reference to a ConfigMap containing the Talos cluster
+                      configuration
+                    properties:
+                      key:
+                        description: The key to select.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the ConfigMap or its key must
+                          be defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  endpoint:
+                    description: Endpoint for the Kubernetes API Server
+                    pattern: ^https?://[a-zA-Z0-9.-]+(:\d+)?$
+                    type: string
+                  kubeVersion:
+                    default: v1.33.1
+                    description: KubeVersion is the version of Kubernetes to use for
+                      the control plane
+                    pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                    type: string
+                  mode:
+                    enum:
+                    - container
+                    type: string
+                  podCIDR:
+                    description: PodCIDRs is the list of CIDR ranges for pod IPs in
+                      the cluster.
+                    items:
+                      type: string
+                    type: array
+                  replicas:
+                    default: 1
+                    description: Number of control-plane machines to maintain
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  serviceCIDR:
+                    description: ServiceCIDRs is the list of CIDR ranges for service
+                      IPs in the cluster.
+                    items:
+                      type: string
+                    type: array
+                  storageClassName:
+                    description: StorageClassName is the name of the storage class
+                      to use for persistent volumes
+                    pattern: ^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$
+                    type: string
+                  version:
+                    default: v1.10.3
+                    description: Version of Talos to use for the control plane(controller-manager,
+                      scheduler, kube-apiserver, etcd) -- e.g "v1.33.1"
+                    pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                    type: string
+                required:
+                - kubeVersion
+                - mode
+                - replicas
+                - version
+                type: object
+              controlPlaneRef:
+                description: ControlPlaneRef references the TalosControlPlane resource
+                  that manages the control plane.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              worker:
+                description: Worker defines the worker configuration for the Talos
+                  cluster.
+                properties:
+                  configRef:
+                    description: Reference to a ConfigMap containing the Talos cluster
+                      configuration
+                    properties:
+                      key:
+                        description: The key to select.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the ConfigMap or its key must
+                          be defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  controlPlaneRef:
+                    description: ControlPlaneRef is a reference to the TalosControlPlane
+                      that this worker belongs to
+                    format: objectreference
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  kubeVersion:
+                    default: v1.33.1
+                    description: KubeVersion is the version of Kubernetes to use for
+                      the control plane
+                    pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                    type: string
+                  mode:
+                    enum:
+                    - container
+                    type: string
+                  replicas:
+                    default: 1
+                    description: Number of control-plane machines to maintain
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  storageClassName:
+                    description: StorageClassName is the name of the storage class
+                      to use for persistent volumes
+                    pattern: ^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$
+                    type: string
+                    x-kubernetes-validations:
+                    - message: StorageClassName is immutable, you cannot change it
+                        after creation
+                      rule: self == oldSelf
+                  version:
+                    default: v1.33.1
+                    description: Version of Talos to use for the control plane(controller-manager,
+                      scheduler, kube-apiserver, etcd) -- e.g "v1.33.1"
+                    pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                    type: string
+                required:
+                - kubeVersion
+                - mode
+                - replicas
+                - version
+                type: object
+              workerRef:
+                description: WorkerRef references the TalosWorker resource that manages
+                  the worker nodes.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
             type: object
           status:
             description: TalosClusterStatus defines the observed state of TalosCluster.

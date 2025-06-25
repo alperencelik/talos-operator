@@ -6,4 +6,14 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: taloscluster-sample
 spec:
+  controlPlane:
+    version: v1.10.3
+    mode: container
+    replicas: 2
+    kubeVersion: v1.33.0
+  worker:
+    version: v1.10.3
+    mode: container 
+    replicas: 2
+    kubeVersion: v1.33.0 
   # TODO(user): Add fields here

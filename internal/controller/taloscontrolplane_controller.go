@@ -27,9 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -51,6 +51,7 @@ type TalosControlPlaneReconciler struct {
 const (
 	TalosImage = "ghcr.io/siderolabs/talos"
 
+	TalosControlPlaneFinalizer = "taloscontrolplane.talos.alperen.cloud/finalizer"
 	// TalosContainer Vars
 	TalosPlatformKey       = "PLATFORM"
 	TalosPlatformContainer = "container"
@@ -77,7 +78,6 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		logger.Error(err, "unable to fetch TalosControlPlane")
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
-
 	// Get the mode of the TalosControlPlane
 	var result ctrl.Result
 	var err error
@@ -85,7 +85,7 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	case "container":
 		result, err = r.reconcileContainerMode(ctx, &tcp)
 		if err != nil {
-			logger.Error(err, "failed to reconcile TalosControlPlane in container mode")
+			return ctrl.Result{}, fmt.Errorf("failed to reconcile TalosControlPlane in container mode: %w", err)
 		}
 	default:
 		logger.Info("Unsupported mode for TalosControlPlane", "mode", tcp.Spec.Mode)
@@ -97,15 +97,15 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 // SetupWithManager sets up the controller with the Manager.
 func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&talosv1alpha1.TalosControlPlane{}).
-		// Owns(&appsv1.StatefulSet{}).
-		// Owns(&corev1.Service{}).
-		WithEventFilter(predicate.Funcs{
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				// Only reconcile if the generation of the object has changed
-				return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
-			},
-		}).
+		For(&talosv1alpha1.TalosControlPlane{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(stsPredicate)).
+		Owns(&corev1.Service{}, builder.WithPredicates(svcPredicate)).
+		// WithEventFilter(predicate.Funcs{
+		// UpdateFunc: func(e event.UpdateEvent) bool {
+		// // Only reconcile if the generation of the object has changed
+		// return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+		// },
+		// }).
 		Named("taloscontrolplane").
 		Complete(r)
 }
@@ -114,19 +114,32 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 	logger := log.FromContext(ctx)
 
 	logger.Info("Reconciling TalosControlPlane in container mode", "name", tcp.Name)
-
+	// r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "Reconciling", "Reconciling TalosControlPlane %s in container mode", tcp.Name)
 	// Generate the Talos ControlPlane config
 	if err := r.GenerateConfig(ctx, tcp); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to generate Talos ControlPlane config for %s: %w", tcp.Name, err)
 	}
+	// Get the object again since the status might have been updated
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+		logger.Error(err, "Failed to get TalosControlPlane after generating config", "name", tcp.Name)
+		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
+	}
 
 	if err := r.reconcileService(ctx, tcp); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to reconcile Service for TalosControlPlane %s: %w", tcp.Name, err)
+		logger.Error(err, "Failed to reconcile Service for TalosControlPlane", "name", tcp.Name, "error", err)
+		return ctrl.Result{}, nil
 	}
 
 	// Get the statefulset for the TalosControlPlane
 	if err := r.reconcileStatefulSet(ctx, tcp); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to reconcile StatefulSet for TalosControlPlane %s: %w", tcp.Name, err)
+		logger.Error(err, "Failed to reconcile StatefulSet for TalosControlPlane", "name", tcp.Name, "error", err)
+		return ctrl.Result{}, nil
+	}
+
+	// Get the object again since the statefulset might have been updated
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+		logger.Error(err, "Failed to get TalosControlPlane after reconciling StatefulSet", "name", tcp.Name)
+		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 
 	if err := r.BootstrapCluster(ctx, tcp); err != nil {
@@ -135,10 +148,6 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 
 	if err := r.WriteKubeconfig(ctx, tcp); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to write kubeconfig for TalosControlPlane %s: %w", tcp.Name, err)
-	}
-
-	if err := r.Status().Update(ctx, tcp); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update TalosControlPlane %s status: %w", tcp.Name, err)
 	}
 
 	return ctrl.Result{}, nil
@@ -219,22 +228,25 @@ func (r *TalosControlPlaneReconciler) reconcileStatefulSet(ctx context.Context, 
 		return fmt.Errorf("failed to set controller reference for StatefulSet %s: %w", stsName, err)
 	}
 
-	extraEnvs := BuildUserDataEnvVar(&tcp.Spec.ConfigRef, tcp.Name, TalosMachineTypeControlPlane)
+	extraEnvs := BuildUserDataEnvVar(tcp.Spec.ConfigRef, tcp.Name, TalosMachineTypeControlPlane)
 
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
-		sts.Spec = BuildStsSpec(tcp.Name, tcp.Spec.Replicas, tcp.Spec.Version, TalosMachineTypeControlPlane, extraEnvs)
+		sts.Spec = BuildStsSpec(tcp.Name, tcp.Spec.Replicas, tcp.Spec.Version, TalosMachineTypeControlPlane, extraEnvs, tcp.Spec.StorageClassName)
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create or update StatefulSet %s: %w", stsName, err)
 	}
+	// Update the TalosControlPlane .status.state
+	if err := r.updateState(ctx, tcp, talosv1alpha1.StateAvailable); err != nil {
+		return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
+	}
+
 	logger.Info("Reconciled StatefulSet", "statefulset", stsName, "operation", op)
 	return nil
 }
 
 func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
-	logger := log.FromContext(ctx)
-
 	config, err := r.SetConfig(ctx, tcp)
 	if err != nil {
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
@@ -243,6 +255,9 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 	cpConfig, err := talos.GenerateControlPlaneConfig(config)
 	if err != nil {
 		return fmt.Errorf("failed to generate Talos ControlPlane config for %s: %w", tcp.Name, err)
+	}
+	if tcp.Status.Config == string(*cpConfig) {
+		return nil // No changes in the config, skip update
 	}
 	tcp.Status.Config = string(*cpConfig)
 	// Update the TalosControlPlane status with the config
@@ -258,8 +273,10 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 	if err := r.WriteTalosConfig(ctx, tcp); err != nil {
 		return fmt.Errorf("failed to write Talos config for %s: %w", tcp.Name, err)
 	}
-	logger.Info("Generated Talos ControlPlane config", "name", tcp.Name)
-	// Update the status condition to indicate the config is generated
+	// Update .status.state to Pending
+	if err := r.updateState(ctx, tcp, talosv1alpha1.StatePending); err != nil {
+		return fmt.Errorf("failed to update TalosControlPlane %s status to Pending: %w", tcp.Name, err)
+	}
 	return nil
 }
 
@@ -285,6 +302,7 @@ func (r *TalosControlPlaneReconciler) WriteControlPlaneConfig(ctx context.Contex
 	if err != nil {
 		return fmt.Errorf("failed to create or update ConfigMap %s: %w", cpConfigMap.Name, err)
 	}
+	// r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "ConfigGenerated", "Generated Talos ControlPlane config for %s", tcp.Name)
 	return nil
 }
 
@@ -331,11 +349,21 @@ func (r *TalosControlPlaneReconciler) WriteTalosConfig(ctx context.Context, tcp 
 	if err != nil {
 		return fmt.Errorf("failed to create or update TalosConfig Secret %s: %w", talosConfigSecret.Name, err)
 	}
+	//	r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "TalosConfigWritten", "Wrote Talos config for %s", tcp.Name)
 	return nil
 }
 
 func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
-	// TODO: Implement
+	// Check if it's already bootstrapped
+	if tcp.Status.State == talosv1alpha1.StateBootstrapped || tcp.Status.State == talosv1alpha1.StateReady {
+		return nil
+	}
+	// Make sure that the .status.state is set to Available before bootstrapping
+	// TODO: Implement properly
+	if tcp.Status.State != talosv1alpha1.StateAvailable {
+		return fmt.Errorf("TalosControlPlane %s is not in Available to bootstrap, current state: %s", tcp.Name, tcp.Status.State)
+	}
+
 	config, err := r.SetConfig(ctx, tcp)
 	if err != nil {
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
@@ -348,6 +376,10 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 	//  Bootstrap the Talos node
 	if err := client.BootstrapNode(config); err != nil {
 		return fmt.Errorf("failed to bootstrap Talos node for ControlPlane %s: %w", tcp.Name, err)
+	}
+	// Update state as Bootstrapped
+	if err := r.updateState(ctx, tcp, talosv1alpha1.StateBootstrapped); err != nil {
+		return fmt.Errorf("failed to update TalosControlPlane %s status to Bootstrapped: %w", tcp.Name, err)
 	}
 	return nil
 }
@@ -385,6 +417,9 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create or update Kubeconfig Secret %s: %w", kubeconfigSecret.Name, err)
+	}
+	if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
+		return fmt.Errorf("failed to update TalosControlPlane %s status to Ready: %w", tcp.Name, err)
 	}
 	return nil
 }
@@ -444,4 +479,26 @@ func (r *TalosControlPlaneReconciler) SecretBundle(ctx context.Context, tcp *tal
 	secretBundle.Clock = talos.NewClock()
 
 	return &secretBundle, nil
+}
+
+func (r *TalosControlPlaneReconciler) handleFinalizer(ctx context.Context, tcp talosv1alpha1.TalosControlPlane) error {
+	if !controllerutil.ContainsFinalizer(&tcp, TalosControlPlaneFinalizer) {
+		controllerutil.AddFinalizer(&tcp, TalosControlPlaneFinalizer)
+		if err := r.Update(ctx, &tcp); err != nil {
+			return fmt.Errorf("failed to add finalizer to TalosControlPlane %s: %w", tcp.Name, err)
+		}
+	}
+	return nil
+}
+
+func (r *TalosControlPlaneReconciler) updateState(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane, state string) error {
+	if tcp.Status.State == state {
+		return nil
+	}
+	tcp.Status.State = state
+	if err := r.Status().Update(ctx, tcp); err != nil {
+		return fmt.Errorf("failed to update TalosControlPlane %s status to %s: %w", tcp.Name, state, err)
+
+	}
+	return nil
 }

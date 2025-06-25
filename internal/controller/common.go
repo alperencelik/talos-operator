@@ -16,9 +16,15 @@ func BuildServiceSpec(name string, i *int32) corev1.ServiceSpec {
 	selectors := map[string]string{
 		"app": name,
 	}
+	var svcType corev1.ServiceType
 	if i != nil {
 		selectors["statefulset.kubernetes.io/pod-name"] = fmt.Sprintf("%s-%d", name, *i)
+		svcType = corev1.ServiceTypeClusterIP
+	} else {
+		// If i is nil, we are building a headless service for the StatefulSet and it should be LB type.
+		svcType = corev1.ServiceTypeLoadBalancer
 	}
+
 	return corev1.ServiceSpec{
 		Selector: selectors,
 		Ports: []corev1.ServicePort{
@@ -33,12 +39,12 @@ func BuildServiceSpec(name string, i *int32) corev1.ServiceSpec {
 				TargetPort: intstr.FromInt(6443),
 			},
 		},
-		Type: corev1.ServiceTypeClusterIP,
+		Type: svcType,
 	}
 }
 
 func BuildUserDataEnvVar(configRef *corev1.ConfigMapKeySelector, name string, machineType string) []corev1.EnvVar {
-	if configRef.Name != "" && configRef.Key != "" {
+	if configRef != nil {
 		return []corev1.EnvVar{
 			{
 				Name: "USERDATA",
@@ -76,7 +82,7 @@ func BuildUserDataEnvVar(configRef *corev1.ConfigMapKeySelector, name string, ma
 	}
 }
 
-func BuildStsSpec(name string, replicas int32, version string, machineType string, extraEnvs []corev1.EnvVar) appsv1.StatefulSetSpec {
+func BuildStsSpec(name string, replicas int32, version string, machineType string, extraEnvs []corev1.EnvVar, storageClassName *string) appsv1.StatefulSetSpec {
 	return appsv1.StatefulSetSpec{
 		ServiceName: name,
 		Replicas:    &replicas,
@@ -179,6 +185,7 @@ func BuildStsSpec(name string, replicas int32, version string, machineType strin
 					Name: "system-state",
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: storageClassName,
 					AccessModes: []corev1.PersistentVolumeAccessMode{
 						corev1.ReadWriteOnce,
 					},
@@ -194,6 +201,7 @@ func BuildStsSpec(name string, replicas int32, version string, machineType strin
 					Name: "var",
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: storageClassName,
 					AccessModes: []corev1.PersistentVolumeAccessMode{
 						corev1.ReadWriteOnce,
 					},
@@ -209,6 +217,7 @@ func BuildStsSpec(name string, replicas int32, version string, machineType strin
 					Name: "etc-cni",
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: storageClassName,
 					AccessModes: []corev1.PersistentVolumeAccessMode{
 						corev1.ReadWriteOnce,
 					},
@@ -224,6 +233,7 @@ func BuildStsSpec(name string, replicas int32, version string, machineType strin
 					Name: "etc-kubernetes",
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: storageClassName,
 					AccessModes: []corev1.PersistentVolumeAccessMode{
 						corev1.ReadWriteOnce,
 					},
@@ -239,6 +249,7 @@ func BuildStsSpec(name string, replicas int32, version string, machineType strin
 					Name: "usr-libexec-kubernetes",
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: storageClassName,
 					AccessModes: []corev1.PersistentVolumeAccessMode{
 						corev1.ReadWriteOnce,
 					},

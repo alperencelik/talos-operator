@@ -24,6 +24,15 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+const (
+	// State of the Talos control plane
+	StatePending      = "Pending"      // Control plane is being created
+	StateAvailable    = "Available"    // Control plane is ready to bootstrap the cluster
+	StateBootstrapped = "Bootstrapped" // Control plane is ready to accept workloads
+	StateReady        = "Ready"        // Control plane is fully operational
+	StateFailed       = "Failed"       // Control plane creation failed
+)
+
 // TalosControlPlaneSpec defines the desired state of TalosControlPlane.
 type TalosControlPlaneSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -65,7 +74,7 @@ type TalosControlPlaneSpec struct {
 	// StorageClassName is the name of the storage class to use for persistent volumes
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$`
-	StorageClassName string `json:"storageClassName,omitempty"`
+	StorageClassName *string `json:"storageClassName,omitempty"`
 
 	// PodCIDRs is the list of CIDR ranges for pod IPs in the cluster.
 	// +kubebuilder:validation:Optional
@@ -79,7 +88,7 @@ type TalosControlPlaneSpec struct {
 
 	// +kubebuilder:validation:Optional
 	// Reference to a ConfigMap containing the Talos cluster configuration
-	ConfigRef corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
+	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
 }
 
 // TalosControlPlaneStatus defines the observed state of TalosControlPlane.
@@ -87,6 +96,7 @@ type TalosControlPlaneStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	// Conditions is a list of conditions for the Talos control plane
+	State        string             `json:"state,omitempty"` // Current state of the control plane
 	Conditions   []metav1.Condition `json:"conditions,omitempty"`
 	Config       string             `json:"config,omitempty"`       // Reference to the Talos configuration used for the control plane
 	SecretBundle string             `json:"secretBundle,omitempty"` // Reference to the secrets bundle used for the control plane

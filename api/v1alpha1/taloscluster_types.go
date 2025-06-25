@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,7 +28,24 @@ import (
 type TalosClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	// Ref the TalosControlPlane for the control plane configuration
+
+	// TODO: Add CEL function here
+
+	// ControlPlane defines the control plane configuration for the Talos cluster.
+	// +kubebuilder:validation:Optional
+	ControlPlane *TalosControlPlaneSpec `json:"controlPlane,omitempty"`
+
+	// ControlPlaneRef references the TalosControlPlane resource that manages the control plane.
+	// +kubebuilder:validation:Optional
+	ControlPlaneRef *corev1.LocalObjectReference `json:"controlPlaneRef,omitempty"`
+
+	// Worker defines the worker configuration for the Talos cluster.
+	// +kubebuilder:validation:Optional
+	Worker *TalosWorkerSpec `json:"worker,omitempty"`
+
+	// WorkerRef references the TalosWorker resource that manages the worker nodes.
+	// +kubebuilder:validation:Optional
+	WorkerRef *corev1.LocalObjectReference `json:"workerRef,omitempty"`
 }
 
 // TalosClusterStatus defines the observed state of TalosCluster.

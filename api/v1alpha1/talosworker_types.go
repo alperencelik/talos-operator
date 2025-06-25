@@ -54,16 +54,18 @@ type TalosWorkerSpec struct {
 	// StorageClassName is the name of the storage class to use for persistent volumes
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$`
-	StorageClassName string `json:"storageClassName,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="StorageClassName is immutable, you cannot change it after creation"
+	StorageClassName *string `json:"storageClassName,omitempty"`
 
 	// ControlPlaneRef is a reference to the TalosControlPlane that this worker belongs to
-	// +kubebuilder:validation:Required
+	// TODO:
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Format=objectreference
 	ControlPlaneRef corev1.LocalObjectReference `json:"controlPlaneRef"`
 
 	// +kubebuilder:validation:Optional
 	// Reference to a ConfigMap containing the Talos cluster configuration
-	ConfigRef corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
+	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
 }
 
 // TalosWorkerStatus defines the observed state of TalosWorker.

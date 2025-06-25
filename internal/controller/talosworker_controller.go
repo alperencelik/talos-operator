@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -72,11 +73,14 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	switch tw.Spec.Mode {
 	case TalosModeContainer:
 		result, err = r.reconcileContainerMode(ctx, &tw)
+		if err != nil {
+			logger.Error(err, "failed to reconcile TalosWorker in container mode", "name", tw.Name)
+		}
+		return result, nil
 	default:
 		logger.Error(nil, "unsupported TalosWorker mode", "mode", tw.Spec.Mode)
 		return ctrl.Result{}, nil // Unsupported mode, do not requeue
 	}
-	return result, err
 }
 
 func (r *TalosWorkerReconciler) reconcileContainerMode(ctx context.Context, tw *talosv1alpha1.TalosWorker) (ctrl.Result, error) {
@@ -84,10 +88,11 @@ func (r *TalosWorkerReconciler) reconcileContainerMode(ctx context.Context, tw *
 	logger.Info("Reconciling TalosWorker in container mode", "name", tw.Name)
 	// Generate the worker configuration
 	if err := r.GenerateConfig(ctx, tw); err != nil {
-		return ctrl.Result{}, err
+		// Error is due to ref not found so report it in status and return without requeueing
+		logger.Error(err, "failed to generate worker config", "name", tw.Name)
+		return ctrl.Result{}, nil
 	}
 	if err := r.reconcileService(ctx, tw); err != nil {
-
 		return ctrl.Result{}, fmt.Errorf("failed to reconcile service for TalosWorker %s: %w", tw.Name, err)
 	}
 	if err := r.reconcileStatefulSet(ctx, tw); err != nil {
@@ -127,7 +132,6 @@ func (r *TalosWorkerReconciler) reconcileService(ctx context.Context, tw *talosv
 }
 
 func (r *TalosWorkerReconciler) reconcileStatefulSet(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
-	logger := log.FromContext(ctx)
 	// TODO: Implement the logic to reconcile the StatefulSet for the TalosWorker
 	stsName := tw.Name
 
@@ -140,16 +144,15 @@ func (r *TalosWorkerReconciler) reconcileStatefulSet(ctx context.Context, tw *ta
 	if err := controllerutil.SetControllerReference(tw, sts, r.Scheme); err != nil {
 		return fmt.Errorf("failed to set controller reference for StatefulSet %s: %w", stsName, err)
 	}
-	extraEnvs := BuildUserDataEnvVar(&tw.Spec.ConfigRef, tw.Name, TalosMachineTypeWorker)
+	extraEnvs := BuildUserDataEnvVar(tw.Spec.ConfigRef, tw.Name, TalosMachineTypeWorker)
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
-		sts.Spec = BuildStsSpec(tw.Name, tw.Spec.Replicas, tw.Spec.Version, TalosMachineTypeWorker, extraEnvs)
+		sts.Spec = BuildStsSpec(tw.Name, tw.Spec.Replicas, tw.Spec.Version, TalosMachineTypeWorker, extraEnvs, tw.Spec.StorageClassName)
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create or update StatefulSet %s: %w", stsName, err)
 	}
-	logger.Info("StatefulSet reconciled successfully", "name", stsName, "namespace", tw.Namespace)
 	return nil
 
 }
@@ -162,6 +165,7 @@ func (r *TalosWorkerReconciler) handleResourceNotFound(ctx context.Context, err 
 		return nil
 	}
 	// If the error is not a "not found" error, return it for further handling
+	logger.Error(err, "Error fetching TalosWorker resource")
 	return err
 }
 
@@ -169,6 +173,8 @@ func (r *TalosWorkerReconciler) handleResourceNotFound(ctx context.Context, err 
 func (r *TalosWorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&talosv1alpha1.TalosWorker{}).
+		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(stsPredicate)).
+		Owns(&corev1.Service{}, builder.WithPredicates(svcPredicate)).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				// Only reconcile if the generation of the object has changed
