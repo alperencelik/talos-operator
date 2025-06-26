@@ -22,6 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +36,8 @@ import (
 // TalosClusterReconciler reconciles a TalosCluster object
 type TalosClusterReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosclusters,verbs=get;list;watch;create;update;patch;delete
@@ -60,9 +62,7 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	logger.Info("Reconciling TalosCluster", "name", tc.Name, "namespace", tc.Namespace)
-
-	// Reconcile in two different routines:
-	// 1. Control Plane reconciliation
+	// Control Plane reconciliation
 	res, err := r.reconcileControlPlane(ctx, &tc)
 	if err != nil {
 		logger.Error(err, "failed to reconcile control plane", "name", tc.Name, "namespace", tc.Namespace)
@@ -70,11 +70,11 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if res.Requeue {
 		return res, nil
 	}
-
-	// res, err = r.reconcileWorker(ctx, &tc)
-	// if err != nil {
-	// logger.Error(err, "failed to reconcile worker", "name", tc.Name, "namespace", tc.Namespace)
-	// }
+	// Worker reconciliation
+	res, err = r.reconcileWorker(ctx, &tc)
+	if err != nil {
+		logger.Error(err, "failed to reconcile worker", "name", tc.Name, "namespace", tc.Namespace)
+	}
 	return res, nil
 
 }
@@ -137,6 +137,13 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 		if err != nil {
 			logger.Error(err, "failed to create or update TalosControlPlane", "operation", op, "name", tcp.Name, "namespace", tcp.Namespace)
 			return ctrl.Result{}, err
+		}
+		// Based on the op generate an event
+		switch op {
+		case controllerutil.OperationResultCreated:
+			r.Recorder.Event(tc, corev1.EventTypeNormal, "Created", "TalosControlPlane created successfully")
+		case controllerutil.OperationResultUpdated:
+			r.Recorder.Event(tc, corev1.EventTypeNormal, "Updated", "TalosControlPlane updated successfully")
 		}
 		logger.Info("Reconciled TalosControlPlane", "operation", op, "name", tcp.Name, "namespace", tcp.Namespace)
 	}
@@ -211,6 +218,13 @@ func (r *TalosClusterReconciler) reconcileWorker(ctx context.Context, tc *talosv
 	if err != nil {
 		logger.Error(err, "failed to create or update TalosWorker", "operation", op, "name", tw.Name)
 		return ctrl.Result{}, err
+	}
+	// Based on the op generate an event
+	switch op {
+	case controllerutil.OperationResultCreated:
+		r.Recorder.Event(tc, corev1.EventTypeNormal, "Created", "TalosWorker created successfully")
+	case controllerutil.OperationResultUpdated:
+		r.Recorder.Event(tc, corev1.EventTypeNormal, "Updated", "TalosWorker updated successfully")
 	}
 	logger.Info("Reconciled TalosWorker", "operation", op, "name", tw.Name)
 	return ctrl.Result{}, nil

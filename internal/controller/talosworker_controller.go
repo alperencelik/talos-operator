@@ -20,12 +20,14 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -42,7 +44,8 @@ import (
 // TalosWorkerReconciler reconciles a TalosWorker object
 type TalosWorkerReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosworkers,verbs=get;list;watch;create;update;patch;delete
@@ -86,8 +89,13 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 func (r *TalosWorkerReconciler) reconcileContainerMode(ctx context.Context, tw *talosv1alpha1.TalosWorker) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling TalosWorker in container mode", "name", tw.Name)
+	// Set the configuration for the Talos worker
+	config, err := r.SetConfig(ctx, tw)
+	if err != nil {
+		return ctrl.Result{Requeue: true, RequeueAfter: 60 * time.Second}, nil
+	}
 	// Generate the worker configuration
-	if err := r.GenerateConfig(ctx, tw); err != nil {
+	if err := r.GenerateConfig(ctx, tw, config); err != nil {
 		// Error is due to ref not found so report it in status and return without requeueing
 		logger.Error(err, "failed to generate worker config", "name", tw.Name)
 		return ctrl.Result{}, nil
@@ -185,12 +193,7 @@ func (r *TalosWorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *TalosWorkerReconciler) GenerateConfig(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
-	// Set the configuration for the Talos worker
-	config, err := r.SetConfig(ctx, tw)
-	if err != nil {
-		return err
-	}
+func (r *TalosWorkerReconciler) GenerateConfig(ctx context.Context, tw *talosv1alpha1.TalosWorker, config *talos.BundleConfig) error {
 	// Generate the Talos worker configuration
 	wkConfig, err := talos.GenerateWorkerConfig(config)
 	if err != nil {
@@ -199,7 +202,6 @@ func (r *TalosWorkerReconciler) GenerateConfig(ctx context.Context, tw *talosv1a
 	if err := r.WriteWorkerConfig(ctx, tw, wkConfig); err != nil {
 		return fmt.Errorf("failed to write worker config: %w", err)
 	}
-
 	return nil
 }
 
@@ -239,6 +241,9 @@ func (r *TalosWorkerReconciler) GetControlPlaneRef(ctx context.Context, tw *talo
 			logger.Error(err, "TalosControlPlane not found", "name", tw.Spec.ControlPlaneRef.Name)
 			return nil, err
 		}
+		// Fire an event if the TalosControlPlane is not found and maybe requeue the reconciliation after some time
+		r.Recorder.Eventf(tw, corev1.EventTypeWarning, "ControlPlaneNotFound",
+			"TalosControlPlane %s not found in namespace %s", tw.Spec.ControlPlaneRef.Name, tw.Namespace)
 		logger.Error(err, "Failed to get TalosControlPlane", "name", tw.Spec.ControlPlaneRef.Name)
 		return nil, err
 	}

@@ -24,12 +24,15 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// CEL validation rules for TalosClusterSpec fields
+
+// +kubebuilder:validation:XValidation:rule="(has(self.controlPlane) && !has(self.controlPlaneRef)) || (!has(self.controlPlaneRef) && has(self.controlPlane)) || (!has(self.controlPlane) && !has(self.controlPlaneRef))",message="Specify either controlPlane or controlPlaneRef, but not both"
+// +kubebuilder:validation:XValidation:rule="(has(self.worker) && !has(self.workerRef)) || (!has(self.workerRef) && has(self.worker)) || (!has(self.worker) && !has(self.workerRef))",message="Specify either worker or workerRef, but not both"
+
 // TalosClusterSpec defines the desired state of TalosCluster.
 type TalosClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	// TODO: Add CEL function here
 
 	// ControlPlane defines the control plane configuration for the Talos cluster.
 	// +kubebuilder:validation:Optional
@@ -52,6 +55,7 @@ type TalosClusterSpec struct {
 type TalosClusterStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

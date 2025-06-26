@@ -164,8 +164,6 @@ func (r *TalosControlPlaneReconciler) handleResourceNotFound(ctx context.Context
 
 // reconcileService creates or updates a Service for a given replica index.
 func (r *TalosControlPlaneReconciler) reconcileService(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
-	logger := log.FromContext(ctx)
-
 	// Handle the services for each replica of the TalosControlPlane
 	for i := int32(0); i < tcp.Spec.Replicas; i++ {
 		// build the Service name
@@ -209,13 +207,11 @@ func (r *TalosControlPlaneReconciler) reconcileService(ctx context.Context, tcp 
 	if err != nil {
 		return fmt.Errorf("failed to create or update Service %s: %w", tcp.Name, err)
 	}
-	// TODO: Proper logging
-	logger.Info("Reconciled Service", "service", tcp.Name)
+	// TODO: Proper logging for the op
 	return nil
 }
 
 func (r *TalosControlPlaneReconciler) reconcileStatefulSet(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
-	logger := log.FromContext(ctx)
 	stsName := tcp.Name
 
 	sts := &appsv1.StatefulSet{
@@ -230,7 +226,7 @@ func (r *TalosControlPlaneReconciler) reconcileStatefulSet(ctx context.Context, 
 
 	extraEnvs := BuildUserDataEnvVar(tcp.Spec.ConfigRef, tcp.Name, TalosMachineTypeControlPlane)
 
-	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
 		sts.Spec = BuildStsSpec(tcp.Name, tcp.Spec.Replicas, tcp.Spec.Version, TalosMachineTypeControlPlane, extraEnvs, tcp.Spec.StorageClassName)
 		return nil
 	})
@@ -241,8 +237,6 @@ func (r *TalosControlPlaneReconciler) reconcileStatefulSet(ctx context.Context, 
 	if err := r.updateState(ctx, tcp, talosv1alpha1.StateAvailable); err != nil {
 		return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
 	}
-
-	logger.Info("Reconciled StatefulSet", "statefulset", stsName, "operation", op)
 	return nil
 }
 
