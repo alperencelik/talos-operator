@@ -25,6 +25,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -66,10 +67,32 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	var tw talosv1alpha1.TalosWorker
 	if err := r.Get(ctx, req.NamespacedName, &tw); err != nil {
-		logger.Error(err, "unable to fetch TalosWorker")
 		// If the resource is not found, we simply return and do not requeue.
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
+	// Finalizer
+	var finErr error
+	if tw.ObjectMeta.DeletionTimestamp.IsZero() {
+		finErr = r.handleFinalizer(ctx, tw)
+		if finErr != nil {
+			logger.Error(finErr, "failed to handle finalizer for TalosWorker", "name", tw.Name)
+			return ctrl.Result{}, finErr
+		}
+	} else {
+		// If the TalosWorker is being deleted, we handle the deletion logic
+		if controllerutil.ContainsFinalizer(&tw, talosv1alpha1.TalosWorkerFinalizer) {
+			// Handle the deletion logic here
+			var res ctrl.Result
+			res, finErr = r.handleDeletion(ctx, &tw)
+			if finErr != nil {
+				logger.Error(finErr, "failed to handle deletion for TalosWorker", "name", tw.Name)
+				return res, finErr
+			}
+		}
+		// Stop reconciling if the TalosWorker is being deleted
+		return ctrl.Result{}, client.IgnoreNotFound(finErr)
+	}
+
 	// Get the mode of the TalosWorker
 	var result ctrl.Result
 	var err error
@@ -92,6 +115,7 @@ func (r *TalosWorkerReconciler) reconcileContainerMode(ctx context.Context, tw *
 	// Set the configuration for the Talos worker
 	config, err := r.SetConfig(ctx, tw)
 	if err != nil {
+		// TODO: Fix that logic, this is a workaround for the case where the TalosControlPlane is not found
 		return ctrl.Result{Requeue: true, RequeueAfter: 60 * time.Second}, nil
 	}
 	// Generate the worker configuration
@@ -273,4 +297,50 @@ func (r *TalosWorkerReconciler) SetConfig(ctx context.Context, tw *talosv1alpha1
 		PodCIDR:       &tcp.Spec.PodCIDR,
 	}, nil
 
+}
+
+func (r *TalosWorkerReconciler) handleFinalizer(ctx context.Context, tw talosv1alpha1.TalosWorker) error {
+	logger := log.FromContext(ctx)
+	if !controllerutil.ContainsFinalizer(&tw, talosv1alpha1.TalosWorkerFinalizer) {
+		// Add the finalizer if it doesn't exist
+		controllerutil.AddFinalizer(&tw, talosv1alpha1.TalosWorkerFinalizer)
+		if err := r.Update(ctx, &tw); err != nil {
+			logger.Error(err, "failed to add finalizer to TalosWorker", "name", tw.Name)
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *TalosWorkerReconciler) handleDeletion(ctx context.Context, tw *talosv1alpha1.TalosWorker) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Deleting TalosWorker", "name", tw.Name)
+
+	// Update the conditions to reflect the deletion
+	if !meta.IsStatusConditionPresentAndEqual(tw.Status.Conditions, talosv1alpha1.ConditionDeleting, metav1.ConditionUnknown) {
+		meta.SetStatusCondition(&tw.Status.Conditions, metav1.Condition{
+			Type:    talosv1alpha1.ConditionDeleting,
+			Status:  metav1.ConditionTrue,
+			Reason:  "Deleting",
+			Message: "TalosWorker is being deleted",
+		})
+		if err := r.Status().Update(ctx, tw); err != nil {
+			logger.Error(err, "failed to update TalosWorker status during deletion", "name", tw.Name)
+			return ctrl.Result{}, err
+		}
+	}
+	// Based on the TalosWorker mode, we can handle the deletion logic
+	switch tw.Spec.Mode {
+	case TalosModeContainer:
+		// Do nothing
+	default:
+		logger.Error(nil, "unsupported TalosWorker mode for deletion", "mode", tw.Spec.Mode)
+	}
+	// Remove the finalizer to allow the resource to be deleted
+	controllerutil.RemoveFinalizer(tw, talosv1alpha1.TalosWorkerFinalizer)
+	if err := r.Update(ctx, tw); err != nil {
+		logger.Error(err, "failed to remove finalizer from TalosWorker", "name", tw.Name)
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }

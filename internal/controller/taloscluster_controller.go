@@ -18,8 +18,10 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -58,8 +60,56 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	var tc talosv1alpha1.TalosCluster
 	if err := r.Get(ctx, req.NamespacedName, &tc); err != nil {
-		logger.Error(err, "unable to fetch TalosCluster")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
+	}
+	// Finalizer logic
+	if tc.DeletionTimestamp.IsZero() {
+		// Add finalizer if not present
+		err := r.handleFinalizer(ctx, tc)
+		if err != nil {
+			logger.Error(err, "failed to handle finalizer for TalosCluster", "name", tc.Name)
+			return ctrl.Result{}, err
+		}
+	} else {
+		// Object is being deleted
+		if controllerutil.ContainsFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer) {
+			// Delete associated TalosControlPlane and TalosWorker resources
+			var tcp talosv1alpha1.TalosControlPlane
+			if err := r.Get(ctx, client.ObjectKey{
+				Name:      tc.Name + "-controlplane",
+				Namespace: tc.Namespace,
+			}, &tcp); err != nil {
+				if client.IgnoreNotFound(err) != nil {
+					logger.Error(err, "failed to fetch TalosControlPlane for deletion", "name", tc.Name)
+					return ctrl.Result{}, err
+				}
+				// TalosControlPlane not found, continue with deletion
+			} else {
+				// Delete TalosControlPlane resource
+				if err := r.Delete(ctx, &tcp); err != nil {
+					logger.Error(err, "failed to delete TalosControlPlane", "name", tcp.Name)
+					return ctrl.Result{}, err
+				}
+			}
+			var tw talosv1alpha1.TalosWorker
+			if err := r.Get(ctx, client.ObjectKey{
+				Name:      tc.Name + "-worker",
+				Namespace: tc.Namespace,
+			}, &tw); err != nil {
+				if client.IgnoreNotFound(err) != nil {
+					logger.Error(err, "failed to fetch TalosWorker for deletion", "name", tc.Name)
+					return ctrl.Result{}, err
+				}
+			}
+			// Remove finalizer and update
+			controllerutil.RemoveFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer)
+			if err := r.Update(ctx, &tc); err != nil {
+				logger.Error(err, "failed to remove finalizer from TalosCluster", "name", tc.Name)
+				return ctrl.Result{}, err
+			}
+		}
+		// Stop reconciliation as object is under deletion
+		return ctrl.Result{}, nil
 	}
 	logger.Info("Reconciling TalosCluster", "name", tc.Name, "namespace", tc.Namespace)
 	// Control Plane reconciliation
@@ -238,4 +288,23 @@ func (r *TalosClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&talosv1alpha1.TalosWorker{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named("taloscluster").
 		Complete(r)
+}
+
+func (r *TalosClusterReconciler) handleFinalizer(ctx context.Context, tc talosv1alpha1.TalosCluster) error {
+	if !controllerutil.ContainsFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer) {
+		controllerutil.AddFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer)
+		if err := r.Update(ctx, &tc); err != nil {
+			return fmt.Errorf("failed to add finalizer to TalosCluster: %w", err)
+		}
+	}
+	return nil
+}
+
+func (r *TalosClusterReconciler) handleResourceNotFound(ctx context.Context, err error) error {
+	logger := log.FromContext(ctx)
+	if kerrors.IsNotFound(err) {
+		logger.Info("TalosControlPlane resource not found. Ignoring since object must be deleted")
+		return nil
+	}
+	return err
 }

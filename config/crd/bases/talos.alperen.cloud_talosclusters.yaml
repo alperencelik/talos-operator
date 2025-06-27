@@ -121,6 +121,9 @@ spec:
                 - replicas
                 - version
                 type: object
+                x-kubernetes-validations:
+                - message: ClusterDomain is immutable
+                  rule: '!has(oldSelf.clusterDomain) || has(self.clusterDomain)'
               controlPlaneRef:
                 description: ControlPlaneRef references the TalosControlPlane resource
                   that manages the control plane.

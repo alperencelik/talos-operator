@@ -21,15 +21,18 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -51,7 +54,6 @@ type TalosControlPlaneReconciler struct {
 const (
 	TalosImage = "ghcr.io/siderolabs/talos"
 
-	TalosControlPlaneFinalizer = "taloscontrolplane.talos.alperen.cloud/finalizer"
 	// TalosContainer Vars
 	TalosPlatformKey       = "PLATFORM"
 	TalosPlatformContainer = "container"
@@ -75,9 +77,31 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	var tcp talosv1alpha1.TalosControlPlane
 	if err := r.Get(ctx, req.NamespacedName, &tcp); err != nil {
-		logger.Error(err, "unable to fetch TalosControlPlane")
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
+	// Finalizer
+	var delErr error
+	if tcp.ObjectMeta.DeletionTimestamp.IsZero() {
+		delErr = r.handleFinalizer(ctx, tcp)
+		if delErr != nil {
+			logger.Error(delErr, "failed to handle finalizer for TalosControlPlane", "name", tcp.Name)
+			return ctrl.Result{}, fmt.Errorf("failed to handle finalizer for TalosControlPlane %s: %w", tcp.Name, delErr)
+		}
+	} else {
+		// Handle deletion logic here
+		if controllerutil.ContainsFinalizer(&tcp, talosv1alpha1.TalosControlPlaneFinalizer) {
+			// Run delete operations
+			var res ctrl.Result
+			res, delErr = r.handleDelete(ctx, &tcp)
+			if delErr != nil {
+				logger.Error(delErr, "failed to handle delete for TalosControlPlane", "name", tcp.Name)
+				return res, fmt.Errorf("failed to handle delete for TalosControlPlane %s: %w", tcp.Name, delErr)
+			}
+		}
+		// Stop reconciliation as the object is being deleted
+		return ctrl.Result{}, client.IgnoreNotFound(delErr)
+	}
+
 	// Get the mode of the TalosControlPlane
 	var result ctrl.Result
 	var err error
@@ -96,16 +120,17 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&talosv1alpha1.TalosControlPlane{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		For(&talosv1alpha1.TalosControlPlane{}).
 		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(stsPredicate)).
 		Owns(&corev1.Service{}, builder.WithPredicates(svcPredicate)).
-		// WithEventFilter(predicate.Funcs{
-		// UpdateFunc: func(e event.UpdateEvent) bool {
-		// // Only reconcile if the generation of the object has changed
-		// return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
-		// },
-		// }).
+		WithEventFilter(predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				// Only reconcile if the generation of the object has changed
+				return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+			},
+		}).
 		Named("taloscontrolplane").
 		Complete(r)
 }
@@ -114,7 +139,6 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 	logger := log.FromContext(ctx)
 
 	logger.Info("Reconciling TalosControlPlane in container mode", "name", tcp.Name)
-	// r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "Reconciling", "Reconciling TalosControlPlane %s in container mode", tcp.Name)
 	// Generate the Talos ControlPlane config
 	if err := r.GenerateConfig(ctx, tcp); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to generate Talos ControlPlane config for %s: %w", tcp.Name, err)
@@ -129,6 +153,11 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 		logger.Error(err, "Failed to reconcile Service for TalosControlPlane", "name", tcp.Name, "error", err)
 		return ctrl.Result{}, nil
 	}
+	// Get the object again since the status might have been updated
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+		logger.Error(err, "Failed to get TalosControlPlane after reconciling Service", "name", tcp.Name)
+		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
+	}
 
 	// Get the statefulset for the TalosControlPlane
 	if err := r.reconcileStatefulSet(ctx, tcp); err != nil {
@@ -136,10 +165,9 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 		return ctrl.Result{}, nil
 	}
 
-	// Get the object again since the statefulset might have been updated
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
-		logger.Error(err, "Failed to get TalosControlPlane after reconciling StatefulSet", "name", tcp.Name)
-		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
+	// TODO: Implement something that waits for the StatefulSet to be ready before proceeding
+	if err := r.CheckControlPlaneReady(ctx, tcp); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to check if TalosControlPlane %s is ready: %w", tcp.Name, err)
 	}
 
 	if err := r.BootstrapCluster(ctx, tcp); err != nil {
@@ -151,6 +179,50 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *TalosControlPlaneReconciler) CheckControlPlaneReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
+	// Check if all replicas of the StatefulSet are ready
+	switch tcp.Spec.Mode {
+	case "container":
+		return r.checkContainerModeReady(ctx, tcp)
+	default:
+		return fmt.Errorf("unsupported mode for TalosControlPlane %s: %s", tcp.Name, tcp.Spec.Mode)
+	}
+}
+
+func (r *TalosControlPlaneReconciler) checkContainerModeReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
+	logger := log.FromContext(ctx)
+
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tcp.Name,
+			Namespace: tcp.Namespace,
+		},
+	}
+	// Implement a retry mechanism to ensure the StatefulSet is ready
+	maxRetries := 5
+	retryInterval := 10 * time.Second
+	for i := 0; i < maxRetries; i++ {
+		// Get the StatefulSet to check its status
+		if err := r.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
+			//
+		}
+		// Check if the number of ready replicas matches the desired replicas
+		if sts.Status.ReadyReplicas < tcp.Spec.Replicas {
+			logger.Info("Waiting for all replicas to be ready", "readyReplicas", sts.Status.ReadyReplicas, "desiredReplicas", tcp.Spec.Replicas)
+			time.Sleep(retryInterval)
+			continue // Retry after waiting
+		}
+	}
+	// When all replicas are ready, update the TalosControlPlane status to Available
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+		return fmt.Errorf("failed to get TalosControlPlane %s after reconciling StatefulSet: %w", tcp.Name, err)
+	}
+	if err := r.updateState(ctx, tcp, talosv1alpha1.StateAvailable); err != nil {
+		return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
+	}
+	return nil
 }
 
 func (r *TalosControlPlaneReconciler) handleResourceNotFound(ctx context.Context, err error) error {
@@ -233,10 +305,6 @@ func (r *TalosControlPlaneReconciler) reconcileStatefulSet(ctx context.Context, 
 	if err != nil {
 		return fmt.Errorf("failed to create or update StatefulSet %s: %w", stsName, err)
 	}
-	// Update the TalosControlPlane .status.state
-	if err := r.updateState(ctx, tcp, talosv1alpha1.StateAvailable); err != nil {
-		return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
-	}
 	return nil
 }
 
@@ -296,7 +364,7 @@ func (r *TalosControlPlaneReconciler) WriteControlPlaneConfig(ctx context.Contex
 	if err != nil {
 		return fmt.Errorf("failed to create or update ConfigMap %s: %w", cpConfigMap.Name, err)
 	}
-	// r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "ConfigGenerated", "Generated Talos ControlPlane config for %s", tcp.Name)
+	r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "ConfigGenerated", "Generated Talos ControlPlane config for %s", tcp.Name)
 	return nil
 }
 
@@ -343,11 +411,12 @@ func (r *TalosControlPlaneReconciler) WriteTalosConfig(ctx context.Context, tcp 
 	if err != nil {
 		return fmt.Errorf("failed to create or update TalosConfig Secret %s: %w", talosConfigSecret.Name, err)
 	}
-	//	r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "TalosConfigWritten", "Wrote Talos config for %s", tcp.Name)
+	r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "TalosConfigWritten", "Wrote Talos config for %s", tcp.Name)
 	return nil
 }
 
 func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
+	logger := log.FromContext(ctx)
 	// Check if it's already bootstrapped
 	if tcp.Status.State == talosv1alpha1.StateBootstrapped || tcp.Status.State == talosv1alpha1.StateReady {
 		return nil
@@ -363,13 +432,18 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 	// Create a Talos client
-	client, err := talos.NewClient(config)
+	talosClient, err := talos.NewClient(config)
 	if err != nil {
 		return fmt.Errorf("failed to create Talos client for ControlPlane %s: %w", tcp.Name, err)
 	}
 	//  Bootstrap the Talos node
-	if err := client.BootstrapNode(config); err != nil {
+	if err := talosClient.BootstrapNode(config); err != nil {
 		return fmt.Errorf("failed to bootstrap Talos node for ControlPlane %s: %w", tcp.Name, err)
+	}
+	// Get the object again since the status might have been updated
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+		logger.Error(err, "Failed to get TalosControlPlane after generating config", "name", tcp.Name)
+		return fmt.Errorf("failed to get TalosControlPlane %s after bootstrapping: %w", tcp.Name, err)
 	}
 	// Update state as Bootstrapped
 	if err := r.updateState(ctx, tcp, talosv1alpha1.StateBootstrapped); err != nil {
@@ -384,12 +458,12 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 	if err != nil {
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
 	}
-	client, err := talos.NewClient(config)
+	talosClient, err := talos.NewClient(config)
 	if err != nil {
 		return fmt.Errorf("failed to create Talos client for ControlPlane %s: %w", tcp.Name, err)
 	}
 	// Generate the kubeconfig for the Talos ControlPlane
-	kubeconfig, err := client.Kubeconfig(ctx)
+	kubeconfig, err := talosClient.Kubeconfig(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to generate kubeconfig for TalosControlPlane %s: %w", tcp.Name, err)
 	}
@@ -412,6 +486,11 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 	if err != nil {
 		return fmt.Errorf("failed to create or update Kubeconfig Secret %s: %w", kubeconfigSecret.Name, err)
 	}
+	// Get the TalosControlPlane object again to update the status
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+		return fmt.Errorf("failed to get TalosControlPlane %s after writing kubeconfig: %w", tcp.Name, err)
+	}
+
 	if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
 		return fmt.Errorf("failed to update TalosControlPlane %s status to Ready: %w", tcp.Name, err)
 	}
@@ -421,6 +500,13 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 func (r *TalosControlPlaneReconciler) SetConfig(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (*talos.BundleConfig, error) {
 	// Genenrate the Subject Alternative Names (SANs) for the Talos ControlPlane
 	sans := utils.GenSans(tcp.Name, int(tcp.Spec.Replicas))
+	// Get the latest TalosControlPlane object
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil, fmt.Errorf("TalosControlPlane %s not found: %w", tcp.Name, err)
+		}
+		return nil, fmt.Errorf("failed to get TalosControlPlane %s: %w", tcp.Name, err)
+	}
 	// Get secret bundle
 	secretBundle, err := r.SecretBundle(ctx, tcp)
 	if err != nil {
@@ -456,6 +542,11 @@ func (r *TalosControlPlaneReconciler) SecretBundle(ctx context.Context, tcp *tal
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal SecretBundle for TalosControlPlane %s: %w", tcp.Name, err)
 		}
+		// Get the object again since the status might have been updated
+		if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+			return nil, fmt.Errorf("failed to get TalosControlPlane %s after generating SecretBundle: %w", tcp.Name, err)
+		}
+
 		// Converts bytes to a string and sets it in the status
 		tcp.Status.SecretBundle = string(secretBundleBytes)
 		if err := r.Status().Update(ctx, tcp); err != nil {
@@ -476,13 +567,91 @@ func (r *TalosControlPlaneReconciler) SecretBundle(ctx context.Context, tcp *tal
 }
 
 func (r *TalosControlPlaneReconciler) handleFinalizer(ctx context.Context, tcp talosv1alpha1.TalosControlPlane) error {
-	if !controllerutil.ContainsFinalizer(&tcp, TalosControlPlaneFinalizer) {
-		controllerutil.AddFinalizer(&tcp, TalosControlPlaneFinalizer)
+	if !controllerutil.ContainsFinalizer(&tcp, talosv1alpha1.TalosControlPlaneFinalizer) {
+		controllerutil.AddFinalizer(&tcp, talosv1alpha1.TalosControlPlaneFinalizer)
 		if err := r.Update(ctx, &tcp); err != nil {
 			return fmt.Errorf("failed to add finalizer to TalosControlPlane %s: %w", tcp.Name, err)
 		}
 	}
 	return nil
+}
+
+func (r *TalosControlPlaneReconciler) handleDelete(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Deleting TalosControlPlane", "name", tcp.Name)
+
+	// Update the conditions to mark the TalosControlPlane as being deleted
+	if !meta.IsStatusConditionPresentAndEqual(tcp.Status.Conditions, talosv1alpha1.ConditionDeleting, metav1.ConditionUnknown) {
+		meta.SetStatusCondition(&tcp.Status.Conditions, metav1.Condition{
+			Type:    talosv1alpha1.ConditionDeleting,
+			Status:  metav1.ConditionUnknown,
+			Reason:  "Deleting",
+			Message: "Deleting TalosControlPlane",
+		})
+		if err := r.Status().Update(ctx, tcp); err != nil {
+			logger.Error(err, "Error updating VirtualMachine status")
+			return ctrl.Result{Requeue: true}, client.IgnoreNotFound(err)
+		}
+	}
+	// Based on the TalosControlPlane mode, handle the deletion
+	switch tcp.Spec.Mode {
+	case "container":
+		// In container mode, we need to delete the StatefulSet and Services
+		res, err := r.handleContainerModeDelete(ctx, tcp)
+		if err != nil {
+			logger.Error(err, "Failed to handle container mode delete for TalosControlPlane", "name", tcp.Name)
+			return res, fmt.Errorf("failed to handle container mode delete for TalosControlPlane %s: %w", tcp.Name, err)
+		}
+	default:
+		logger.Info("Unsupported mode for TalosControlPlane during deletion, finalizer will be removed", "mode", tcp.Spec.Mode)
+	}
+	// Remove the finalizer from the TalosControlPlane
+	controllerutil.RemoveFinalizer(tcp, talosv1alpha1.TalosControlPlaneFinalizer)
+	if err := r.Update(ctx, tcp); err != nil {
+		logger.Error(err, "Failed to remove finalizer from TalosControlPlane", "name", tcp.Name)
+		return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from TalosControlPlane %s: %w", tcp.Name, err)
+	}
+	return ctrl.Result{}, nil
+}
+
+func (r *TalosControlPlaneReconciler) handleContainerModeDelete(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (ctrl.Result, error) {
+
+	// sts := &appsv1.StatefulSet{
+	// ObjectMeta: metav1.ObjectMeta{
+	// Name:      tcp.Name,
+	// Namespace: tcp.Namespace,
+	// },
+	// }
+	// if err := r.Delete(ctx, sts); err != nil && !kerrors.IsNotFound(err) {
+	// logger.Error(err, "Failed to delete StatefulSet for TalosControlPlane", "name", tcp.Name)
+	// return ctrl.Result{}, fmt.Errorf("failed to delete StatefulSet for TalosControlPlane %s: %w", tcp.Name, err)
+	// }
+	// // Delete the Services associated with the TalosControlPlane
+	// for i := int32(0); i < tcp.Spec.Replicas; i++ {
+	// svcName := fmt.Sprintf("%s-%d", tcp.Name, i)
+	// svc := &corev1.Service{
+	// ObjectMeta: metav1.ObjectMeta{
+	// Name:      svcName,
+	// Namespace: tcp.Namespace,
+	// },
+	// }
+	// if err := r.Delete(ctx, svc); err != nil && !kerrors.IsNotFound(err) {
+	// logger.Error(err, "Failed to delete Service for TalosControlPlane", "name", svcName)
+	// return ctrl.Result{}, fmt.Errorf("failed to delete Service %s for TalosControlPlane %s: %w", svcName, tcp.Name, err)
+	// }
+	// }
+	// // Delete the control plane Service
+	// controlPlaneSvc := &corev1.Service{
+	// ObjectMeta: metav1.ObjectMeta{
+	// Name:      tcp.Name,
+	// Namespace: tcp.Namespace,
+	// },
+	// }
+	// if err := r.Delete(ctx, controlPlaneSvc); err != nil && !kerrors.IsNotFound(err) {
+	// logger.Error(err, "Failed to delete control plane Service for TalosControlPlane", "name", tcp.Name)
+	// return ctrl.Result{}, fmt.Errorf("failed to delete control plane Service for TalosControlPlane %s: %w", tcp.Name, err)
+	// }
+	return ctrl.Result{}, nil
 }
 
 func (r *TalosControlPlaneReconciler) updateState(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane, state string) error {

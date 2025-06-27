@@ -24,14 +24,8 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-const (
-	// State of the Talos control plane
-	StatePending      = "Pending"      // Control plane is being created
-	StateAvailable    = "Available"    // Control plane is ready to bootstrap the cluster
-	StateBootstrapped = "Bootstrapped" // Control plane is ready to accept workloads
-	StateReady        = "Ready"        // Control plane is fully operational
-	StateFailed       = "Failed"       // Control plane creation failed
-)
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.clusterDomain) || has(self.clusterDomain)", message="ClusterDomain is immutable"
+// +kubebuilder:validadtion:XValidation:rule="!has(oldSelf.mode) || has(self.mode)", message="Mode is immutable"
 
 // TalosControlPlaneSpec defines the desired state of TalosControlPlane.
 type TalosControlPlaneSpec struct {
