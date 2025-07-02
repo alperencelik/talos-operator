@@ -18,10 +18,13 @@ func SecretBundleDecoder(bs string) (*secrets.Bundle, error) {
 	return &secretBundle, nil
 }
 
-func GenSans(name string, r int) []string {
+func GenSans(name string, r *int) []string {
 	var sans []string
 	sans = append(sans, name)
-	for i := 0; i < r; i++ {
+	if r == nil {
+		return sans
+	}
+	for i := 0; i < *r; i++ {
 		sans = append(sans, fmt.Sprintf("%s-%d", name, i))
 	}
 	return sans

@@ -26,6 +26,7 @@ import (
 
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.clusterDomain) || has(self.clusterDomain)", message="ClusterDomain is immutable"
 // +kubebuilder:validadtion:XValidation:rule="!has(oldSelf.mode) || has(self.mode)", message="Mode is immutable"
+// +kubebuilder:validation:XValidation:rule="self.mode!='metal' || has(self.metalSpec)", message="MetalSpec is required when mode 'metal'"
 
 // TalosControlPlaneSpec defines the desired state of TalosControlPlane.
 type TalosControlPlaneSpec struct {
@@ -40,13 +41,15 @@ type TalosControlPlaneSpec struct {
 
 	// TODO: Add support for other modes like metal, cloud, etc.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=container
+	// +kubebuilder:validation:Enum=container;metal;cloud
 	Mode string `json:"mode,omitempty"`
 
 	// Number of control-plane machines to maintain
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:default=1
-	Replicas int32 `json:"replicas"`
+	Replicas int32 `json:"replicas,omitempty"`
+
+	MetalSpec MetalSpec `json:"metalSpec,omitempty"`
 
 	// Endpoint for the Kubernetes API Server
 	// +kubebuilder:validation:Optional
@@ -83,6 +86,13 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:validation:Optional
 	// Reference to a ConfigMap containing the Talos cluster configuration
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
+}
+
+type MetalSpec struct {
+	// Machines is a list of machine specifications for the Talos control plane.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinItems=1
+	Machines []string `json:"machines,omitempty"`
 }
 
 // TalosControlPlaneStatus defines the observed state of TalosControlPlane.

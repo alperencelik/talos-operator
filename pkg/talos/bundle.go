@@ -17,17 +17,24 @@ var (
 	removeAdmissionControl = `[{"op": "remove", "path": "/cluster/apiServer/admissionControl"}]`
 	podSubnets             = `[{"op":"replace","path":"/cluster/network/podSubnets","value":%s}]`
 	serviceSubnets         = `[{"op":"replace","path":"/cluster/network/serviceSubnets","value":%s}]`
+	installDisk            = `[{"op": "replace", "path": "/machine/install/disk", "value": "%s"}]`
+	wipeDisk               = `[{"op": "replace", "path": "/machine/install/wipe", "value": true}]`
+)
+
+const (
+	MaintenanceMode = true
 )
 
 type BundleConfig struct {
-	ClusterName   string
-	Endpoint      string
-	Version       string
-	KubeVersion   string
-	SecretsBundle *secrets.Bundle
-	Sans          []string  // Additional Subject Alternative Names for the API server
-	PodCIDR       *[]string // Pod CIDR ranges
-	ServiceCIDR   *[]string // Service CIDR ranges
+	ClusterName    string
+	Endpoint       string
+	Version        string
+	KubeVersion    string
+	SecretsBundle  *secrets.Bundle
+	Sans           []string  // Additional Subject Alternative Names for the API server
+	PodCIDR        *[]string // Pod CIDR ranges
+	ServiceCIDR    *[]string // Service CIDR ranges
+	ClientEndpoint *string   // Used for metal-cloud modes
 }
 
 type SecretBundle *secrets.Bundle
@@ -50,6 +57,18 @@ func NewCPBundle(cfg *BundleConfig) (*bundle.Bundle, error) {
 	cpPatches := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
 	// Apply the removeAdmissionControl patch
 	cpPatches = append(cpPatches, removeAdmissionControl)
+
+	// Select the install disk patch based on the mode
+	var installDiskPatch string
+	var wipeDiskPatch string
+	if cfg.ClientEndpoint != nil {
+		// For metal-cloud modes, we need to set the install disk patch
+		installDiskPatch = fmt.Sprintf(installDisk, "/dev/sda") // Assuming /dev/sda as the install disk
+		wipeDiskPatch = wipeDisk
+
+	}
+	cpPatches = append(cpPatches, installDiskPatch)
+	cpPatches = append(cpPatches, wipeDiskPatch)
 
 	b, err := gen.GenerateConfigBundle(genOptions,
 		cfg.ClusterName, // Cluster name

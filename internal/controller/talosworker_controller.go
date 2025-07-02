@@ -284,7 +284,11 @@ func (r *TalosWorkerReconciler) SetConfig(ctx context.Context, tw *talosv1alpha1
 	if err != nil {
 		return nil, err
 	}
-	sans := utils.GenSans(tcp.Name, int(tw.Spec.Replicas))
+	var replicas int
+	if tw.Spec.Mode == "container" {
+		replicas = int(tcp.Spec.Replicas)
+	}
+	sans := utils.GenSans(tcp.Name, &replicas)
 	// Generate the worker configuration
 	return &talos.BundleConfig{
 		ClusterName:   tcp.Name,

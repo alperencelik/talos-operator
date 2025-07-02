@@ -82,9 +82,21 @@ spec:
                       the control plane
                     pattern: ^v\d+\.\d+\.\d+(-\w+)?$
                     type: string
+                  metalSpec:
+                    properties:
+                      machines:
+                        description: Machines is a list of machine specifications
+                          for the Talos control plane.
+                        items:
+                          type: string
+                        minItems: 1
+                        type: array
+                    type: object
                   mode:
                     enum:
                     - container
+                    - metal
+                    - cloud
                     type: string
                   podCIDR:
                     description: PodCIDRs is the list of CIDR ranges for pod IPs in
@@ -118,12 +130,13 @@ spec:
                 required:
                 - kubeVersion
                 - mode
-                - replicas
                 - version
                 type: object
                 x-kubernetes-validations:
                 - message: ClusterDomain is immutable
                   rule: '!has(oldSelf.clusterDomain) || has(self.clusterDomain)'
+                - message: MetalSpec is required when mode 'metal'
+                  rule: self.mode!='metal' || has(self.metalSpec)
               controlPlaneRef:
                 description: ControlPlaneRef references the TalosControlPlane resource
                   that manages the control plane.
