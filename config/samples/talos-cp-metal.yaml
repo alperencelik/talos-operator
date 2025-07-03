@@ -11,8 +11,8 @@ spec:
   kubeVersion: v1.33.0
   metalSpec:
     machines: 
-      - "10.0.153.56"
-  endpoint: "https://10.0.153.56:6443"
+      - "10.0.153.145"
+  endpoint: "https://10.0.153.145:6443"
 # podCIDR: 
 # - 10.100.0.0/16
 # - 10.150.0.0/16

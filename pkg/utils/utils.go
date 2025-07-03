@@ -37,3 +37,10 @@ func MarshalStringSlice(slice []string) string {
 	}
 	return string(bytes)
 }
+
+func PtrToString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}

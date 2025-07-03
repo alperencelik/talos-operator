@@ -49,6 +49,7 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:default=1
 	Replicas int32 `json:"replicas,omitempty"`
 
+	// Metal Spec is required when mode is 'metal'
 	MetalSpec MetalSpec `json:"metalSpec,omitempty"`
 
 	// Endpoint for the Kubernetes API Server
@@ -90,9 +91,17 @@ type TalosControlPlaneSpec struct {
 
 type MetalSpec struct {
 	// Machines is a list of machine specifications for the Talos control plane.
-	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	Machines []string `json:"machines,omitempty"`
+	// InstallDisk is the disk to use for installing Talos on the control plane machines.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/dev/[a-z]+[0-9]*$`
+	InstallDisk *string `json:"installDisk,omitempty"`
+	// Wipe indicates whether to wipe the disk before installation.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	Wipe bool `json:"wipe,omitempty"`
 }
 
 // TalosControlPlaneStatus defines the observed state of TalosControlPlane.

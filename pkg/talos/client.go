@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	machineapi "github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/client"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -21,7 +22,7 @@ type TalosClient struct {
 func NewClient(cfg *BundleConfig, insecure bool) (*TalosClient, error) {
 
 	ctx := context.Background()
-	bundle, err := NewCPBundle(cfg)
+	bundle, err := NewCPBundle(cfg, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +80,61 @@ func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte) er
 		DryRun:         false,
 		TryModeTimeout: durationpb.New(60 * time.Second),
 	}
-	_, err := tc.Client.ApplyConfiguration(ctx, applyRequest)
+	resp, err := tc.Client.ApplyConfiguration(ctx, applyRequest)
 	if err != nil {
 		return fmt.Errorf("Error applying new configration %s", err)
 	}
+	// TODO: Use FilterMessages over resp
+	_ = resp
 
 	return nil
+}
+
+func (tc *TalosClient) GetInstallDisk(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (*string, error) {
+	// Check if the TalosControlPlane is in metal mode
+	if tcp.Spec.Mode != "metal" {
+		return nil, nil
+	}
+	// Check if installDisk is provided
+	if tcp.Spec.MetalSpec.InstallDisk != nil {
+		// If installDisk is provided, return it
+		return tcp.Spec.MetalSpec.InstallDisk, nil
+	} else {
+		// Try to get it from the disks
+		resp, err := tc.Client.Disks(ctx)
+		if err != nil {
+			fmt.Printf("Error getting disks: %s\n", err)
+			return nil, err
+		}
+		disks := resp.Messages
+		if len(disks) == 0 {
+			fmt.Println("No disks found to install Talos")
+			return nil, err
+		}
+		var diskName string
+		// Get disks and remove the readonly ones
+		for _, disk := range disks {
+			for _, part := range disk.Disks {
+				if part.Readonly {
+					continue
+				}
+				// DEBUG
+				fmt.Printf("Disk: %s, Readonly: %t\n", part.Name, part.Readonly)
+				time.Sleep(20 * time.Second)
+				// Look for nvme or sda disks
+				switch part.Name {
+				case "nvme0n1", "sda":
+					diskName = part.Name
+				}
+				// If we found a disk, break the loop
+				if diskName != "" {
+					break
+				}
+			}
+		}
+		diskName = fmt.Sprintf("/dev/%s", diskName)
+		return &diskName, nil
+	}
 }
 
 // func (tc *TalosClient) GetMachineStatus(ctx context.Context) (*string, error) {

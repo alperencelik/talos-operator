@@ -2,9 +2,11 @@ package talos
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/siderolabs/talos/pkg/machinery/config/encoder"
 	"github.com/siderolabs/talos/pkg/machinery/config/machine"
+	"gopkg.in/yaml.v2"
 )
 
 // type ControlPlaneConfig struct {
@@ -18,23 +20,23 @@ import (
 // ServiceCIDR   *[]string // Service CIDR ranges
 // }
 
-func GenerateControlPlaneConfig(cfg *BundleConfig) (*[]byte, error) {
+func GenerateControlPlaneConfig(cfg *BundleConfig, patches *[]string) (*[]byte, error) {
 
-	bundle, err := NewCPBundle(cfg)
+	bundle, err := NewCPBundle(cfg, patches)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate config bundle: %w", err)
 	}
 	// DEBUG
-	// dir := fmt.Sprintf("./")
-	// bundle.Write(dir, encoder.CommentsDisabled, machine.TypeControlPlane)
-	// // Save the talosconfig to a file
-	// data, err := yaml.Marshal(bundle.TalosConfig())
-	// if err != nil {
-	// return nil, fmt.Errorf("failed to marshal Talos config: %w", err)
-	// }
-	// if err := os.WriteFile(dir+"talosconfig.yaml", data, 0o600); err != nil {
-	// return nil, fmt.Errorf("failed to write Talos config to file: %w", err)
-	// }
+	dir := fmt.Sprintf("./")
+	bundle.Write(dir, encoder.CommentsDisabled, machine.TypeControlPlane)
+	// Save the talosconfig to a file
+	data, err := yaml.Marshal(bundle.TalosConfig())
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal Talos config: %w", err)
+	}
+	if err := os.WriteFile(dir+"talosconfig.yaml", data, 0o600); err != nil {
+		return nil, fmt.Errorf("failed to write Talos config to file: %w", err)
+	}
 	// DEBUG END
 
 	bytes, err := bundle.Serialize(encoder.CommentsDisabled, machine.TypeControlPlane)

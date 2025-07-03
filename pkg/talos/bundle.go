@@ -17,8 +17,8 @@ var (
 	removeAdmissionControl = `[{"op": "remove", "path": "/cluster/apiServer/admissionControl"}]`
 	podSubnets             = `[{"op":"replace","path":"/cluster/network/podSubnets","value":%s}]`
 	serviceSubnets         = `[{"op":"replace","path":"/cluster/network/serviceSubnets","value":%s}]`
-	installDisk            = `[{"op": "replace", "path": "/machine/install/disk", "value": "%s"}]`
-	wipeDisk               = `[{"op": "replace", "path": "/machine/install/wipe", "value": true}]`
+	InstallDisk            = `[{"op": "replace", "path": "/machine/install/disk", "value": "%s"}]`
+	WipeDisk               = `[{"op": "replace", "path": "/machine/install/wipe", "value": true}]`
 )
 
 const (
@@ -39,7 +39,7 @@ type BundleConfig struct {
 
 type SecretBundle *secrets.Bundle
 
-func NewCPBundle(cfg *BundleConfig) (*bundle.Bundle, error) {
+func NewCPBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 	// Set up options for the Talos config generation
 	var genOptions []generate.Option
 	vc, err := versionContract(cfg.Version)
@@ -58,17 +58,10 @@ func NewCPBundle(cfg *BundleConfig) (*bundle.Bundle, error) {
 	// Apply the removeAdmissionControl patch
 	cpPatches = append(cpPatches, removeAdmissionControl)
 
-	// Select the install disk patch based on the mode
-	var installDiskPatch string
-	var wipeDiskPatch string
-	if cfg.ClientEndpoint != nil {
-		// For metal-cloud modes, we need to set the install disk patch
-		installDiskPatch = fmt.Sprintf(installDisk, "/dev/sda") // Assuming /dev/sda as the install disk
-		wipeDiskPatch = wipeDisk
-
+	// If patches are provided, append them to the control plane patches
+	if patches != nil && len(*patches) > 0 {
+		cpPatches = append(cpPatches, *patches...)
 	}
-	cpPatches = append(cpPatches, installDiskPatch)
-	cpPatches = append(cpPatches, wipeDiskPatch)
 
 	b, err := gen.GenerateConfigBundle(genOptions,
 		cfg.ClusterName, // Cluster name
