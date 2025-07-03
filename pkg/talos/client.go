@@ -111,30 +111,26 @@ func (tc *TalosClient) GetInstallDisk(ctx context.Context, tcp *talosv1alpha1.Ta
 			fmt.Println("No disks found to install Talos")
 			return nil, err
 		}
-		var diskName string
 		// Get disks and remove the readonly ones
 		for _, disk := range disks {
 			for _, part := range disk.Disks {
 				if part.Readonly {
 					continue
 				}
-				// DEBUG
-				fmt.Printf("Disk: %s, Readonly: %t\n", part.Name, part.Readonly)
-				time.Sleep(20 * time.Second)
 				// Look for nvme or sda disks
-				switch part.Name {
-				case "nvme0n1", "sda":
-					diskName = part.Name
-				}
-				// If we found a disk, break the loop
-				if diskName != "" {
-					break
+				switch part.DeviceName {
+				case "/dev/nvme0n1", "/dev/sda":
+					return &part.DeviceName, nil
+				default:
+					// If no specific disk is found, return the first writable disk
+					if part.Readonly == false {
+						return &part.DeviceName, nil
+					}
 				}
 			}
 		}
-		diskName = fmt.Sprintf("/dev/%s", diskName)
-		return &diskName, nil
 	}
+	return nil, nil
 }
 
 // func (tc *TalosClient) GetMachineStatus(ctx context.Context) (*string, error) {
