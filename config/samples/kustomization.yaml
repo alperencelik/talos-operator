@@ -3,4 +3,5 @@ resources:
 - talos_v1alpha1_taloscluster.yaml
 - talos_v1alpha1_taloscontrolplane.yaml
 - talos_v1alpha1_talosworker.yaml
+- talos_v1alpha1_talosmachine.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

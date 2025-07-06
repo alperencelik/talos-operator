@@ -26,18 +26,18 @@ func NewClient(cfg *BundleConfig, insecure bool) (*TalosClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	var endpoint string
+	var endpoints []string
 	if cfg.ClientEndpoint != nil {
-		endpoint = *cfg.ClientEndpoint
+		endpoints = *cfg.ClientEndpoint
 	} else {
-		endpoint = fmt.Sprintf("%s", cfg.ClusterName)
+		endpoints = []string{fmt.Sprintf("%s", cfg.ClusterName)}
 	}
 	if insecure {
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: true, // For testing purposes, skip TLS verification
 		}
 		c, err := client.New(ctx,
-			client.WithEndpoints(endpoint),
+			client.WithEndpoints(endpoints...),
 			client.WithConfig(bundle.TalosConfig()),
 			client.WithTLSConfig(tlsConfig),
 		)
@@ -47,7 +47,7 @@ func NewClient(cfg *BundleConfig, insecure bool) (*TalosClient, error) {
 		return &TalosClient{Client: c}, nil
 	}
 	c, err := client.New(ctx,
-		client.WithEndpoints(endpoint),
+		client.WithEndpoints(endpoints...),
 		client.WithConfig(bundle.TalosConfig()),
 	)
 	if err != nil {

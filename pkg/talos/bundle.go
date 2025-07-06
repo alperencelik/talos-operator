@@ -1,6 +1,7 @@
 package talos
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -26,15 +27,15 @@ const (
 )
 
 type BundleConfig struct {
-	ClusterName    string
-	Endpoint       string
-	Version        string
-	KubeVersion    string
-	SecretsBundle  *secrets.Bundle
-	Sans           []string  // Additional Subject Alternative Names for the API server
-	PodCIDR        *[]string // Pod CIDR ranges
-	ServiceCIDR    *[]string // Service CIDR ranges
-	ClientEndpoint *string   // Used for metal-cloud modes
+	ClusterName    string          `json:"clusterName"`              // Name of the Talos cluster
+	Endpoint       string          `json:"endpoint"`                 // Control plane endpoint for the Talos cluster
+	Version        string          `json:"version"`                  // Talos version to use
+	KubeVersion    string          `json:"kubeVersion"`              // Kubernetes version to use
+	SecretsBundle  *secrets.Bundle `json:"-"`                        // Secrets bundle for the Talos cluster
+	Sans           []string        `json:"sans,omitempty"`           // Additional Subject Alternative Names for the API server
+	PodCIDR        *[]string       `json:"podCIDR,omitempty"`        // Pod CIDR ranges
+	ServiceCIDR    *[]string       `json:"serviceCIDR,omitempty"`    // Service CIDR ranges
+	ClientEndpoint *[]string       `json:"clientEndpoint,omitempty"` // Optional client endpoint for Talos API
 }
 
 type SecretBundle *secrets.Bundle
@@ -147,4 +148,18 @@ func cidrPatches(podCIDR, serviceCIDR *[]string) []string {
 		cidrPatches = append(cidrPatches, serviceSubnets)
 	}
 	return cidrPatches
+}
+
+func ParseBundleConfig(bc string) (*BundleConfig, error) {
+
+	// Unmarshal the string into a BundleConfig struct
+	var cfg BundleConfig
+	err := json.Unmarshal([]byte(bc), &cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse bundle config: %w", err)
+	}
+	if cfg.ClusterName == "" || cfg.Endpoint == "" || cfg.KubeVersion == "" {
+		return nil, fmt.Errorf("invalid bundle config: missing required fields")
+	}
+	return &cfg, nil
 }

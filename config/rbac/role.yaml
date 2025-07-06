@@ -9,6 +9,7 @@ rules:
   resources:
   - talosclusters
   - taloscontrolplanes
+  - talosmachines
   - talosworkers
   verbs:
   - create
@@ -23,6 +24,7 @@ rules:
   resources:
   - talosclusters/finalizers
   - taloscontrolplanes/finalizers
+  - talosmachines/finalizers
   - talosworkers/finalizers
   verbs:
   - update
@@ -31,6 +33,7 @@ rules:
   resources:
   - talosclusters/status
   - taloscontrolplanes/status
+  - talosmachines/status
   - talosworkers/status
   verbs:
   - get

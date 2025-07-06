@@ -1,0 +1,27 @@
+# permissions for end users to edit talosmachines.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: talos-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: talosmachine-editor-role
+rules:
+- apiGroups:
+  - talos.alperen.cloud
+  resources:
+  - talosmachines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - talos.alperen.cloud
+  resources:
+  - talosmachines/status
+  verbs:
+  - get

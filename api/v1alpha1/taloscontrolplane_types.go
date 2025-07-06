@@ -113,6 +113,7 @@ type TalosControlPlaneStatus struct {
 	Conditions   []metav1.Condition `json:"conditions,omitempty"`
 	Config       string             `json:"config,omitempty"`       // Reference to the Talos configuration used for the control plane
 	SecretBundle string             `json:"secretBundle,omitempty"` // Reference to the secrets bundle used for the control plane
+	BundleConfig string             `json:"bundleConfig,omitempty"` // Reference to the bundle configuration used for the control plane
 }
 
 // +kubebuilder:object:root=true

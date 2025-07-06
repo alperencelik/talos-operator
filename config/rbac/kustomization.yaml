@@ -22,6 +22,8 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the Project itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
+- talosmachine_editor_role.yaml
+- talosmachine_viewer_role.yaml
 - talosworker_editor_role.yaml
 - talosworker_viewer_role.yaml
 - taloscontrolplane_editor_role.yaml
