@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
@@ -62,6 +63,28 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 	logger.Info("Reconciling TalosMachine", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
 
+	// Finalizer
+	if talosMachine.ObjectMeta.DeletionTimestamp.IsZero() {
+		// The object is not being deleted, so we add the finalizer if it's not already present
+		err := r.handleFinalizer(ctx, &talosMachine)
+		if err != nil {
+			logger.Error(err, "Failed to handle finalizer for TalosMachine", "name", talosMachine.Name)
+			return ctrl.Result{}, err
+		}
+	} else {
+		// The object is being deleted, so we handle the finalizer logic
+		if controllerutil.ContainsFinalizer(&talosMachine, talosv1alpha1.TalosMachineFinalizer) {
+			// Run delete operations
+			res, err := r.handleDelete(ctx, &talosMachine)
+			if err != nil {
+				logger.Error(err, "Failed to handle delete for TalosMachine", "name", talosMachine.Name)
+				return res, err
+			}
+		}
+		// Stop the reconciliation if the finalizer is not present
+		return ctrl.Result{}, client.IgnoreNotFound(nil)
+	}
+
 	// Check for the machine type and handle accordingly
 	switch {
 	case talosMachine.Spec.ControlPlaneRef != nil:
@@ -88,66 +111,52 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *TalosMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&talosv1alpha1.TalosMachine{}).
-		Named("talosmachine").
-		Complete(r)
-}
-
 func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	// Get config from ControlPlaneRef
-	tcp := &talosv1alpha1.TalosControlPlane{}
-	if err := r.Get(ctx, client.ObjectKey{
-		Name:      tm.Spec.ControlPlaneRef.Name,
-		Namespace: tm.Namespace,
-	}, tcp); err != nil {
-		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
+	// Get the bundle config from TalosControlPlane
+	bc, err := r.GetBundleConfig(ctx, tm)
+	if err != nil {
+		logger.Error(err, "Failed to get BundleConfig for TalosMachine", "name", tm.Name)
+		return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
 	}
-	if tcp.Status.Config == "" {
-		logger.Info("TalosControlPlane config is not set, waiting for it to be ready", "name", tcp.Name)
+	if bc == nil {
+		logger.Info("TalosControlPlane bundleConfig is not set, waiting for it to be ready", "name", tm.Name)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check again
 	}
-	// Get bundleConfig from TalosControlPlane status
-	bcString := tcp.Status.BundleConfig
-	if bcString == "" {
-		logger.Info("TalosControlPlane bundleConfig is not set, waiting for it to be ready", "name", tcp.Name)
-		return ctrl.Result{}, nil
-	}
-	// Parse the bundleConfig
-	bc, err := talos.ParseBundleConfig(bcString)
+	// Apply patches to config before applying it
+	patches, err := r.metalConfigPatches(ctx, tm, bc)
 	if err != nil {
-		logger.Error(err, "Failed to parse Talos bundle config", "name", tcp.Name)
-		return ctrl.Result{}, fmt.Errorf("failed to parse Talos bundle config for Control Plane %s: %w", tcp.Name, err)
+		return ctrl.Result{}, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
 	}
-	secretBundle, err := utils.SecretBundleDecoder(tcp.Status.SecretBundle)
+	cpConfig, err := talos.GenerateControlPlaneConfig(bc, patches)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to decode secret bundle for Control Plane %s: %w", tcp.Name, err)
+		return ctrl.Result{}, fmt.Errorf("failed to generate Control Plane config for TalosMachine %s: %w", tm.Name, err)
 	}
-	secretBundle.Clock = talos.NewClock()
-	bc.SecretsBundle = secretBundle
+	// Write that cpConfig to status.config
+	tm.Status.Config = string(*cpConfig)
+	if err := r.Status().Update(ctx, tm); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status with config: %w", tm.Name, err)
+	}
+
 	var insecure bool
 	if tm.Status.State == talosv1alpha1.StatePending || tm.Status.State == "" {
 		insecure = true // If the machine is pending, we allow insecure TLS
 	} else {
 		insecure = false // Otherwise, we use secure TLS
 	}
+	// Create Talos client
 	tc, err := talos.NewClient(bc, insecure) // true for insecure TLS
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for Control Plane %s: %w", tcp.Name, err)
+		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
-
-	err = tc.ApplyConfig(ctx, []byte(tcp.Status.Config))
+	err = tc.ApplyConfig(ctx, *cpConfig)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to apply Talos config for Control Plane %s: %w", tcp.Name, err)
+		return ctrl.Result{}, fmt.Errorf("failed to apply Talos config for TalosMachine %s: %w", tm.Name, err)
 	}
-	// Update state as Available
+	// // Update state as Available
 	if err := r.updateState(ctx, tm, talosv1alpha1.StateAvailable); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status to Available: %w", tm.Name, err)
 	}
-	//
 	return ctrl.Result{}, nil
 }
 
@@ -188,4 +197,103 @@ func (r *TalosMachineReconciler) updateState(ctx context.Context, tm *talosv1alp
 
 	}
 	return nil
+}
+
+func (r *TalosMachineReconciler) GetControlPlaneRef(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*talosv1alpha1.TalosControlPlane, error) {
+	tcp := &talosv1alpha1.TalosControlPlane{}
+	if err := r.Get(ctx, client.ObjectKey{
+		Name:      tm.Spec.ControlPlaneRef.Name,
+		Namespace: tm.Namespace,
+	}, tcp); err != nil {
+		return nil, r.handleResourceNotFound(ctx, err)
+	}
+	return tcp, nil
+}
+
+func (r *TalosMachineReconciler) GetBundleConfig(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*talos.BundleConfig, error) {
+	logger := log.FromContext(ctx)
+	// Get the TalosControlPlane reference
+	tcp, err := r.GetControlPlaneRef(ctx, tm)
+	if err != nil {
+		logger.Error(err, "Failed to get Control Plane reference for TalosMachine", "name", tm.Name)
+	}
+	if tcp == nil {
+		logger.Info("TalosControlPlane reference is nil, waiting for it to be ready", "name", tm.Name)
+		// TODO: Requeue after some time to check again
+		return nil, nil
+	}
+	// Get bundleConfig from TalosControlPlane status
+	bcString := tcp.Status.BundleConfig
+	if bcString == "" {
+		logger.Info("TalosControlPlane bundleConfig is not set, waiting for it to be ready", "name", tcp.Name)
+		return nil, nil
+	}
+	// Parse the bundleConfig
+	bc, err := talos.ParseBundleConfig(bcString)
+	if err != nil {
+		logger.Error(err, "Failed to parse Talos bundle config", "name", tcp.Name)
+		return nil, fmt.Errorf("failed to parse Talos bundle config for Control Plane %s: %w", tcp.Name, err)
+	}
+	secretBundle, err := utils.SecretBundleDecoder(tcp.Status.SecretBundle)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode secret bundle for Control Plane %s: %w", tcp.Name, err)
+	}
+	secretBundle.Clock = talos.NewClock()
+	bc.SecretsBundle = secretBundle
+	return bc, nil
+}
+
+func (r *TalosMachineReconciler) handleFinalizer(ctx context.Context, tm *talosv1alpha1.TalosMachine) error {
+	if !controllerutil.ContainsFinalizer(tm, talosv1alpha1.TalosMachineFinalizer) {
+		controllerutil.AddFinalizer(tm, talosv1alpha1.TalosMachineFinalizer)
+		if err := r.Update(ctx, tm); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
+	// Run talosctl reset command to reset the machine
+	// If the mode is metal, we need to apply the metal-specific patches -- diskPatch
+	config, err := r.GetBundleConfig(ctx, tm)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
+	}
+	tc, err := talos.NewClient(config, false)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
+	}
+	if err := tc.Reset(ctx, false, true); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to reset TalosMachine %s: %w", tm.Name, err)
+	}
+	return ctrl.Result{}, nil
+}
+
+func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *talosv1alpha1.TalosMachine, config *talos.BundleConfig) (*[]string, error) {
+	// Check the status to construct the talos client
+	var insecure bool = false
+	if tm.Status.State == talosv1alpha1.StatePending || tm.Status.State == "" {
+		insecure = true // Use insecure mode for pending state
+	}
+	// If the mode is metal, we need to apply the metal-specific patches -- diskPatch
+	talosclient, err := talos.NewClient(config, insecure)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
+	}
+	diskNamePtr, err := talosclient.GetInstallDisk(ctx, tm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get install disk for TalosMachine %s: %w", tm.Name, err)
+	}
+	diskName := utils.PtrToString(diskNamePtr)
+	diskPatch := fmt.Sprintf(talos.InstallDisk, diskName)
+	return &[]string{diskPatch, talos.WipeDisk}, nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *TalosMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&talosv1alpha1.TalosMachine{}).
+		Named("talosmachine").
+		Complete(r)
 }

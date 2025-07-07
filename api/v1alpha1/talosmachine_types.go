@@ -32,6 +32,9 @@ type TalosMachineSpec struct {
 	// Endpoint is the Talos API endpoint for this machine.
 	// +kubebuilder:validation:Required
 	Endpoint string `json:"endpoint,omitempty"`
+	// InstallDisk is the disk where Talos will be installed.
+	// +kubebuilder:validation:Optional
+	InstallDisk *string `json:"installDisk,omitempty"`
 
 	// ControlPlaneRef is a reference to the TalosControlPlane this machine belongs to.
 	ControlPlaneRef *corev1.ObjectReference `json:"controlPlaneRef,omitempty"`
@@ -44,6 +47,8 @@ type TalosMachineSpec struct {
 type TalosMachineStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Config string `json:"config,omitempty"` // Base64 encoded Talos configuration
+
 	State string `json:"state,omitempty"` // e.g., "Ready", "Provisioning", "Failed"
 	// Conditions represent the latest available observations of a TalosMachine's current state.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`

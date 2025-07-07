@@ -86,6 +86,9 @@ spec:
               endpoint:
                 description: Endpoint is the Talos API endpoint for this machine.
                 type: string
+              installDisk:
+                description: InstallDisk is the disk where Talos will be installed.
+                type: string
               workerRef:
                 description: WorkerRef is a reference to the TalosWorker this machine
                   belongs to.
@@ -194,10 +197,12 @@ spec:
                   - type
                   type: object
                 type: array
-              state:
+              config:
                 description: |-
                   INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
                   Important: Run "make" to regenerate code after modifying this file
+                type: string
+              state:
                 type: string
             type: object
         type: object

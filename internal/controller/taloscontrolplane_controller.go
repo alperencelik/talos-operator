@@ -219,7 +219,8 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 					Namespace:  tcp.Namespace,
 					APIVersion: talosv1alpha1.GroupVersion.String(),
 				},
-				Endpoint: machine,
+				Endpoint:    machine,
+				InstallDisk: tcp.Spec.MetalSpec.InstallDisk,
 			}
 			return nil
 		})
@@ -234,9 +235,10 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 		return ctrl.Result{}, fmt.Errorf("failed to check if TalosControlPlane %s is ready: %w", tcp.Name, err)
 	}
 	// Send a bootstrap req to the TalosControlPlane
-	if err := r.BootstrapCluster(ctx, tcp); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to bootstrap Talos ControlPlane cluster for %s: %w", tcp.Name, err)
-	}
+	// TODO: Fix here to bootstrap only one machine ---> machine[0]
+	// if err := r.BootstrapCluster(ctx, tcp); err != nil {
+	// return ctrl.Result{}, fmt.Errorf("failed to bootstrap Talos ControlPlane cluster for %s: %w", tcp.Name, err)
+	// }
 
 	if err := r.WriteKubeconfig(ctx, tcp); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to write kubeconfig for TalosControlPlane %s: %w", tcp.Name, err)
@@ -470,10 +472,10 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 	var patches *[]string
 	if tcp.Spec.Mode == "metal" {
 		// If the mode is metal, we need to apply the metal-specific patches -- diskPatch
-		patches, err = r.metalConfigPatches(ctx, tcp, bundleConfig)
-		if err != nil {
-			return fmt.Errorf("failed to get metal config patches for TalosControlPlane %s: %w", tcp.Name, err)
-		}
+		// 		patches, err = r.metalConfigPatches(ctx, tcp, bundleConfig)
+		// if err != nil {
+		// return fmt.Errorf("failed to get metal config patches for TalosControlPlane %s: %w", tcp.Name, err)
+		// }
 	}
 	// Generate the Talos ControlPlane config
 	cpConfig, err := talos.GenerateControlPlaneConfig(bundleConfig, patches)
@@ -484,7 +486,7 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 		return nil // No changes in the config, skip update
 	}
 	tcp.Status.Config = string(*cpConfig)
-	// marshal the Go struct into JSON (or YAML if you prefer)
+	// marshal the Go struct into JSON
 	bcBytes, err := json.Marshal(bundleConfig)
 	if err != nil {
 		return fmt.Errorf("failed to marshal BundleConfig for %s: %w", tcp.Name, err)
@@ -518,27 +520,25 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 	return nil
 }
 
-func (r *TalosControlPlaneReconciler) metalConfigPatches(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane, config *talos.BundleConfig) (*[]string, error) {
-	// Check the status to construct the talos client
-	var insecure bool = false
-	if tcp.Status.State == talosv1alpha1.StatePending || tcp.Status.State == "" {
-		insecure = true // Use insecure mode for pending state
-	}
-	// If the mode is metal, we need to apply the metal-specific patches -- diskPatch
-	// TODO: Fix here
-	_ = insecure
-	talosclient, err := talos.NewClient(config, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Talos client for ControlPlane %s: %w", tcp.Name, err)
-	}
-	diskNamePtr, err := talosclient.GetInstallDisk(ctx, tcp)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get install disk for TalosControlPlane %s: %w", tcp.Name, err)
-	}
-	diskName := utils.PtrToString(diskNamePtr)
-	diskPatch := fmt.Sprintf(talos.InstallDisk, diskName)
-	return &[]string{diskPatch, talos.WipeDisk}, nil
-}
+// func (r *TalosControlPlaneReconciler) metalConfigPatches(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane, config *talos.BundleConfig) (*[]string, error) {
+// // Check the status to construct the talos client
+// var insecure bool = false
+// if tcp.Status.State == talosv1alpha1.StatePending || tcp.Status.State == "" {
+// insecure = true // Use insecure mode for pending state
+// }
+// // If the mode is metal, we need to apply the metal-specific patches -- diskPatch
+// talosclient, err := talos.NewClient(config, insecure)
+// if err != nil {
+// return nil, fmt.Errorf("failed to create Talos client for ControlPlane %s: %w", tcp.Name, err)
+// }
+// diskNamePtr, err := talosclient.GetInstallDisk(ctx, tm)
+// if err != nil {
+// return nil, fmt.Errorf("failed to get install disk for TalosControlPlane %s: %w", tcp.Name, err)
+// }
+// diskName := utils.PtrToString(diskNamePtr)
+// diskPatch := fmt.Sprintf(talos.InstallDisk, diskName)
+// return &[]string{diskPatch, talos.WipeDisk}, nil
+// }
 
 func (r *TalosControlPlaneReconciler) WriteControlPlaneConfig(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane, cpConfig *[]byte) error {
 	// Set the configMap name and namespace
@@ -623,7 +623,7 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 	if tcp.Status.State != talosv1alpha1.StateAvailable {
 		return fmt.Errorf("TalosControlPlane %s is not in Available to bootstrap, current state: %s", tcp.Name, tcp.Status.State)
 	}
-
+	// If the mode is metal get the config from machine because of the patches
 	config, err := r.SetConfig(ctx, tcp)
 	if err != nil {
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)

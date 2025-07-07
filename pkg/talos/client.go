@@ -85,20 +85,16 @@ func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte) er
 		return fmt.Errorf("Error applying new configration %s", err)
 	}
 	// TODO: Use FilterMessages over resp
-	_ = resp
-
+	// Parse the response
+	fmt.Printf("ApplyConfiguration response: %s\n", resp.Messages[0].String())
 	return nil
 }
 
-func (tc *TalosClient) GetInstallDisk(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (*string, error) {
-	// Check if the TalosControlPlane is in metal mode
-	if tcp.Spec.Mode != "metal" {
-		return nil, nil
-	}
+func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*string, error) {
 	// Check if installDisk is provided
-	if tcp.Spec.MetalSpec.InstallDisk != nil {
+	if tm.Spec.InstallDisk != nil {
 		// If installDisk is provided, return it
-		return tcp.Spec.MetalSpec.InstallDisk, nil
+		return tm.Spec.InstallDisk, nil
 	} else {
 		// Try to get it from the disks
 		resp, err := tc.Client.Disks(ctx)

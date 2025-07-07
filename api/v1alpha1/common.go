@@ -17,4 +17,5 @@ const (
 	TalosClusterFinalizer      = "taloscluster.talos.alperen.cloud/finalizer"
 	TalosControlPlaneFinalizer = "taloscontrolplane.talos.alperen.cloud/finalizer"
 	TalosWorkerFinalizer       = "talosworker.talos.alperen.cloud/finalizer"
+	TalosMachineFinalizer      = "talosmachine.talos.alperen.cloud/finalizer"
 )
