@@ -235,10 +235,9 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 		return ctrl.Result{}, fmt.Errorf("failed to check if TalosControlPlane %s is ready: %w", tcp.Name, err)
 	}
 	// Send a bootstrap req to the TalosControlPlane
-	// TODO: Fix here to bootstrap only one machine ---> machine[0]
-	// if err := r.BootstrapCluster(ctx, tcp); err != nil {
-	// return ctrl.Result{}, fmt.Errorf("failed to bootstrap Talos ControlPlane cluster for %s: %w", tcp.Name, err)
-	// }
+	if err := r.BootstrapCluster(ctx, tcp); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to bootstrap Talos ControlPlane cluster for %s: %w", tcp.Name, err)
+	}
 
 	if err := r.WriteKubeconfig(ctx, tcp); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to write kubeconfig for TalosControlPlane %s: %w", tcp.Name, err)
@@ -623,11 +622,19 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 	if tcp.Status.State != talosv1alpha1.StateAvailable {
 		return fmt.Errorf("TalosControlPlane %s is not in Available to bootstrap, current state: %s", tcp.Name, tcp.Status.State)
 	}
-	// If the mode is metal get the config from machine because of the patches
 	config, err := r.SetConfig(ctx, tcp)
 	if err != nil {
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
 	}
+	// If the mode is metal tweak the config to use the metal-specific endpoint to bootstrap
+	if tcp.Spec.Mode == "metal" {
+		// Use the first machine's endpoint for bootstrapping
+		var newEndpoint string
+		newEndpoint = tcp.Spec.MetalSpec.Machines[0]   // Use the first machine's endpoint
+		config.Endpoint = newEndpoint                  // Set the Endpoint to the first machine's endpoint
+		config.ClientEndpoint = &[]string{newEndpoint} // Set the ClientEndpoint to the same as Endpoint
+	}
+
 	// Create a Talos client
 	talosClient, err := talos.NewClient(config, false)
 	if err != nil {
