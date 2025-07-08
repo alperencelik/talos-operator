@@ -5,9 +5,9 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/machine"
 )
 
-func GenerateWorkerConfig(cfg *BundleConfig) (*[]byte, error) {
+func GenerateWorkerConfig(cfg *BundleConfig, patches *[]string) (*[]byte, error) {
 	// Create a new worker bundle using the provided configuration
-	bundle, err := NewWorkerBundle(cfg)
+	bundle, err := NewWorkerBundle(cfg, patches)
 	if err != nil {
 		return nil, err
 	}

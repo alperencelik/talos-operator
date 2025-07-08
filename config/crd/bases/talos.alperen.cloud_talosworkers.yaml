@@ -85,9 +85,33 @@ spec:
                   control plane
                 pattern: ^v\d+\.\d+\.\d+(-\w+)?$
                 type: string
+              metalSpec:
+                description: Metal Spec is required when mode is 'metal'
+                properties:
+                  installDisk:
+                    description: InstallDisk is the disk to use for installing Talos
+                      on the control plane machines.
+                    pattern: ^/dev/[a-z]+[0-9]*$
+                    type: string
+                  machines:
+                    description: Machines is a list of machine specifications for
+                      the Talos control plane.
+                    items:
+                      type: string
+                    minItems: 1
+                    type: array
+                  wipe:
+                    default: false
+                    description: Wipe indicates whether to wipe the disk before installation.
+                    type: boolean
+                required:
+                - machines
+                type: object
               mode:
                 enum:
                 - container
+                - metal
+                - cloud
                 type: string
               replicas:
                 default: 1
@@ -116,6 +140,9 @@ spec:
             - replicas
             - version
             type: object
+            x-kubernetes-validations:
+            - message: MetalSpec is required when mode 'metal'
+              rule: self.mode!='metal' || has(self.metalSpec)
           status:
             description: TalosWorkerStatus defines the observed state of TalosWorker.
             properties:
@@ -179,6 +206,9 @@ spec:
                   type: object
                 type: array
               config:
+                type: string
+              state:
+                description: State represents the current state of the Talos worker
                 type: string
             type: object
         type: object

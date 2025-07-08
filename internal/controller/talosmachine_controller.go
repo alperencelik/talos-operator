@@ -62,7 +62,6 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	logger.Info("Reconciling TalosMachine", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
-
 	// Finalizer
 	if talosMachine.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so we add the finalizer if it's not already present
@@ -79,6 +78,12 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if err != nil {
 				logger.Error(err, "Failed to handle delete for TalosMachine", "name", talosMachine.Name)
 				return res, err
+			}
+			// Remove the finalizer
+			controllerutil.RemoveFinalizer(&talosMachine, talosv1alpha1.TalosMachineFinalizer)
+			if err := r.Update(ctx, &talosMachine); err != nil {
+				logger.Error(err, "Failed to remove finalizer for TalosMachine", "name", talosMachine.Name)
+				return ctrl.Result{}, err
 			}
 		}
 		// Stop the reconciliation if the finalizer is not present
@@ -132,6 +137,11 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to generate Control Plane config for TalosMachine %s: %w", tm.Name, err)
 	}
+	// Check if the current config is the same as the one in status
+	if tm.Status.Config == string(*cpConfig) {
+		// Return since the config has not changed
+		return ctrl.Result{}, nil
+	}
 	// Write that cpConfig to status.config
 	tm.Status.Config = string(*cpConfig)
 	if err := r.Status().Update(ctx, tm); err != nil {
@@ -160,21 +170,64 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 	return ctrl.Result{}, nil
 }
 
-func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, machine *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
+func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	// Get config from WorkerRef
 	tw := &talosv1alpha1.TalosWorker{}
 	if err := r.Get(ctx, client.ObjectKey{
-		Name:      machine.Spec.WorkerRef.Name,
-		Namespace: machine.Namespace,
+		Name:      tm.Spec.WorkerRef.Name,
+		Namespace: tm.Namespace,
 	}, tw); err != nil {
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
-	if tw.Status.Config == "" {
-		logger.Info("TalosWorker config is not set, waiting for it to be ready", "name", tw.Name)
+	bc, err := r.GetBundleConfig(ctx, tm)
+	if err != nil {
+		logger.Error(err, "Failed to get BundleConfig for TalosMachine", "name", tm.Name)
+		return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
+	}
+	if bc == nil {
+		logger.Info("TalosControlPlane bundleConfig is not set, waiting for it to be ready", "name", tm.Name)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check again
 	}
-	// TODO: Implement applyconfig structure here
+	// Apply patches to config before applying it
+	patches, err := r.metalConfigPatches(ctx, tm, bc)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
+	}
+	// Generate the worker config
+	workerConfig, err := talos.GenerateWorkerConfig(bc, patches)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to generate Worker config for TalosMachine %s: %w", tm.Name, err)
+	}
+	// Check if the current config is the same as the one in status
+	if tm.Status.Config == string(*workerConfig) {
+		// Return since the config has not changed
+		return ctrl.Result{}, nil
+	}
+	// Write that workerConfig to status.config
+	tm.Status.Config = string(*workerConfig)
+	if err := r.Status().Update(ctx, tm); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status with config: %w", tm.Name, err)
+	}
+	var insecure bool
+	if tm.Status.State == talosv1alpha1.StatePending || tm.Status.State == "" {
+		insecure = true // If the machine is pending, we allow insecure TLS
+	} else {
+		insecure = false // Otherwise, we use secure TLS
+	}
+	// Create Talos client
+	tc, err := talos.NewClient(bc, insecure) // true for insecure TLS
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
+	}
+	// Apply the worker config
+	if err := tc.ApplyConfig(ctx, *workerConfig); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to apply Talos config for TalosMachine %s: %w", tm.Name, err)
+	}
+	// Update state as Available
+	if err := r.updateState(ctx, tm, talosv1alpha1.StateAvailable); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status to Available: %w", tm.Name, err)
+	}
 	return ctrl.Result{}, nil
 }
 
@@ -201,6 +254,7 @@ func (r *TalosMachineReconciler) updateState(ctx context.Context, tm *talosv1alp
 
 func (r *TalosMachineReconciler) GetControlPlaneRef(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*talosv1alpha1.TalosControlPlane, error) {
 	tcp := &talosv1alpha1.TalosControlPlane{}
+	// If it's a controlPlane machine get it
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      tm.Spec.ControlPlaneRef.Name,
 		Namespace: tm.Namespace,
@@ -255,7 +309,6 @@ func (r *TalosMachineReconciler) handleFinalizer(ctx context.Context, tm *talosv
 
 func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	// Run talosctl reset command to reset the machine
-	// If the mode is metal, we need to apply the metal-specific patches -- diskPatch
 	config, err := r.GetBundleConfig(ctx, tm)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
@@ -271,7 +324,7 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 }
 
 func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *talosv1alpha1.TalosMachine, config *talos.BundleConfig) (*[]string, error) {
-	// Check the status to construct the talos client
+
 	var insecure bool = false
 	if tm.Status.State == talosv1alpha1.StatePending || tm.Status.State == "" {
 		insecure = true // Use insecure mode for pending state

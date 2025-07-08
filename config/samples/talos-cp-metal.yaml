@@ -11,14 +11,15 @@ spec:
   kubeVersion: v1.33.0
   metalSpec:
     machines: 
-      - "10.0.153.244"
-      - "10.0.153.92"
-  endpoint: "https://10.0.153.244:6443"
-# podCIDR: 
-# - 10.100.0.0/16
-# - 10.150.0.0/16
-# serviceCIDR:
-# - 10.200.0.0/12
+      - "10.0.153.213"
+      - "10.0.153.114"
+      - "10.0.153.59"
+  endpoint: "https://10.0.153.213:6443"
+#  podCIDR: 
+#  - 10.100.0.0/16
+#  - 10.150.0.0/16
+#  serviceCIDR:
+#  - 10.200.0.0/12
 #  configRef: 
 #    name: taloscontrolplane-sample-config
 #    key: controlplane.yaml

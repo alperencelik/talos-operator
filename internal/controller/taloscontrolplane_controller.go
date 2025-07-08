@@ -107,12 +107,12 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	var result ctrl.Result
 	var err error
 	switch tcp.Spec.Mode {
-	case "container":
+	case TalosModeContainer:
 		result, err = r.reconcileContainerMode(ctx, &tcp)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to reconcile TalosControlPlane in container mode: %w", err)
 		}
-	case "metal":
+	case TalosModeMetal:
 		result, err = r.reconcileMetalMode(ctx, &tcp)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to reconcile TalosControlPlane in metal mode: %w", err)
@@ -126,6 +126,23 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// TODO: Interesting stuff, look further into this
+	// I did implement since I had to use client.MatchingFields but look through the documentation to understand how it works
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&talosv1alpha1.TalosMachine{},
+		// Index by the control plane reference name
+		"spec.controlPlaneRef.name",
+		func(rawObj client.Object) []string {
+			tm := rawObj.(*talosv1alpha1.TalosMachine)
+			if tm.Spec.ControlPlaneRef != nil {
+				return []string{tm.Spec.ControlPlaneRef.Name}
+			}
+			return nil
+		},
+	); err != nil {
+		return fmt.Errorf("failed to index TalosMachine by controlPlaneRef.name: %w", err)
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&talosv1alpha1.TalosControlPlane{}).
@@ -197,38 +214,12 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 		return ctrl.Result{}, fmt.Errorf("failed to generate Talos ControlPlane config for %s: %w", tcp.Name, err)
 	}
 
-	// Create a TalosMachine object for each entry in Machines
-	for _, machine := range tcp.Spec.MetalSpec.Machines {
-		talosMachine := &talosv1alpha1.TalosMachine{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("%s-%s", tcp.Name, machine),
-				Namespace: tcp.Namespace,
-			},
-		}
-		// Create or update the TalosMachine
-		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, talosMachine, func() error {
-			// Set owner reference
-			if err := controllerutil.SetControllerReference(tcp, talosMachine, r.Scheme); err != nil {
-				return fmt.Errorf("failed to set controller reference for TalosMachine %s: %w", talosMachine.Name, err)
-			}
-			// Set the TalosMachine spec
-			talosMachine.Spec = talosv1alpha1.TalosMachineSpec{
-				ControlPlaneRef: &corev1.ObjectReference{
-					Kind:       "TalosControlPlane",
-					Name:       tcp.Name,
-					Namespace:  tcp.Namespace,
-					APIVersion: talosv1alpha1.GroupVersion.String(),
-				},
-				Endpoint:    machine,
-				InstallDisk: tcp.Spec.MetalSpec.InstallDisk,
-			}
-			return nil
-		})
-		if err != nil {
-			logger.Error(err, "Failed to create or update TalosMachine", "name", talosMachine.Name)
-			return ctrl.Result{}, fmt.Errorf("failed to create or update TalosMachine %s: %w", talosMachine.Name, err)
-		}
+	// Reconcile TalosMachine object
+	if err := r.handleTalosMachines(ctx, tcp); err != nil {
+		logger.Error(err, "Failed to reconcile TalosMachine objects", "name", tcp.Name)
+		return ctrl.Result{}, err
 	}
+
 	// Wait for all TalosMachines to be created and status Available
 	err := r.CheckControlPlaneReady(ctx, tcp)
 	if err != nil {
@@ -244,6 +235,60 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
+	logger := log.FromContext(ctx)
+	// List existing ones
+	existing := &talosv1alpha1.TalosMachineList{}
+	if err := r.List(ctx, existing, client.InNamespace(tcp.Namespace),
+		client.MatchingFields{"spec.controlPlaneRef.name": tcp.Name},
+	); err != nil {
+		return fmt.Errorf("failed to list TalosMachines: %w", err)
+	}
+	// Desired state
+	desired := make(map[string]bool)
+	for _, ep := range tcp.Spec.MetalSpec.Machines {
+		desired[fmt.Sprintf("%s-%s", tcp.Name, ep)] = true
+	}
+	// Delete orphaned machines
+	for _, m := range existing.Items {
+		if m.Spec.ControlPlaneRef != nil && m.Spec.ControlPlaneRef.Name == tcp.Name {
+			if !desired[m.Name] {
+				if err := r.Delete(ctx, &m); err != nil && !kerrors.IsNotFound(err) {
+					logger.Error(err, "Failed to delete orphaned TalosMachine", "name", m.Name)
+					return fmt.Errorf("failed to delete orphaned TalosMachine %s: %w", m.Name, err)
+				}
+			}
+		}
+	}
+	for _, machine := range tcp.Spec.MetalSpec.Machines {
+		name := fmt.Sprintf("%s-%s", tcp.Name, machine)
+		tm := &talosv1alpha1.TalosMachine{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: tcp.Namespace},
+		}
+		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, tm, func() error {
+			if err := controllerutil.SetControllerReference(tcp, tm, r.Scheme); err != nil {
+				return fmt.Errorf("failed to set controller reference for TalosMachine %s: %w", tm.Name, err)
+			}
+			tm.Spec = talosv1alpha1.TalosMachineSpec{
+				ControlPlaneRef: &corev1.ObjectReference{
+					Kind:       talosv1alpha1.GroupKindControlPlane,
+					Name:       tcp.Name,
+					Namespace:  tcp.Namespace,
+					APIVersion: talosv1alpha1.GroupVersion.String(),
+				},
+				Endpoint:    machine,
+				InstallDisk: tcp.Spec.MetalSpec.InstallDisk,
+			}
+			return nil
+		})
+		if err != nil {
+			logger.Error(err, "Failed to create or update TalosMachine", "name", tm.Name)
+			return fmt.Errorf("failed to create or update TalosMachine %s: %w", tm.Name, err)
+		}
+	}
+	return nil
 }
 
 func (r *TalosControlPlaneReconciler) CheckControlPlaneReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
@@ -293,7 +338,7 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 	machines := &talosv1alpha1.TalosMachineList{}
 	opts := []client.ListOption{
 		client.InNamespace(tcp.Namespace),
-		// client.MatchingFields{"metadata.name": "taloscontrolplane-sample-10.0.153.123"},
+		client.MatchingFields{"spec.controlPlaneRef.name": tcp.Name},
 	}
 	err := r.List(ctx, machines, opts...)
 	if err != nil {
@@ -469,34 +514,19 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 	var patches *[]string
-	if tcp.Spec.Mode == "metal" {
-		// If the mode is metal, we need to apply the metal-specific patches -- diskPatch
-		// 		patches, err = r.metalConfigPatches(ctx, tcp, bundleConfig)
-		// if err != nil {
-		// return fmt.Errorf("failed to get metal config patches for TalosControlPlane %s: %w", tcp.Name, err)
-		// }
-	}
 	// Generate the Talos ControlPlane config
 	cpConfig, err := talos.GenerateControlPlaneConfig(bundleConfig, patches)
 	if err != nil {
 		return fmt.Errorf("failed to generate Talos ControlPlane config for %s: %w", tcp.Name, err)
 	}
-	if tcp.Status.Config == string(*cpConfig) {
-		return nil // No changes in the config, skip update
-	}
-	tcp.Status.Config = string(*cpConfig)
-	// marshal the Go struct into JSON
 	bcBytes, err := json.Marshal(bundleConfig)
 	if err != nil {
 		return fmt.Errorf("failed to marshal BundleConfig for %s: %w", tcp.Name, err)
 	}
-	// DEBUG
-	// Read bcBytes and print it
-	var buf bytes.Buffer
-	if err := json.Indent(&buf, bcBytes, "", "  "); err != nil {
-		return fmt.Errorf("failed to indent BundleConfig JSON for %s: %w", tcp.Name, err)
+	if tcp.Status.Config == string(*cpConfig) && tcp.Status.BundleConfig == string(bcBytes) {
+		return nil // No changes in the config, skip update
 	}
-
+	tcp.Status.Config = string(*cpConfig)
 	// store it in the status
 	tcp.Status.BundleConfig = string(bcBytes)
 	// Update the TalosControlPlane status with the config
@@ -518,26 +548,6 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 	}
 	return nil
 }
-
-// func (r *TalosControlPlaneReconciler) metalConfigPatches(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane, config *talos.BundleConfig) (*[]string, error) {
-// // Check the status to construct the talos client
-// var insecure bool = false
-// if tcp.Status.State == talosv1alpha1.StatePending || tcp.Status.State == "" {
-// insecure = true // Use insecure mode for pending state
-// }
-// // If the mode is metal, we need to apply the metal-specific patches -- diskPatch
-// talosclient, err := talos.NewClient(config, insecure)
-// if err != nil {
-// return nil, fmt.Errorf("failed to create Talos client for ControlPlane %s: %w", tcp.Name, err)
-// }
-// diskNamePtr, err := talosclient.GetInstallDisk(ctx, tm)
-// if err != nil {
-// return nil, fmt.Errorf("failed to get install disk for TalosControlPlane %s: %w", tcp.Name, err)
-// }
-// diskName := utils.PtrToString(diskNamePtr)
-// diskPatch := fmt.Sprintf(talos.InstallDisk, diskName)
-// return &[]string{diskPatch, talos.WipeDisk}, nil
-// }
 
 func (r *TalosControlPlaneReconciler) WriteControlPlaneConfig(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane, cpConfig *[]byte) error {
 	// Set the configMap name and namespace

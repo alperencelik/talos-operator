@@ -1,0 +1,17 @@
+---
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosWorker
+metadata:
+  labels:
+    app.kubernetes.io/name: talos-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: talosworker-sample
+spec:
+  version: v1.10.3
+  mode: metal
+  kubeVersion: v1.33.0
+  controlPlaneRef:
+    name: taloscontrolplane-sample
+  metalSpec:
+    machines:
+    - "10.0.153.210"

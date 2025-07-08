@@ -78,7 +78,7 @@ func NewCPBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 	return b, nil
 }
 
-func NewWorkerBundle(cfg *BundleConfig) (*bundle.Bundle, error) {
+func NewWorkerBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 	// Set up options for the Talos config generation
 	var genOptions []generate.Option
 	vc, err := versionContract(cfg.Version)

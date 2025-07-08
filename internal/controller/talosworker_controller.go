@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -103,6 +102,12 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			logger.Error(err, "failed to reconcile TalosWorker in container mode", "name", tw.Name)
 		}
 		return result, nil
+	case TalosModeMetal:
+		result, err := r.reconcileMetalMode(ctx, &tw)
+		if err != nil {
+			logger.Error(err, "failed to reconcile TalosWorker in metal mode", "name", tw.Name)
+		}
+		return result, nil
 	default:
 		logger.Error(nil, "unsupported TalosWorker mode", "mode", tw.Spec.Mode)
 		return ctrl.Result{}, nil // Unsupported mode, do not requeue
@@ -112,14 +117,8 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 func (r *TalosWorkerReconciler) reconcileContainerMode(ctx context.Context, tw *talosv1alpha1.TalosWorker) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling TalosWorker in container mode", "name", tw.Name)
-	// Set the configuration for the Talos worker
-	config, err := r.SetConfig(ctx, tw)
-	if err != nil {
-		// TODO: Fix that logic, this is a workaround for the case where the TalosControlPlane is not found
-		return ctrl.Result{Requeue: true, RequeueAfter: 60 * time.Second}, nil
-	}
 	// Generate the worker configuration
-	if err := r.GenerateConfig(ctx, tw, config); err != nil {
+	if err := r.GenerateConfig(ctx, tw); err != nil {
 		// Error is due to ref not found so report it in status and return without requeueing
 		logger.Error(err, "failed to generate worker config", "name", tw.Name)
 		return ctrl.Result{}, nil
@@ -135,6 +134,79 @@ func (r *TalosWorkerReconciler) reconcileContainerMode(ctx context.Context, tw *
 	}
 	// Return no error and no requeue
 	return ctrl.Result{}, nil
+}
+
+func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talosv1alpha1.TalosWorker) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling TalosWorker in metal mode", "name", tw.Name)
+	// Generate the worker configuration
+	if err := r.GenerateConfig(ctx, tw); err != nil {
+		// Error is due to ref not found so report it in status and return without requeueing
+		logger.Error(err, "failed to generate worker config", "name", tw.Name)
+		return ctrl.Result{}, nil
+	}
+	// Reconcile TalosMachine objects
+	if err := r.handleTalosMachines(ctx, tw); err != nil {
+		logger.Error(err, "failed to handle TalosMachines for TalosWorker", "name", tw.Name)
+		return ctrl.Result{}, err
+	}
+	// Return no error and no requeue
+	return ctrl.Result{}, nil
+}
+
+func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
+	logger := log.FromContext(ctx)
+	// List existing ones
+	existing := &talosv1alpha1.TalosMachineList{}
+	if err := r.List(ctx, existing, client.InNamespace(tw.Namespace),
+		client.MatchingFields{"spec.workerRef.name": tw.Name},
+	); err != nil {
+		return fmt.Errorf("failed to list TalosMachines: %w", err)
+	}
+	// Desired state
+	desired := make(map[string]bool)
+	for _, ep := range tw.Spec.MetalSpec.Machines {
+		desired[fmt.Sprintf("%s-%s", tw.Name, ep)] = true
+	}
+	// Delete orphaned machines
+	for _, m := range existing.Items {
+		if m.Spec.WorkerRef != nil && m.Spec.WorkerRef.Name == tw.Name {
+			if !desired[m.Name] {
+				if err := r.Delete(ctx, &m); err != nil && !kerrors.IsNotFound(err) {
+					logger.Error(err, "Failed to delete orphaned TalosMachine", "name", m.Name)
+					return fmt.Errorf("failed to delete orphaned TalosMachine %s: %w", m.Name, err)
+				}
+			}
+		}
+	}
+	// Create or update machines
+	for _, machine := range tw.Spec.MetalSpec.Machines {
+		name := fmt.Sprintf("%s-%s", tw.Name, machine)
+		tm := &talosv1alpha1.TalosMachine{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: tw.Namespace},
+		}
+		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, tm, func() error {
+			if err := controllerutil.SetControllerReference(tw, tm, r.Scheme); err != nil {
+				return fmt.Errorf("failed to set controller reference for TalosMachine %s: %w", tm.Name, err)
+			}
+			tm.Spec = talosv1alpha1.TalosMachineSpec{
+				WorkerRef: &corev1.ObjectReference{
+					Kind:       talosv1alpha1.GroupKindWorker,
+					Name:       tw.Name,
+					Namespace:  tw.Namespace,
+					APIVersion: talosv1alpha1.GroupVersion.String(),
+				},
+				Endpoint:    machine,
+				InstallDisk: tw.Spec.MetalSpec.InstallDisk,
+			}
+			return nil
+		})
+		if err != nil {
+			logger.Error(err, "Failed to create or update TalosMachine", "name", tm.Name)
+			return fmt.Errorf("failed to create or update TalosMachine %s: %w", tm.Name, err)
+		}
+	}
+	return nil
 }
 
 func (r *TalosWorkerReconciler) reconcileService(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
@@ -203,6 +275,23 @@ func (r *TalosWorkerReconciler) handleResourceNotFound(ctx context.Context, err 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TalosWorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&talosv1alpha1.TalosMachine{},
+		// Index by the worker reference name
+		"spec.workerRef.name",
+		func(rawObj client.Object) []string {
+			tm := rawObj.(*talosv1alpha1.TalosMachine)
+			if tm.Spec.ControlPlaneRef != nil {
+				return []string{tm.Spec.ControlPlaneRef.Name}
+			}
+			return nil
+		},
+	); err != nil {
+		return fmt.Errorf("failed to index TalosMachine by workerRef.name: %w", err)
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&talosv1alpha1.TalosWorker{}).
 		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(stsPredicate)).
@@ -217,14 +306,31 @@ func (r *TalosWorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *TalosWorkerReconciler) GenerateConfig(ctx context.Context, tw *talosv1alpha1.TalosWorker, config *talos.BundleConfig) error {
+func (r *TalosWorkerReconciler) GenerateConfig(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
+	bundleConfig, err := r.SetConfig(ctx, tw)
+	if err != nil {
+		return fmt.Errorf("failed to set configuration for TalosWorker %s: %w", tw.Name, err)
+	}
 	// Generate the Talos worker configuration
-	wkConfig, err := talos.GenerateWorkerConfig(config)
+	wkConfig, err := talos.GenerateWorkerConfig(bundleConfig, nil)
 	if err != nil {
 		return err
 	}
+	// Update the status
+	if tw.Status.Config == string(*wkConfig) {
+		return nil // No change in config, nothing to do
+	}
+	tw.Status.Config = string(*wkConfig)
+	// Update the status of the TalosWorker
+	if err := r.Status().Update(ctx, tw); err != nil {
+		return fmt.Errorf("failed to update TalosWorker status %s: %w", tw.Name, err)
+	}
+	// Wrtie the Talos Worker configuration to a ConfigMap
 	if err := r.WriteWorkerConfig(ctx, tw, wkConfig); err != nil {
 		return fmt.Errorf("failed to write worker config: %w", err)
+	}
+	if err := r.updateState(ctx, tw, talosv1alpha1.StatePending); err != nil {
+		return fmt.Errorf("failed to update TalosWorker state %s: %w", tw.Name, err)
 	}
 	return nil
 }
@@ -280,25 +386,40 @@ func (r *TalosWorkerReconciler) SetConfig(ctx context.Context, tw *talosv1alpha1
 	if err != nil {
 		return nil, err
 	}
+	var replicas int
+	var sans []string
+	if tw.Spec.Mode == "container" {
+		replicas = int(tw.Spec.Replicas)
+		sans = utils.GenSans(tw.Name, &replicas)
+	}
 	sb, err := utils.SecretBundleDecoder(tcp.Status.SecretBundle)
 	if err != nil {
 		return nil, err
 	}
-	var replicas int
-	if tw.Spec.Mode == "container" {
-		replicas = int(tcp.Spec.Replicas)
+	var ClientEndpoint []string
+	if tw.Spec.Mode == "metal" {
+		// TODO: Handle multiple machines in metal mode
+		ClientEndpoint = tw.Spec.MetalSpec.Machines
 	}
-	sans := utils.GenSans(tcp.Name, &replicas)
+	var endpoint string
+	// Construct endpoint
+	if tcp.Spec.Endpoint != "" {
+		endpoint = tcp.Spec.Endpoint
+	} else {
+		// Default endpoint is the TalosControlPlane name
+		endpoint = fmt.Sprintf("https://%s:6443", tcp.Name)
+	}
 	// Generate the worker configuration
 	return &talos.BundleConfig{
-		ClusterName:   tcp.Name,
-		Endpoint:      fmt.Sprintf("https://%s:6443", tcp.Name),
-		Version:       tcp.Spec.Version,
-		KubeVersion:   tcp.Spec.KubeVersion,
-		SecretsBundle: sb,
-		Sans:          sans,
-		ServiceCIDR:   &tcp.Spec.ServiceCIDR,
-		PodCIDR:       &tcp.Spec.PodCIDR,
+		ClusterName:    tcp.Name,
+		Endpoint:       endpoint,
+		Version:        tcp.Spec.Version,
+		KubeVersion:    tcp.Spec.KubeVersion,
+		SecretsBundle:  sb,
+		Sans:           sans,
+		ServiceCIDR:    &tcp.Spec.ServiceCIDR,
+		PodCIDR:        &tcp.Spec.PodCIDR,
+		ClientEndpoint: &ClientEndpoint,
 	}, nil
 
 }
@@ -347,4 +468,16 @@ func (r *TalosWorkerReconciler) handleDeletion(ctx context.Context, tw *talosv1a
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *TalosWorkerReconciler) updateState(ctx context.Context, tw *talosv1alpha1.TalosWorker, state string) error {
+	if tw.Status.State == state {
+		return nil
+	}
+	tw.Status.State = state
+	if err := r.Status().Update(ctx, tw); err != nil {
+		return fmt.Errorf("failed to update TalosControlPlane %s status to %s: %w", tw.Name, state, err)
+
+	}
+	return nil
 }

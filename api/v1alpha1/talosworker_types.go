@@ -24,6 +24,9 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// +kubebuilder:validadtion:XValidation:rule="!has(oldSelf.mode) || has(self.mode)", message="Mode is immutable"
+// +kubebuilder:validation:XValidation:rule="self.mode!='metal' || has(self.metalSpec)", message="MetalSpec is required when mode 'metal'"
+
 // TalosWorkerSpec defines the desired state of TalosWorker.
 type TalosWorkerSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -37,13 +40,16 @@ type TalosWorkerSpec struct {
 
 	// TODO: Add support for other modes like metal, cloud, etc.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=container
+	// +kubebuilder:validation:Enum=container;metal;cloud
 	Mode string `json:"mode,omitempty"`
 
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:default=1
 	// Number of control-plane machines to maintain
 	Replicas int32 `json:"replicas"`
+
+	// Metal Spec is required when mode is 'metal'
+	MetalSpec MetalSpec `json:"metalSpec,omitempty"`
 
 	// KubeVersion is the version of Kubernetes to use for the control plane
 	// +kubebuilder:validation:Required
@@ -74,6 +80,8 @@ type TalosWorkerStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	Config     string             `json:"config,omitempty"` // Serialized Talos configuration for the worker
+	// State represents the current state of the Talos worker
+	State string `json:"state,omitempty"` // e.g., "Ready", "Provisioning", "Failed"
 }
 
 // +kubebuilder:object:root=true
