@@ -106,7 +106,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Handle control plane specific logic here
 		res, err := r.handleWorkerMachine(ctx, &talosMachine)
 		if err != nil {
-			logger.Error(err, "Error handling Control Plane machine", "name", talosMachine.Name)
+			logger.Error(err, "Error handling Worker machine", "name", talosMachine.Name)
 			return ctrl.Result{}, err
 		}
 		return res, nil
@@ -254,12 +254,35 @@ func (r *TalosMachineReconciler) updateState(ctx context.Context, tm *talosv1alp
 
 func (r *TalosMachineReconciler) GetControlPlaneRef(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*talosv1alpha1.TalosControlPlane, error) {
 	tcp := &talosv1alpha1.TalosControlPlane{}
-	// If it's a controlPlane machine get it
-	if err := r.Get(ctx, client.ObjectKey{
-		Name:      tm.Spec.ControlPlaneRef.Name,
-		Namespace: tm.Namespace,
-	}, tcp); err != nil {
-		return nil, r.handleResourceNotFound(ctx, err)
+	// If it's a controlPlane machine get it from TalosMachine --> TalosWorker --> TalosControlPlane
+	// Check if it's a worker machine
+	if tm.Spec.ControlPlaneRef == nil {
+		tw := &talosv1alpha1.TalosWorker{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Name:      tm.Spec.WorkerRef.Name,
+			Namespace: tm.Namespace,
+		}, tw); err != nil {
+			return nil, r.handleResourceNotFound(ctx, err)
+		}
+		// TODO: Check the controlPlane reference in TalosWorker
+		name := tw.Spec.ControlPlaneRef.Name
+		if name == "" {
+			return nil, fmt.Errorf("TalosWorker %s does not have a Control Plane reference", tw.Name)
+		}
+		// Get the TalosControlPlane reference from the TalosWorker
+		if err := r.Get(ctx, client.ObjectKey{
+			Name:      name,
+			Namespace: tm.Namespace,
+		}, tcp); err != nil {
+			return nil, r.handleResourceNotFound(ctx, err)
+		}
+	} else {
+		if err := r.Get(ctx, client.ObjectKey{
+			Name:      tm.Spec.ControlPlaneRef.Name,
+			Namespace: tm.Namespace,
+		}, tcp); err != nil {
+			return nil, r.handleResourceNotFound(ctx, err)
+		}
 	}
 	return tcp, nil
 }
