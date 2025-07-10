@@ -58,7 +58,6 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Get the machine object and decide whether it's a control plane or worker machine
 	var talosMachine talosv1alpha1.TalosMachine
 	if err := r.Get(ctx, req.NamespacedName, &talosMachine); err != nil {
-		logger.Error(err, "unable to fetch TalosMachine")
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	logger.Info("Reconciling TalosMachine", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
@@ -89,6 +88,23 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Stop the reconciliation if the finalizer is not present
 		return ctrl.Result{}, client.IgnoreNotFound(nil)
 	}
+	// Check whether we should wait for machine to be ready
+	if talosMachine.Status.State == talosv1alpha1.StateInstalling {
+		// If the machine is in the installing state, we should wait for it to be ready
+		res, err := r.CheckMachineReady(ctx, &talosMachine)
+		if err != nil {
+			logger.Error(err, "Error checking machine readiness", "name", talosMachine.Name)
+			return ctrl.Result{}, err
+		}
+		if res.Requeue {
+			logger.Info("Requeuing reconciliation to check machine readiness", "name", talosMachine.Name)
+			return res, nil // Requeue the reconciliation to check the machine status again
+		}
+	}
+	// Re-get the machine object to ensure we have the latest state
+	if err := r.Get(ctx, req.NamespacedName, &talosMachine); err != nil {
+		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
+	}
 
 	// Check for the machine type and handle accordingly
 	switch {
@@ -116,6 +132,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 }
 
+// TODO: Fix this one
 func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	// Get the bundle config from TalosControlPlane
@@ -163,13 +180,14 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to apply Talos config for TalosMachine %s: %w", tm.Name, err)
 	}
-	// // Update state as Available
+	// Update available state
 	if err := r.updateState(ctx, tm, talosv1alpha1.StateAvailable); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status to Available: %w", tm.Name, err)
 	}
 	return ctrl.Result{}, nil
 }
 
+// TODO: Fix this one
 func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	// Get config from WorkerRef
@@ -188,6 +206,11 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 	if bc == nil {
 		logger.Info("TalosControlPlane bundleConfig is not set, waiting for it to be ready", "name", tm.Name)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check again
+	}
+	// If the state is installing then return
+	if tm.Status.State == talosv1alpha1.StateInstalling {
+		logger.Info("TalosMachine is in Installing state, requeuing reconciliation", "name", tm.Name)
+		return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
 	}
 	// Apply patches to config before applying it
 	patches, err := r.metalConfigPatches(ctx, tm, bc)
@@ -317,6 +340,18 @@ func (r *TalosMachineReconciler) GetBundleConfig(ctx context.Context, tm *talosv
 	}
 	secretBundle.Clock = talos.NewClock()
 	bc.SecretsBundle = secretBundle
+	// TODO: Review that one for worker machines
+	if tm.Spec.WorkerRef != nil {
+		// Get the TalosWorker reference
+		tw := &talosv1alpha1.TalosWorker{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Name:      tm.Spec.WorkerRef.Name,
+			Namespace: tm.Namespace,
+		}, tw); err != nil {
+			return nil, r.handleResourceNotFound(ctx, err)
+		}
+		bc.ClientEndpoint = &tw.Spec.MetalSpec.Machines
+	}
 	return bc, nil
 }
 
@@ -372,4 +407,36 @@ func (r *TalosMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&talosv1alpha1.TalosMachine{}).
 		Named("talosmachine").
 		Complete(r)
+}
+
+func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
+	// To check a machine take a look for Kubelet status
+	logger := log.FromContext(ctx)
+	// Create Talos client
+	config, err := r.GetBundleConfig(ctx, tm)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
+	}
+	// Anytime we check machine we should beb apply-config before already so create secureClient
+	tc, err := talos.NewClient(config, false)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
+	}
+	// Check if the machine is ready
+	svcState := tc.GetServiceStatus(ctx, "kubelet")
+	if svcState == "" {
+		logger.Info("Kubelet service state is empty, requeuing reconciliation", "name", tm.Name)
+		return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
+	}
+	if svcState != "running" {
+		logger.Info("Kubelet service is not running, requeuing reconciliation", "name", tm.Name, "state", svcState)
+		return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
+	}
+	// If the machine is ready, update the state to Available
+	if tm.Status.State != talosv1alpha1.StateAvailable {
+		if err := r.updateState(ctx, tm, talosv1alpha1.StateAvailable); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status to Available: %w", tm.Name, err)
+		}
+	}
+	return ctrl.Result{}, nil
 }

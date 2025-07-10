@@ -14,4 +14,6 @@ spec:
     name: taloscontrolplane-sample
   metalSpec:
     machines:
-    - "10.0.153.210"
+    - "10.0.153.215"
+    - "10.0.153.93"
+    - "10.0.153.99"

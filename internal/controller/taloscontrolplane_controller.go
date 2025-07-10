@@ -148,7 +148,7 @@ func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&talosv1alpha1.TalosControlPlane{}).
 		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(stsPredicate)).
 		Owns(&corev1.Service{}, builder.WithPredicates(svcPredicate)).
-		Owns(&talosv1alpha1.TalosMachine{}).
+		Owns(&talosv1alpha1.TalosMachine{}, builder.WithPredicates(talosMachinePredicate)).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				// Only reconcile if the generation of the object has changed
@@ -355,6 +355,10 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 			}
 		}
 		if allAvailable {
+			// If the .state is Ready or Available don't try to update the status
+			if tcp.Status.State == talosv1alpha1.StateReady || tcp.Status.State == talosv1alpha1.StateAvailable {
+				return nil
+			}
 			// All machines are available, update the TalosControlPlane status to Available
 			if err := r.updateState(ctx, tcp, talosv1alpha1.StateAvailable); err != nil {
 				return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
@@ -828,12 +832,39 @@ func (r *TalosControlPlaneReconciler) handleDelete(ctx context.Context, tcp *tal
 	}
 	// Based on the TalosControlPlane mode, handle the deletion
 	switch tcp.Spec.Mode {
-	case "container":
+	case TalosModeContainer:
 		// In container mode, we need to delete the StatefulSet and Services
 		res, err := r.handleContainerModeDelete(ctx, tcp)
 		if err != nil {
 			logger.Error(err, "Failed to handle container mode delete for TalosControlPlane", "name", tcp.Name)
 			return res, fmt.Errorf("failed to handle container mode delete for TalosControlPlane %s: %w", tcp.Name, err)
+		}
+	case TalosModeMetal:
+		// In metal mode, we need to delete the TalosMachines
+		machines := &talosv1alpha1.TalosMachineList{}
+		opts := []client.ListOption{
+			client.InNamespace(tcp.Namespace),
+			client.MatchingFields{"spec.controlPlaneRef.name": tcp.Name},
+		}
+		if err := r.List(ctx, machines, opts...); err != nil {
+			logger.Error(err, "Failed to list TalosMachines for TalosControlPlane", "name", tcp.Name)
+			return ctrl.Result{}, fmt.Errorf("failed to list TalosMachines for TalosControlPlane %s: %w", tcp.Name, err)
+		}
+		// Delete each TalosMachine associated with the TalosControlPlane
+		for _, machine := range machines.Items {
+			if err := r.Delete(ctx, &machine); err != nil && !kerrors.IsNotFound(err) {
+				logger.Error(err, "Failed to delete TalosMachine", "name", machine.Name)
+				return ctrl.Result{}, fmt.Errorf("failed to delete TalosMachine %s for TalosControlPlane %s: %w", machine.Name, tcp.Name, err)
+			}
+		}
+		// Wait for the TalosMachines to be deleted
+		remaining := &talosv1alpha1.TalosMachineList{}
+		if err := r.List(ctx, remaining, opts...); err != nil {
+			logger.Error(err, "Failed to list remaining TalosMachines for TalosControlPlane", "name", tcp.Name)
+			return ctrl.Result{}, fmt.Errorf("failed to list remaining TalosMachines for TalosControlPlane %s: %w", tcp.Name, err)
+		}
+		if len(remaining.Items) > 0 {
+			return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 		}
 	default:
 		logger.Info("Unsupported mode for TalosControlPlane during deletion, finalizer will be removed", "mode", tcp.Spec.Mode)

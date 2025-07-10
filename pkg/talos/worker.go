@@ -11,10 +11,12 @@ func GenerateWorkerConfig(cfg *BundleConfig, patches *[]string) (*[]byte, error)
 	if err != nil {
 		return nil, err
 	}
-	// // DEBUG
-	// dir := fmt.Sprintf("./")
-	// bundle.Write(dir, encoder.CommentsDisabled, machine.TypeWorker)
-	// // DEBUG END
+	// DEBUG
+	// err = WriteWorkerConfig(bundle, "./")
+	// if err != nil {
+	// return nil, err
+	// }
+	// DEBUG END
 
 	// Generate the worker configuration
 	bytes, err := bundle.Serialize(encoder.CommentsDisabled, machine.TypeWorker)

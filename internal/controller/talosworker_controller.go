@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -296,6 +297,7 @@ func (r *TalosWorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&talosv1alpha1.TalosWorker{}).
 		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(stsPredicate)).
 		Owns(&corev1.Service{}, builder.WithPredicates(svcPredicate)).
+		Owns(&talosv1alpha1.TalosMachine{}, builder.WithPredicates(talosMachinePredicate)).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				// Only reconcile if the generation of the object has changed
@@ -458,6 +460,33 @@ func (r *TalosWorkerReconciler) handleDeletion(ctx context.Context, tw *talosv1a
 	switch tw.Spec.Mode {
 	case TalosModeContainer:
 		// Do nothing
+	case TalosModeMetal:
+		// In metal mode, we need to delete the TalosMachine objects
+		talosMachineList := &talosv1alpha1.TalosMachineList{}
+		opts := []client.ListOption{
+			client.InNamespace(tw.Namespace),
+			client.MatchingFields{"spec.workerRef.name": tw.Name},
+		}
+		if err := r.List(ctx, talosMachineList, opts...); err != nil {
+			logger.Error(err, "failed to list TalosMachines for deletion", "name", tw.Name)
+			return ctrl.Result{}, err
+		}
+		for _, tm := range talosMachineList.Items {
+			if err := r.Delete(ctx, &tm); err != nil && !kerrors.IsNotFound(err) {
+				logger.Error(err, "failed to delete TalosMachine", "name", tm.Name)
+				return ctrl.Result{}, fmt.Errorf("failed to delete TalosMachine %s: %w", tm.Name, err)
+			}
+		}
+		// Wait for all TalosMachine resources to actually be removed
+		remaining := &talosv1alpha1.TalosMachineList{}
+		if err := r.List(ctx, remaining, opts...); err != nil {
+			logger.Error(err, "failed to re-list TalosMachines for deletion", "name", tw.Name)
+			return ctrl.Result{}, fmt.Errorf("failed to re-list TalosMachines: %w", err)
+		}
+		if len(remaining.Items) > 0 {
+			// Some machines still exist, requeue and retry after delay
+			return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+		}
 	default:
 		logger.Error(nil, "unsupported TalosWorker mode for deletion", "mode", tw.Spec.Mode)
 	}

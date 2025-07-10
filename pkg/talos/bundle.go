@@ -98,6 +98,11 @@ func NewWorkerBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, erro
 
 	workerPatches := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
 
+	// If patches are provided, append them to the worker patches
+	if patches != nil && len(*patches) > 0 {
+		workerPatches = append(workerPatches, *patches...)
+	}
+
 	b, err := gen.GenerateConfigBundle(genOptions,
 		cfg.ClusterName, // Cluster name
 		cfg.Endpoint,    // API endpoint

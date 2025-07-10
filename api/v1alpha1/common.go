@@ -9,6 +9,7 @@ const (
 	// State of the Talos control plane
 	StatePending      = "Pending"      // Control plane is being created
 	StateAvailable    = "Available"    // Control plane is ready to bootstrap the cluster
+	StateInstalling   = "Installing"   // Machine is being installed
 	StateBootstrapped = "Bootstrapped" // Control plane is ready to accept workloads
 	StateReady        = "Ready"        // Control plane is fully operational
 	StateFailed       = "Failed"       // Control plane creation failed

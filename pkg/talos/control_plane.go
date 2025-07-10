@@ -2,11 +2,9 @@ package talos
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/siderolabs/talos/pkg/machinery/config/encoder"
 	"github.com/siderolabs/talos/pkg/machinery/config/machine"
-	"gopkg.in/yaml.v2"
 )
 
 // type ControlPlaneConfig struct {
@@ -27,16 +25,14 @@ func GenerateControlPlaneConfig(cfg *BundleConfig, patches *[]string) (*[]byte, 
 		return nil, fmt.Errorf("failed to generate config bundle: %w", err)
 	}
 	// DEBUG
-	dir := fmt.Sprintf("./")
-	bundle.Write(dir, encoder.CommentsDisabled, machine.TypeControlPlane)
-	// Save the talosconfig to a file
-	data, err := yaml.Marshal(bundle.TalosConfig())
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal Talos config: %w", err)
-	}
-	if err := os.WriteFile(dir+"talosconfig.yaml", data, 0o600); err != nil {
-		return nil, fmt.Errorf("failed to write Talos config to file: %w", err)
-	}
+	// err = WriteControlPlaneConfig(bundle, "./")
+	// if err != nil {
+	// return nil, fmt.Errorf("failed to write control plane config: %w", err)
+	// }
+	// err = WriteTalosConfig(bundle, "./")
+	// if err != nil {
+	// return nil, fmt.Errorf("failed to write talos config: %w", err)
+	// }
 	// DEBUG END
 
 	bytes, err := bundle.Serialize(encoder.CommentsDisabled, machine.TypeControlPlane)

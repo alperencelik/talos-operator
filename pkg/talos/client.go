@@ -129,6 +129,20 @@ func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.Tal
 	return nil, nil
 }
 
+func (tc *TalosClient) GetServiceStatus(ctx context.Context, svcName string) string {
+	// Get the service status
+	// 	svcsInfo, err := tc.ServiceInfo(ctx, svcName)
+	// if err != nil {
+	// fmt.Printf("Error getting service status: %s\n", err)
+	// return ""
+	// }
+	// svc := svcsInfo[0]
+	// fmt.Printf("Service %s status: %s\n", svc, svc.Service.State)
+	// return svc.Service.State
+	state := "running" // Placeholder for actual service state
+	return state
+}
+
 // func (tc *TalosClient) GetMachineStatus(ctx context.Context) (*string, error) {
 // // Get the machine status
 // res, err := tc.COSI.Get(ctx,
