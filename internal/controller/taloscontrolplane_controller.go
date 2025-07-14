@@ -334,18 +334,27 @@ func (r *TalosControlPlaneReconciler) CheckControlPlaneReady(ctx context.Context
 func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
 
 	maxRetries := 10
-	retryInterval := 5 * time.Second
+	retryInterval := 10 * time.Second
 	machines := &talosv1alpha1.TalosMachineList{}
 	opts := []client.ListOption{
 		client.InNamespace(tcp.Namespace),
 		client.MatchingFields{"spec.controlPlaneRef.name": tcp.Name},
 	}
-	err := r.List(ctx, machines, opts...)
-	if err != nil {
-		return fmt.Errorf("Error: %w", err)
-	}
 	for i := 0; i < maxRetries; i++ {
+		// Need to re-list machines everytime because the update is not reflected in the cache immediately
 		// Get the machines associated with the TalosControlPlane
+		err := r.List(ctx, machines, opts...)
+		if err != nil {
+			return fmt.Errorf("Error: %w", err)
+		}
+		// Remove the deletion timestamped machines from the list
+		for i := len(machines.Items) - 1; i >= 0; i-- {
+			if !machines.Items[i].ObjectMeta.DeletionTimestamp.IsZero() {
+				// Keep only the machines that are not being deleted
+				machines.Items = append(machines.Items[:i], machines.Items[i+1:]...)
+			}
+		}
+		// Check if all machines are available
 		allAvailable := true
 		for _, machine := range machines.Items {
 			if machine.Status.State != talosv1alpha1.StateAvailable {
@@ -360,38 +369,21 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 				return nil
 			}
 			// All machines are available, update the TalosControlPlane status to Available
-			if err := r.updateState(ctx, tcp, talosv1alpha1.StateAvailable); err != nil {
-				return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
+			// If it's not ready or available, update the status to Available
+			if tcp.Status.State != talosv1alpha1.StateReady {
+				// Get the object once again before update it
+				if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+					return fmt.Errorf("failed to get TalosControlPlane %s after checking machines: %w", tcp.Name, err)
+				}
+				// Update the status to Available
+				if err := r.updateState(ctx, tcp, talosv1alpha1.StateAvailable); err != nil {
+					return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
+				}
 			}
 			break // Exit the loop if all machines are available
 		}
 		time.Sleep(retryInterval)
 	}
-	// 		svcInfo, _ := talosClient.ServiceInfo(ctx, "kubelet")
-	// if len(svcInfo) > 0 && svcInfo[0].Service.State == "running" {
-	// return nil
-	// }
-	// // Wait and retry
-	// time.Sleep(retryInterval)
-	// if svcInfo[0].Service.Events != nil && len(svcInfo[0].Service.Events.Events) > 0 {
-	// lastEvent = svcInfo[0].Service.Events.Events[len(svcInfo[0].Service.Events.Events)-1].Msg
-	// }
-	// }
-	// // Update the Conditions with the kubelet's last event
-	// if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
-	// return fmt.Errorf("failed to get TalosControlPlane %s after checking kubelet service: %w", tcp.Name, err)
-	// }
-	// // Update the status condition to reflect the failure
-	// condition := metav1.Condition{
-	// Type:    "KubeletReady", // talosv1alpha1.ConditionKubeletReady,
-	// Status:  metav1.ConditionFalse,
-	// Reason:  "KubeletNotRunning",
-	// Message: fmt.Sprintf("Kubelet is not healthy because of %s", lastEvent),
-	// }
-	// meta.SetStatusCondition(&tcp.Status.Conditions, condition)
-	// if err := r.Status().Update(ctx, tcp); err != nil {
-	// return fmt.Errorf("failed to update TalosControlPlane %s status with kubelet condition: %w", tcp.Name, err)
-	// }
 	return nil
 }
 

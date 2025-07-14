@@ -26,7 +26,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/pkg/talos"
@@ -109,7 +111,6 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Check for the machine type and handle accordingly
 	switch {
 	case talosMachine.Spec.ControlPlaneRef != nil:
-		logger.Info("Processing TalosMachine as Control Plane", "name", talosMachine.Name)
 		// Handle control plane specific logic here
 		res, err := r.handleControlPlaneMachine(ctx, &talosMachine)
 		if err != nil {
@@ -118,7 +119,6 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 		return res, nil
 	case talosMachine.Spec.WorkerRef != nil:
-		logger.Info("Processing TalosMachine as Worker", "name", talosMachine.Name)
 		// Handle control plane specific logic here
 		res, err := r.handleWorkerMachine(ctx, &talosMachine)
 		if err != nil {
@@ -132,7 +132,6 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 }
 
-// TODO: Fix this one
 func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	// Get the bundle config from TalosControlPlane
@@ -164,7 +163,6 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 	if err := r.Status().Update(ctx, tm); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status with config: %w", tm.Name, err)
 	}
-
 	var insecure bool
 	if tm.Status.State == talosv1alpha1.StatePending || tm.Status.State == "" {
 		insecure = true // If the machine is pending, we allow insecure TLS
@@ -176,15 +174,15 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
-	err = tc.ApplyConfig(ctx, *cpConfig)
-	if err != nil {
+	if err = tc.ApplyConfig(ctx, *cpConfig); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to apply Talos config for TalosMachine %s: %w", tm.Name, err)
 	}
-	// Update available state
-	if err := r.updateState(ctx, tm, talosv1alpha1.StateAvailable); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status to Available: %w", tm.Name, err)
+	// Update the state to Installing
+	if err := r.updateState(ctx, tm, talosv1alpha1.StateInstalling); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status to Installing: %w", tm.Name, err)
 	}
-	return ctrl.Result{}, nil
+	// TODO: Review here to make it more event driven -- maybe implement watcher, etc.
+	return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check the machine status again
 }
 
 // TODO: Fix this one
@@ -206,11 +204,6 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 	if bc == nil {
 		logger.Info("TalosControlPlane bundleConfig is not set, waiting for it to be ready", "name", tm.Name)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check again
-	}
-	// If the state is installing then return
-	if tm.Status.State == talosv1alpha1.StateInstalling {
-		logger.Info("TalosMachine is in Installing state, requeuing reconciliation", "name", tm.Name)
-		return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
 	}
 	// Apply patches to config before applying it
 	patches, err := r.metalConfigPatches(ctx, tm, bc)
@@ -247,11 +240,12 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 	if err := tc.ApplyConfig(ctx, *workerConfig); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to apply Talos config for TalosMachine %s: %w", tm.Name, err)
 	}
-	// Update state as Available
-	if err := r.updateState(ctx, tm, talosv1alpha1.StateAvailable); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status to Available: %w", tm.Name, err)
+	// Update the state to Installing
+	if err := r.updateState(ctx, tm, talosv1alpha1.StateInstalling); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status to Installing: %w", tm.Name, err)
 	}
-	return ctrl.Result{}, nil
+	// TODO: Review here to make it more event driven -- maybe implement watcher, etc.
+	return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check the machine status again
 }
 
 func (r *TalosMachineReconciler) handleResourceNotFound(ctx context.Context, err error) error {
@@ -371,6 +365,8 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
 	}
+	// Make the client for the machine
+	config.ClientEndpoint = &[]string{tm.Spec.Endpoint}
 	tc, err := talos.NewClient(config, false)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
@@ -406,6 +402,12 @@ func (r *TalosMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&talosv1alpha1.TalosMachine{}).
 		Named("talosmachine").
+		WithEventFilter(predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				// Only reconcile if the generation of the object has changed
+				return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+			},
+		}).
 		Complete(r)
 }
 

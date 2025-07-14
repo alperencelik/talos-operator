@@ -331,6 +331,11 @@ func (r *TalosWorkerReconciler) GenerateConfig(ctx context.Context, tw *talosv1a
 	if err := r.WriteWorkerConfig(ctx, tw, wkConfig); err != nil {
 		return fmt.Errorf("failed to write worker config: %w", err)
 	}
+	// Get the object before updating the state
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tw), tw); err != nil {
+		return fmt.Errorf("failed to get TalosWorker %s: %w", tw.Name, err)
+	}
+	// Update the state to pending
 	if err := r.updateState(ctx, tw, talosv1alpha1.StatePending); err != nil {
 		return fmt.Errorf("failed to update TalosWorker state %s: %w", tw.Name, err)
 	}
