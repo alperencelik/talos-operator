@@ -186,7 +186,7 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 		})
 		if err != nil {
 			logger.Error(err, "failed to create or update TalosControlPlane", "operation", op, "name", tcp.Name, "namespace", tcp.Namespace)
-			return ctrl.Result{}, err
+			return ctrl.Result{Requeue: true}, err
 		}
 		// Based on the op generate an event
 		switch op {
@@ -267,7 +267,7 @@ func (r *TalosClusterReconciler) reconcileWorker(ctx context.Context, tc *talosv
 	})
 	if err != nil {
 		logger.Error(err, "failed to create or update TalosWorker", "operation", op, "name", tw.Name)
-		return ctrl.Result{}, err
+		return ctrl.Result{Requeue: true}, err
 	}
 	// Based on the op generate an event
 	switch op {

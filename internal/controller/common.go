@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func BuildServiceSpec(name string, i *int32) corev1.ServiceSpec {
@@ -119,8 +119,8 @@ func BuildStsSpec(name string, replicas int32, version string, machineType strin
 							},
 						},
 						SecurityContext: &corev1.SecurityContext{
-							Privileged:             pointer.Bool(true),
-							ReadOnlyRootFilesystem: pointer.Bool(true),
+							Privileged:             ptr.To(true),
+							ReadOnlyRootFilesystem: ptr.To(true),
 							SeccompProfile: &corev1.SeccompProfile{
 								Type: corev1.SeccompProfileTypeUnconfined,
 							},

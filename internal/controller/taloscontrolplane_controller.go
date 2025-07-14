@@ -175,7 +175,7 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 
 	if err := r.reconcileService(ctx, tcp); err != nil {
 		logger.Error(err, "Failed to reconcile Service for TalosControlPlane", "name", tcp.Name, "error", err)
-		return ctrl.Result{}, nil
+		return ctrl.Result{Requeue: true}, nil
 	}
 	// Get the object again since the status might have been updated
 	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
@@ -217,7 +217,7 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 	// Reconcile TalosMachine object
 	if err := r.handleTalosMachines(ctx, tcp); err != nil {
 		logger.Error(err, "Failed to reconcile TalosMachine objects", "name", tcp.Name)
-		return ctrl.Result{}, err
+		return ctrl.Result{Requeue: true}, err
 	}
 
 	// Wait for all TalosMachines to be created and status Available
@@ -718,7 +718,7 @@ func (r *TalosControlPlaneReconciler) SetConfig(ctx context.Context, tcp *talosv
 		Endpoint:       endpoint,
 		Version:        tcp.Spec.Version,
 		KubeVersion:    tcp.Spec.KubeVersion,
-		SecretsBundle:  talos.SecretBundle(*secretBundle),
+		SecretsBundle:  *secretBundle,
 		Sans:           sans,
 		ServiceCIDR:    &tcp.Spec.ServiceCIDR,
 		PodCIDR:        &tcp.Spec.PodCIDR,

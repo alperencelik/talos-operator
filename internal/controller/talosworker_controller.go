@@ -121,8 +121,7 @@ func (r *TalosWorkerReconciler) reconcileContainerMode(ctx context.Context, tw *
 	// Generate the worker configuration
 	if err := r.GenerateConfig(ctx, tw); err != nil {
 		// Error is due to ref not found so report it in status and return without requeueing
-		logger.Error(err, "failed to generate worker config", "name", tw.Name)
-		return ctrl.Result{}, nil
+		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to generate worker config for TalosWorker %s: %w", tw.Name, err)
 	}
 	if err := r.reconcileService(ctx, tw); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to reconcile service for TalosWorker %s: %w", tw.Name, err)
@@ -143,12 +142,10 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 	// Generate the worker configuration
 	if err := r.GenerateConfig(ctx, tw); err != nil {
 		// Error is due to ref not found so report it in status and return without requeueing
-		logger.Error(err, "failed to generate worker config", "name", tw.Name)
-		return ctrl.Result{}, nil
+		return ctrl.Result{Requeue: true}, err
 	}
 	// Reconcile TalosMachine objects
 	if err := r.handleTalosMachines(ctx, tw); err != nil {
-		logger.Error(err, "failed to handle TalosMachines for TalosWorker", "name", tw.Name)
 		return ctrl.Result{}, err
 	}
 	// Return no error and no requeue

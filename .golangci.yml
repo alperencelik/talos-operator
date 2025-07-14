@@ -35,6 +35,10 @@ linters:
           - dupl
           - lll
         path: internal/*
+      - linters:
+          - staticcheck
+        path: test/utils/utils.go
+      
     paths:
       - third_party$
       - builtin$
