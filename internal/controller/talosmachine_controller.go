@@ -64,7 +64,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 	logger.Info("Reconciling TalosMachine", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
 	// Finalizer
-	if talosMachine.ObjectMeta.DeletionTimestamp.IsZero() {
+	if talosMachine.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so we add the finalizer if it's not already present
 		err := r.handleFinalizer(ctx, &talosMachine)
 		if err != nil {
@@ -379,7 +379,7 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 
 func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *talosv1alpha1.TalosMachine, config *talos.BundleConfig) (*[]string, error) {
 
-	var insecure bool = false
+	var insecure = false
 	if tm.Status.State == talosv1alpha1.StatePending || tm.Status.State == "" {
 		insecure = true // Use insecure mode for pending state
 	}

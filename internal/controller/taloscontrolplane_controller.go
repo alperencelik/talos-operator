@@ -82,7 +82,7 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 	// Finalizer
 	var delErr error
-	if tcp.ObjectMeta.DeletionTimestamp.IsZero() {
+	if tcp.DeletionTimestamp.IsZero() {
 		delErr = r.handleFinalizer(ctx, tcp)
 		if delErr != nil {
 			logger.Error(delErr, "failed to handle finalizer for TalosControlPlane", "name", tcp.Name)
@@ -294,42 +294,14 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 func (r *TalosControlPlaneReconciler) CheckControlPlaneReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
 	// Check if all replicas of the StatefulSet are ready
 	switch tcp.Spec.Mode {
-	case "container":
+	case TalosPlatformContainer:
 		return r.checkContainerModeReady(ctx, tcp)
-	case "metal":
+	case TalosModeMetal:
 		return r.checkMetalModeReady(ctx, tcp)
 	default:
 		return fmt.Errorf("unsupported mode for TalosControlPlane %s: %s", tcp.Name, tcp.Spec.Mode)
 	}
 }
-
-//func (r *TalosControlPlaneReconciler) GetControlPlaneConfig(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) ([]byte, error) {
-//// MachineConfig is retrieved from the configMap
-//cm := &corev1.ConfigMap{
-//ObjectMeta: metav1.ObjectMeta{
-//Name:      fmt.Sprintf("%s-config", tcp.Name),
-//Namespace: tcp.Namespace,
-//},
-//}
-//// Get the ConfigMap to retrieve the MachineConfig
-//if err := r.Get(ctx, client.ObjectKeyFromObject(cm), cm); err != nil {
-//if kerrors.IsNotFound(err) {
-//return nil, fmt.Errorf("ConfigMap %s for TalosControlPlane %s not found: %w", cm.Name, tcp.Name, err)
-//}
-//return nil, fmt.Errorf("failed to get ConfigMap %s for TalosControlPlane %s: %w", cm.Name, tcp.Name, err)
-//}
-//// Decode the MachineConfig from the ConfigMap data
-//machineConfigData, exists := cm.Data["controlplane.yaml"]
-//if !exists {
-//return nil, fmt.Errorf("controlplane.yaml not found in ConfigMap %s for TalosControlPlane %s", cm.Name, tcp.Name)
-//}
-//// Decode the base64 encoded MachineConfig
-//machineCfg, err := base64.StdEncoding.DecodeString(machineConfigData)
-//if err != nil {
-//return nil, fmt.Errorf("failed to decode controlplane.yaml from ConfigMap %s for TalosControlPlane %s: %w", cm.Name, tcp.Name, err)
-//}
-//return machineCfg, nil
-//}
 
 func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
 
@@ -345,11 +317,11 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 		// Get the machines associated with the TalosControlPlane
 		err := r.List(ctx, machines, opts...)
 		if err != nil {
-			return fmt.Errorf("Error: %w", err)
+			return fmt.Errorf("error: %w", err)
 		}
 		// Remove the deletion timestamped machines from the list
 		for i := len(machines.Items) - 1; i >= 0; i-- {
-			if !machines.Items[i].ObjectMeta.DeletionTimestamp.IsZero() {
+			if !machines.Items[i].DeletionTimestamp.IsZero() {
 				// Keep only the machines that are not being deleted
 				machines.Items = append(machines.Items[:i], machines.Items[i+1:]...)
 			}
@@ -402,7 +374,7 @@ func (r *TalosControlPlaneReconciler) checkContainerModeReady(ctx context.Contex
 	for i := 0; i < maxRetries; i++ {
 		// Get the StatefulSet to check its status
 		if err := r.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
-			//
+			return fmt.Errorf("failed to get StatefulSet %s: %w", sts.Name, err)
 		}
 		// Check if the number of ready replicas matches the desired replicas
 		if sts.Status.ReadyReplicas < tcp.Spec.Replicas {
@@ -633,10 +605,9 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 	// If the mode is metal tweak the config to use the metal-specific endpoint to bootstrap
-	if tcp.Spec.Mode == "metal" {
+	if tcp.Spec.Mode == TalosModeMetal {
 		// Use the first machine's endpoint for bootstrapping
-		var newEndpoint string
-		newEndpoint = tcp.Spec.MetalSpec.Machines[0]   // Use the first machine's endpoint
+		newEndpoint := tcp.Spec.MetalSpec.Machines[0]  // Use the first machine's endpoint
 		config.Endpoint = newEndpoint                  // Set the Endpoint to the first machine's endpoint
 		config.ClientEndpoint = &[]string{newEndpoint} // Set the ClientEndpoint to the same as Endpoint
 	}
@@ -689,7 +660,7 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, kubeconfigSecret, func() error {
 		kubeconfigSecret.Data = map[string][]byte{
-			"kubeconfig": []byte(kubeconfig),
+			"kubeconfig": kubeconfig,
 		}
 		return nil
 	})

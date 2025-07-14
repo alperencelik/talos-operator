@@ -30,7 +30,7 @@ func NewClient(cfg *BundleConfig, insecure bool) (*TalosClient, error) {
 	if cfg.ClientEndpoint != nil {
 		endpoints = *cfg.ClientEndpoint
 	} else {
-		endpoints = []string{fmt.Sprintf("%s", cfg.ClusterName)}
+		endpoints = []string{cfg.ClusterName}
 	}
 	if insecure {
 		tlsConfig := &tls.Config{
@@ -68,7 +68,8 @@ func (tc *TalosClient) BootstrapNode(cfg *BundleConfig) error {
 	// 	if err := tc.Client.Bootstrap(context.Background(), req); err != nil {
 	// return err
 	// }
-	tc.Client.Bootstrap(context.Background(), req)
+	err := tc.Bootstrap(context.Background(), req)
+	_ = err // TODO: Handle error properly
 	return nil
 }
 
@@ -80,9 +81,9 @@ func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte) er
 		DryRun:         false,
 		TryModeTimeout: durationpb.New(60 * time.Second),
 	}
-	resp, err := tc.Client.ApplyConfiguration(ctx, applyRequest)
+	resp, err := tc.ApplyConfiguration(ctx, applyRequest)
 	if err != nil {
-		return fmt.Errorf("Error applying new configration %s", err)
+		return fmt.Errorf("error applying new configuration %s", err)
 	}
 	// TODO: Use FilterMessages over resp
 	// Parse the response
@@ -97,7 +98,7 @@ func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.Tal
 		return tm.Spec.InstallDisk, nil
 	} else {
 		// Try to get it from the disks
-		resp, err := tc.Client.Disks(ctx)
+		resp, err := tc.Disks(ctx)
 		if err != nil {
 			fmt.Printf("Error getting disks: %s\n", err)
 			return nil, err
@@ -119,7 +120,7 @@ func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.Tal
 					return &part.DeviceName, nil
 				default:
 					// If no specific disk is found, return the first writable disk
-					if part.Readonly == false {
+					if !part.Readonly {
 						return &part.DeviceName, nil
 					}
 				}

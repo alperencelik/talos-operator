@@ -72,7 +72,7 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	// Finalizer
 	var finErr error
-	if tw.ObjectMeta.DeletionTimestamp.IsZero() {
+	if tw.DeletionTimestamp.IsZero() {
 		finErr = r.handleFinalizer(ctx, tw)
 		if finErr != nil {
 			logger.Error(finErr, "failed to handle finalizer for TalosWorker", "name", tw.Name)

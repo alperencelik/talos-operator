@@ -32,7 +32,7 @@ type BundleConfig struct {
 	Version        string          `json:"version"`                  // Talos version to use
 	KubeVersion    string          `json:"kubeVersion"`              // Kubernetes version to use
 	SecretsBundle  *secrets.Bundle `json:"-"`                        // Secrets bundle for the Talos cluster
-	Sans           []string        `json:"sans,omitempty"`           // Additional Subject Alternative Names for the API server
+	Sans           []string        `json:"sans,omitempty"`           // Additional Subject Alternative Names for the API server //nolint:lll
 	PodCIDR        *[]string       `json:"podCIDR,omitempty"`        // Pod CIDR ranges
 	ServiceCIDR    *[]string       `json:"serviceCIDR,omitempty"`    // Service CIDR ranges
 	ClientEndpoint *[]string       `json:"clientEndpoint,omitempty"` // Optional client endpoint for Talos API
