@@ -1,0 +1,9 @@
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosControlPlane
+metadata:
+  name: taloscontrolplane-sample
+spec:
+  version: v1.10.3
+  mode: container 
+  replicas: 2
+  kubeVersion: v1.33.0

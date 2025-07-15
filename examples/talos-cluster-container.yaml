@@ -1,0 +1,15 @@
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosCluster
+metadata:
+  name: taloscluster-sample
+spec:
+  controlPlane:
+    version: v1.10.3
+    mode: container
+    replicas: 2
+    kubeVersion: v1.33.0
+  worker:
+    version: v1.10.3
+    mode: container 
+    replicas: 2
+    kubeVersion: v1.33.0 

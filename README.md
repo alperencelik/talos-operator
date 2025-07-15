@@ -20,6 +20,18 @@ Talos Linux is a great choice for running Kubernetes clusters due to its securit
 
 ## Getting Started
 
+You can install the `talos-operator` in your Kubernetes cluster using the helm chart under `deploy/talos-operator` directory.
+
+```bash
+cd deploy/talos-operator
+helm install talos-operator ./ --namespace talos-operator
+```
+Alternatively, you can use the `make` commands to build and deploy the operator as described below.
+
+## Creating your own First Talos Cluster
+
+To create your first Talos cluster using the `talos-operator`, you need to define a `TalosCluster` custom resource. You can find an examples of `TalosCluster` in the `examples/` directory. 
+
 ### Prerequisites
 - go version v1.24.0+
 - docker version 17.03+.
