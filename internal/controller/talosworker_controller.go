@@ -52,6 +52,10 @@ type TalosWorkerReconciler struct {
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosworkers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosworkers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosworkers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

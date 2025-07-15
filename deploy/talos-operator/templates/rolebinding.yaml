@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "talos-operator.fullname" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "talos-operator.fullname" . }} 
+subjects:
+- kind: ServiceAccount
+  name: {{ include "talos-operator.serviceAccountName" . }} 
+  namespace: {{ .Release.Namespace }} 
