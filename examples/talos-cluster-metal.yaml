@@ -1,0 +1,30 @@
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosCluster
+metadata:
+  name: taloscluster-sample
+spec:
+  # Control plane configuration
+  controlPlane:
+    version: v1.10.3 # Talos version
+    mode: metal # Deployment mode -- can be 'metal' or 'container'
+    kubeVersion: v1.33.0 # Kubernetes version
+    metalSpec:
+      # List of Talos machines(IP Addresses) in the control plane 
+      machines:
+        - "10.0.153.207"
+        - "10.0.153.232"
+    # Kubernetes API server endpoint
+    endpoint: "https://10.0.153.207:6443"
+  # Worker nodes configuration
+  worker:
+    version: v1.10.3 # Talos version
+    mode: metal # Deployment mode -- can be 'metal' or 'container'
+    kubeVersion: v1.33.0 # Kubernetes version
+    # Reference to the Talos control plane to which this worker will connect
+    controlPlaneRef:
+      name: taloscontrolplane-sample
+    metalSpec:
+      # List of Talos machines(IP Addresses) in the control plane 
+      machines:
+      - "10.0.153.58"
+      - "10.0.153.59"

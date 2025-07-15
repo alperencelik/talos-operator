@@ -1,18 +1,39 @@
 # talos-operator
-// TODO(user): Add simple overview of use/purpose
+
+A Kubernetes operator to manage Talos Linux–based clusters declaratively.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+
+`talos-operator` enables to bootstrap Talos Kubernetes clusters using custom controllers. It allows you to create and manage Talos clusters in different environments, such as bare metal, virtual machines or even in Kubernetes-in-Kubernetes method by using Talos' container support.
+
+## Motivation
+
+Talos Linux is a great choice for running Kubernetes clusters due to its security, simplicity, and API driven design. However, as a person who is against CLI tools to install clusters, I wanted to create a way to manage Talos clusters declaratively using Kubernetes operators. This operator allows you to define your Talos cluster configuration in Kubernetes Custom Resource Definitions (CRDs) and manage the lifecycle of Talos clusters using Kubernetes controllers. You don't need to worry about Talosconfigs, secret bundles or any-other operation that needs to be done via Talos CLI. The operator takes care all of those and you don't need to run any Talos CLI commands manually.
+
+## Features
+
+- **Decoupled Design**: The operator is designed to decouple a Kubernetes cluster in two parts: the control plane and the worker nodes. This allows you to manage the control plane and worker nodes independently, which is useful different purposes. You can create control planes without any worker nodes, and vice versa. You can design many scenarious with this decoupled design, such as control plane as a service, or control plane as a pod in Kubernetes, or even more. To learn more please see the `examples/` directory.
+- **Installation Modes**: The operator supports two installation modes: `container` and `metal`. The `container` mode allows you to run Talos clusters inside Kubernetes pods(like Kubernetes-in-Kubernetes), while the `metal` mode allows you to run Talos clusters on bare metal or virtual machines. This gives you flexibility in how you want to deploy and manage your Talos clusters. Metal mode requires you to have machines already booted with Talos OS(in maintenance mode) and the operator will configure those machines to cluster based on the configuration you provide in the CRDs.
+- **Ease of Usage && Flexibility**: The operator is designed to be easy to use and flexible. You can create Talos clusters using simple Kubernetes Custom Resource Definitions (CRDs) and the operator will take care of the rest. Operator will generate all those configurations and write them in to ConfigMaps and Secrets to provide a way to users to integrate. Even though the operator is managing the all config generations and operations, you can still provide the configuration you want to use in the CRDs. This allows you to customize the Talos clusters according to your needs and make them work with your specific requirements.
+
+- **Integratibility**: The operator is designed to be easily integratable with other Kubernetes operators and tools. Since the operator generates a Kubeconfig for the created Talos clusters, you can use that data to feed into other tools or operators such as ArgoCD, FluxCD or any other custom Kubernetes invocation. This allows you to use the operator in your existing Kubernetes workflows and tools.
 
 ## Getting Started
 
 ### Prerequisites
-- go version v1.22.0+
+- go version v1.24.0+
 - docker version 17.03+.
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
 
 ### To Deploy on the cluster
+
+**Run against the current cluster:**
+
+```sh
+make run
+```
+
 **Build and push your image to the location specified by `IMG`:**
 
 ```sh
@@ -33,25 +54,6 @@ make install
 
 ```sh
 make deploy IMG=<some-registry>/talos-operator:tag
-```
-
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
-
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
-```sh
-kubectl apply -k config/samples/
-```
-
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
 ```
 
 **Delete the APIs(CRDs) from the cluster:**
