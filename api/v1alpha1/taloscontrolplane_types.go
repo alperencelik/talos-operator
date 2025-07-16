@@ -102,6 +102,9 @@ type MetalSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	Wipe bool `json:"wipe,omitempty"`
+	// Image is the Talos image to use for this machine.
+	// +kubebuilder:validation:Optional
+	Image *string `json:"image,omitempty"`
 }
 
 // TalosControlPlaneStatus defines the observed state of TalosControlPlane.

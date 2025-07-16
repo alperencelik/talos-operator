@@ -200,6 +200,7 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 				},
 				Endpoint:    machine,
 				InstallDisk: tw.Spec.MetalSpec.InstallDisk,
+				Image:       tw.Spec.MetalSpec.Image,
 			}
 			return nil
 		})

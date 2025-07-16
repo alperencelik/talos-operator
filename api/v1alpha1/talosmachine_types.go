@@ -36,6 +36,10 @@ type TalosMachineSpec struct {
 	// +kubebuilder:validation:Optional
 	InstallDisk *string `json:"installDisk,omitempty"`
 
+	// Image is the Talos image to use for this machine.
+	// +kubebuilder:validation:Optional
+	Image *string `json:"image,omitempty"`
+
 	// ControlPlaneRef is a reference to the TalosControlPlane this machine belongs to.
 	ControlPlaneRef *corev1.ObjectReference `json:"controlPlaneRef,omitempty"`
 

@@ -284,6 +284,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 				},
 				Endpoint:    machine,
 				InstallDisk: tcp.Spec.MetalSpec.InstallDisk,
+				Image:       tcp.Spec.MetalSpec.Image,
 			}
 			return nil
 		})

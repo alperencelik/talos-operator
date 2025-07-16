@@ -86,6 +86,9 @@ spec:
               endpoint:
                 description: Endpoint is the Talos API endpoint for this machine.
                 type: string
+              image:
+                description: Image is the Talos image to use for this machine.
+                type: string
               installDisk:
                 description: InstallDisk is the disk where Talos will be installed.
                 type: string

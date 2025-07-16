@@ -391,13 +391,20 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
+	// Disk Patches
 	diskNamePtr, err := talosclient.GetInstallDisk(ctx, tm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get install disk for TalosMachine %s: %w", tm.Name, err)
 	}
 	diskName := utils.PtrToString(diskNamePtr)
 	diskPatch := fmt.Sprintf(talos.InstallDisk, diskName)
-	return &[]string{diskPatch, talos.WipeDisk}, nil
+	// Install Image Patch
+	var imagePatch string
+	if tm.Spec.Image != nil && *tm.Spec.Image != "" {
+		imagePatch = fmt.Sprintf(talos.InstallImage, *tm.Spec.Image)
+	}
+
+	return &[]string{diskPatch, talos.WipeDisk, imagePatch}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
