@@ -400,8 +400,8 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	diskPatch := fmt.Sprintf(talos.InstallDisk, diskName)
 	// Install Image Patch
 	var imagePatch string
-	if tm.Spec.Image != nil && *tm.Spec.Image != "" {
-		imagePatch = fmt.Sprintf(talos.InstallImage, *tm.Spec.Image)
+	if tm.Spec.MachineSpec.Image != nil && *tm.Spec.MachineSpec.Image != "" {
+		imagePatch = fmt.Sprintf(talos.InstallImage, *tm.Spec.MachineSpec.Image)
 	}
 
 	return &[]string{diskPatch, talos.WipeDisk, imagePatch}, nil
@@ -435,12 +435,12 @@ func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talo
 		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
 	// Check if the machine is ready
-	svcState := tc.GetServiceStatus(ctx, "kubelet")
+	svcState := tc.GetServiceStatus(ctx, talos.KUBELET_SERVICE_NAME)
 	if svcState == "" {
 		logger.Info("Kubelet service state is empty, requeuing reconciliation", "name", tm.Name)
 		return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
 	}
-	if svcState != "running" {
+	if svcState != talos.KUBELET_STATUS_RUNNING {
 		logger.Info("Kubelet service is not running, requeuing reconciliation", "name", tm.Name, "state", svcState)
 		return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
 	}

@@ -32,13 +32,9 @@ type TalosMachineSpec struct {
 	// Endpoint is the Talos API endpoint for this machine.
 	// +kubebuilder:validation:Required
 	Endpoint string `json:"endpoint,omitempty"`
-	// InstallDisk is the disk where Talos will be installed.
-	// +kubebuilder:validation:Optional
-	InstallDisk *string `json:"installDisk,omitempty"`
 
-	// Image is the Talos image to use for this machine.
-	// +kubebuilder:validation:Optional
-	Image *string `json:"image,omitempty"`
+	// MachineSpec is the machine specification for this TalosMachine.
+	MachineSpec *MachineSpec `json:"machineSpec,omitempty"`
 
 	// ControlPlaneRef is a reference to the TalosControlPlane this machine belongs to.
 	ControlPlaneRef *corev1.ObjectReference `json:"controlPlaneRef,omitempty"`

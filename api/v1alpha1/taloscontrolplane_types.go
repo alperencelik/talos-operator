@@ -94,6 +94,12 @@ type MetalSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	Machines []string `json:"machines,omitempty"`
+	// MachineSpec defines the specifications for each Talos control plane machine.
+	// +kubebuilder:validation:Optional
+	MachineSpec *MachineSpec `json:"machineSpec,omitempty"`
+}
+
+type MachineSpec struct {
 	// InstallDisk is the disk to use for installing Talos on the control plane machines.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^/dev/[a-z]+[0-9]*$`

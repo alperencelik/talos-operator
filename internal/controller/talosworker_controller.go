@@ -199,8 +199,7 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 					APIVersion: talosv1alpha1.GroupVersion.String(),
 				},
 				Endpoint:    machine,
-				InstallDisk: tw.Spec.MetalSpec.InstallDisk,
-				Image:       tw.Spec.MetalSpec.Image,
+				MachineSpec: tw.Spec.MetalSpec.MachineSpec,
 			}
 			return nil
 		})

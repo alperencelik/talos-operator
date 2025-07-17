@@ -283,8 +283,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 					APIVersion: talosv1alpha1.GroupVersion.String(),
 				},
 				Endpoint:    machine,
-				InstallDisk: tcp.Spec.MetalSpec.InstallDisk,
-				Image:       tcp.Spec.MetalSpec.Image,
+				MachineSpec: tcp.Spec.MetalSpec.MachineSpec,
 			}
 			return nil
 		})
@@ -352,8 +351,8 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 				if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
 					return fmt.Errorf("failed to get TalosControlPlane %s after checking machines: %w", tcp.Name, err)
 				}
-				// Update the status to Available
-				if err := r.updateState(ctx, tcp, talosv1alpha1.StateAvailable); err != nil {
+				// Update the status to Ready
+				if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
 					return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
 				}
 			}
@@ -388,11 +387,11 @@ func (r *TalosControlPlaneReconciler) checkContainerModeReady(ctx context.Contex
 			continue // Retry after waiting
 		}
 	}
-	// When all replicas are ready, update the TalosControlPlane status to Available
+	// When all replicas are ready, update the TalosControlPlane status to ready
 	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
 		return fmt.Errorf("failed to get TalosControlPlane %s after reconciling StatefulSet: %w", tcp.Name, err)
 	}
-	if err := r.updateState(ctx, tcp, talosv1alpha1.StateAvailable); err != nil {
+	if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
 		return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
 	}
 	return nil
@@ -672,14 +671,13 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 	if err != nil {
 		return fmt.Errorf("failed to create or update Kubeconfig Secret %s: %w", kubeconfigSecret.Name, err)
 	}
-	// Get the TalosControlPlane object again to update the status
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
-		return fmt.Errorf("failed to get TalosControlPlane %s after writing kubeconfig: %w", tcp.Name, err)
-	}
-
-	if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
-		return fmt.Errorf("failed to update TalosControlPlane %s status to Ready: %w", tcp.Name, err)
-	}
+	//	// Get the TalosControlPlane object again to update the status
+	// if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+	// return fmt.Errorf("failed to get TalosControlPlane %s after writing kubeconfig: %w", tcp.Name, err)
+	// }
+	// if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
+	// return fmt.Errorf("failed to update TalosControlPlane %s status to Ready: %w", tcp.Name, err)
+	// }
 	return nil
 }
 

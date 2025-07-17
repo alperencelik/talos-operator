@@ -17,6 +17,11 @@ type TalosClient struct {
 	*client.Client
 }
 
+const (
+	KUBELET_SERVICE_NAME   = "kubelet"
+	KUBELET_STATUS_RUNNING = "Running"
+)
+
 // NewClient constructs a Talos API client using the default talosconfig file
 // and context name. It returns an initialized client or an error.
 func NewClient(cfg *BundleConfig, insecure bool) (*TalosClient, error) {
@@ -93,9 +98,9 @@ func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte) er
 
 func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*string, error) {
 	// Check if installDisk is provided
-	if tm.Spec.InstallDisk != nil {
+	if tm.Spec.MachineSpec.InstallDisk != nil {
 		// If installDisk is provided, return it
-		return tm.Spec.InstallDisk, nil
+		return tm.Spec.MachineSpec.InstallDisk, nil
 	} else {
 		// Try to get it from the disks
 		resp, err := tc.Disks(ctx)
@@ -132,16 +137,17 @@ func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.Tal
 
 func (tc *TalosClient) GetServiceStatus(ctx context.Context, svcName string) string {
 	// Get the service status
-	// 	svcsInfo, err := tc.ServiceInfo(ctx, svcName)
-	// if err != nil {
-	// fmt.Printf("Error getting service status: %s\n", err)
-	// return ""
-	// }
-	// svc := svcsInfo[0]
+	svcsInfo, err := tc.ServiceInfo(ctx, svcName)
+	if err != nil {
+		fmt.Printf("Error getting service status: %s\n", err)
+		return ""
+	}
+	svc := svcsInfo[0]
 	// fmt.Printf("Service %s status: %s\n", svc, svc.Service.State)
-	// return svc.Service.State
-	state := "running" // Placeholder for actual service state
-	return state
+	fmt.Printf("Service status: %s\n", svc.Service.State)
+	return svc.Service.State
+	// state := "running" // Placeholder for actual service state
+	// return state
 }
 
 // func (tc *TalosClient) GetMachineStatus(ctx context.Context) (*string, error) {

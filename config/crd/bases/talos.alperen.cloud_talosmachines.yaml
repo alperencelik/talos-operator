@@ -86,12 +86,22 @@ spec:
               endpoint:
                 description: Endpoint is the Talos API endpoint for this machine.
                 type: string
-              image:
-                description: Image is the Talos image to use for this machine.
-                type: string
-              installDisk:
-                description: InstallDisk is the disk where Talos will be installed.
-                type: string
+              machineSpec:
+                description: MachineSpec is the machine specification for this TalosMachine.
+                properties:
+                  image:
+                    description: Image is the Talos image to use for this machine.
+                    type: string
+                  installDisk:
+                    description: InstallDisk is the disk to use for installing Talos
+                      on the control plane machines.
+                    pattern: ^/dev/[a-z]+[0-9]*$
+                    type: string
+                  wipe:
+                    default: false
+                    description: Wipe indicates whether to wipe the disk before installation.
+                    type: boolean
+                type: object
               workerRef:
                 description: WorkerRef is a reference to the TalosWorker this machine
                   belongs to.
