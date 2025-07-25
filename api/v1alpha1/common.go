@@ -13,6 +13,8 @@ const (
 	StateBootstrapped = "Bootstrapped" // Control plane is ready to accept workloads
 	StateReady        = "Ready"        // Control plane is fully operational
 	StateFailed       = "Failed"       // Control plane creation failed
+	// State for TalosMachine
+	StateOrphaned = "Orphaned" // Machine is not managed by any TalosCluster or TalosControlPlane
 
 	// Finalizers
 	TalosClusterFinalizer      = "taloscluster.talos.alperen.cloud/finalizer"
