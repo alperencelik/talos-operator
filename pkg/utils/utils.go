@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
@@ -43,4 +44,9 @@ func PtrToString(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func HasVersionSuffix(v string) bool {
+	re := regexp.MustCompile(`:v\d+(\.\d+)*$`)
+	return re.MatchString(v)
 }

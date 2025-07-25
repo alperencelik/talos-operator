@@ -194,7 +194,7 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 	}
 
 	// TODO: Implement something that waits for the StatefulSet to be ready before proceeding
-	if err := r.CheckControlPlaneReady(ctx, tcp); err != nil {
+	if _, err := r.CheckControlPlaneReady(ctx, tcp); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to check if TalosControlPlane %s is ready: %w", tcp.Name, err)
 	}
 
@@ -225,10 +225,17 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 	}
 
 	// Wait for all TalosMachines to be created and status Available
-	err := r.CheckControlPlaneReady(ctx, tcp)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to check if TalosControlPlane %s is ready: %w", tcp.Name, err)
+	for {
+		ready, err := r.CheckControlPlaneReady(ctx, tcp)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to check if TalosControlPlane %s is ready: %w", tcp.Name, err)
+		}
+		if ready {
+			break
+		}
+		time.Sleep(10 * time.Second)
 	}
+
 	// Send a bootstrap req to the TalosControlPlane
 	if err := r.BootstrapCluster(ctx, tcp); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to bootstrap Talos ControlPlane cluster for %s: %w", tcp.Name, err)
@@ -237,7 +244,6 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 	if err := r.WriteKubeconfig(ctx, tcp); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to write kubeconfig for TalosControlPlane %s: %w", tcp.Name, err)
 	}
-
 	return ctrl.Result{}, nil
 }
 
@@ -295,7 +301,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 	return nil
 }
 
-func (r *TalosControlPlaneReconciler) CheckControlPlaneReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
+func (r *TalosControlPlaneReconciler) CheckControlPlaneReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (bool, error) {
 	// Check if all replicas of the StatefulSet are ready
 	switch tcp.Spec.Mode {
 	case TalosPlatformContainer:
@@ -303,11 +309,11 @@ func (r *TalosControlPlaneReconciler) CheckControlPlaneReady(ctx context.Context
 	case TalosModeMetal:
 		return r.checkMetalModeReady(ctx, tcp)
 	default:
-		return fmt.Errorf("unsupported mode for TalosControlPlane %s: %s", tcp.Name, tcp.Spec.Mode)
+		return false, fmt.Errorf("unsupported mode for TalosControlPlane %s: %s", tcp.Name, tcp.Spec.Mode)
 	}
 }
 
-func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
+func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (bool, error) {
 
 	maxRetries := 10
 	retryInterval := 10 * time.Second
@@ -316,12 +322,13 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 		client.InNamespace(tcp.Namespace),
 		client.MatchingFields{"spec.controlPlaneRef.name": tcp.Name},
 	}
+	var allavailable bool
 	for i := 0; i < maxRetries; i++ {
 		// Need to re-list machines everytime because the update is not reflected in the cache immediately
 		// Get the machines associated with the TalosControlPlane
 		err := r.List(ctx, machines, opts...)
 		if err != nil {
-			return fmt.Errorf("error: %w", err)
+			return false, fmt.Errorf("error: %w", err)
 		}
 		// Remove the deletion timestamped machines from the list
 		for i := len(machines.Items) - 1; i >= 0; i-- {
@@ -342,28 +349,28 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 		if allAvailable {
 			// If the .state is Ready or Available don't try to update the status
 			if tcp.Status.State == talosv1alpha1.StateReady || tcp.Status.State == talosv1alpha1.StateAvailable {
-				return nil
+				return allAvailable, nil
 			}
 			// All machines are available, update the TalosControlPlane status to Available
 			// If it's not ready or available, update the status to Available
 			if tcp.Status.State != talosv1alpha1.StateReady {
 				// Get the object once again before update it
 				if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
-					return fmt.Errorf("failed to get TalosControlPlane %s after checking machines: %w", tcp.Name, err)
+					return allAvailable, fmt.Errorf("failed to get TalosControlPlane %s after checking machines: %w", tcp.Name, err)
 				}
-				// Update the status to Ready
-				if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
-					return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
+				// Update the status to Available
+				if err := r.updateState(ctx, tcp, talosv1alpha1.StateAvailable); err != nil {
+					return allAvailable, fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
 				}
 			}
 			break // Exit the loop if all machines are available
 		}
 		time.Sleep(retryInterval)
 	}
-	return nil
+	return allavailable, nil
 }
 
-func (r *TalosControlPlaneReconciler) checkContainerModeReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
+func (r *TalosControlPlaneReconciler) checkContainerModeReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (bool, error) {
 	logger := log.FromContext(ctx)
 
 	sts := &appsv1.StatefulSet{
@@ -378,7 +385,7 @@ func (r *TalosControlPlaneReconciler) checkContainerModeReady(ctx context.Contex
 	for i := 0; i < maxRetries; i++ {
 		// Get the StatefulSet to check its status
 		if err := r.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
-			return fmt.Errorf("failed to get StatefulSet %s: %w", sts.Name, err)
+			return false, fmt.Errorf("failed to get StatefulSet %s: %w", sts.Name, err)
 		}
 		// Check if the number of ready replicas matches the desired replicas
 		if sts.Status.ReadyReplicas < tcp.Spec.Replicas {
@@ -389,12 +396,12 @@ func (r *TalosControlPlaneReconciler) checkContainerModeReady(ctx context.Contex
 	}
 	// When all replicas are ready, update the TalosControlPlane status to ready
 	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
-		return fmt.Errorf("failed to get TalosControlPlane %s after reconciling StatefulSet: %w", tcp.Name, err)
+		return false, fmt.Errorf("failed to get TalosControlPlane %s after reconciling StatefulSet: %w", tcp.Name, err)
 	}
 	if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
-		return fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
+		return false, fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
 	}
-	return nil
+	return true, nil
 }
 
 func (r *TalosControlPlaneReconciler) handleResourceNotFound(ctx context.Context, err error) error {
@@ -671,13 +678,13 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 	if err != nil {
 		return fmt.Errorf("failed to create or update Kubeconfig Secret %s: %w", kubeconfigSecret.Name, err)
 	}
-	//	// Get the TalosControlPlane object again to update the status
-	// if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
-	// return fmt.Errorf("failed to get TalosControlPlane %s after writing kubeconfig: %w", tcp.Name, err)
-	// }
-	// if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
-	// return fmt.Errorf("failed to update TalosControlPlane %s status to Ready: %w", tcp.Name, err)
-	// }
+	// Get the TalosControlPlane object again to update the status
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+		return fmt.Errorf("failed to get TalosControlPlane %s after writing kubeconfig: %w", tcp.Name, err)
+	}
+	if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
+		return fmt.Errorf("failed to update TalosControlPlane %s status to Ready: %w", tcp.Name, err)
+	}
 	return nil
 }
 

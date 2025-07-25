@@ -314,9 +314,13 @@ func (r *TalosMachineReconciler) GetBundleConfig(ctx context.Context, tm *talosv
 	if err != nil {
 		logger.Error(err, "Failed to get Control Plane reference for TalosMachine", "name", tm.Name)
 	}
+	// If the TalosControlPlane reference is nil, the machine is orphaned
 	if tcp == nil {
 		logger.Info("TalosControlPlane reference is nil, waiting for it to be ready", "name", tm.Name)
-		// TODO: Requeue after some time to check again
+		// Update the staus to Orphaned and don't reconcile
+		if err := r.updateState(ctx, tm, talosv1alpha1.StateOrphaned); err != nil {
+			return nil, fmt.Errorf("failed to update TalosMachine %s status to Orphaned: %w", tm.Name, err)
+		}
 		return nil, nil
 	}
 	// Get bundleConfig from TalosControlPlane status
@@ -363,6 +367,10 @@ func (r *TalosMachineReconciler) handleFinalizer(ctx context.Context, tm *talosv
 }
 
 func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
+	// If machine is orphaned, we don't need to do anything
+	if tm.Status.State == talosv1alpha1.StateOrphaned {
+		return ctrl.Result{}, nil
+	}
 	// Run talosctl reset command to reset the machine
 	config, err := r.GetBundleConfig(ctx, tm)
 	if err != nil {
@@ -401,7 +409,14 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	// Install Image Patch
 	var imagePatch string
 	if tm.Spec.MachineSpec.Image != nil && *tm.Spec.MachineSpec.Image != "" {
-		imagePatch = fmt.Sprintf(talos.InstallImage, *tm.Spec.MachineSpec.Image)
+		// if the .machineSpec.image has version suffix, directly use it if not append the version to the image
+		var imageWithVersion string
+		if utils.HasVersionSuffix(*tm.Spec.MachineSpec.Image) {
+			imageWithVersion = *tm.Spec.MachineSpec.Image
+		} else {
+			imageWithVersion = fmt.Sprintf("%s:%s", *tm.Spec.MachineSpec.Image, config.Version)
+		}
+		imagePatch = fmt.Sprintf(talos.InstallImage, imageWithVersion)
 	}
 
 	return &[]string{diskPatch, talos.WipeDisk, imagePatch}, nil
