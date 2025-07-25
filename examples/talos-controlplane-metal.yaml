@@ -3,22 +3,24 @@ kind: TalosControlPlane
 metadata:
   name: taloscontrolplane-sample
 spec:
-  version: v1.10.3 # Talos version
+  version: v1.8.3 # Talos version
   mode: metal # Deployment mode -- can be 'metal' or 'container'
-  kubeVersion: v1.33.0 # Kubernetes version
+  kubeVersion: v1.32.0 # Kubernetes version
   metalSpec:
     # List of Talos machines(IP Addresses) in the control plane 
     machines:
-      - "10.0.153.207"
-      - "10.0.153.232"
+      - "10.0.153.193"
+    machineSpec: 
+      image: "factory.talos.dev/metal-installer/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515:v1.10.3"
+      installDisk: "/dev/sdb"
   # Kubernetes API server endpoint
-  endpoint: "https://10.0.153.207:6443"
+  endpoint: "https://10.0.153.193:6443"
   # Pod and Service CIDRs -- optional, can be omitted if not needed
-  podCIDR: 
-  - 10.100.0.0/16
-  - 10.150.0.0/16
-  serviceCIDR:
-  - 10.200.0.0/12
+  # podCIDR: 
+  # - 10.100.0.0/16
+  # - 10.150.0.0/16
+  # serviceCIDR:
+  # - 10.200.0.0/12
 # Optional: configuration reference for Talos control plane if you want to use a custom configuration
 # Uncomment the following lines if you have a custom configuration
 #  configRef: 

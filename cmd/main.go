@@ -37,6 +37,7 @@ import (
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/internal/controller"
+	webhooktalosv1alpha1 "github.com/alperencelik/talos-operator/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -94,6 +95,7 @@ func main() {
 
 	webhookServer := webhook.NewServer(webhook.Options{
 		TLSOpts: tlsOpts,
+		CertDir: "/tmp/k8s-webhook-server/serving-certs",
 	})
 
 	// Metrics endpoint is enabled in 'config/default/kustomization.yaml'. The Metrics options configure the server.
@@ -172,6 +174,13 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosMachine")
 		os.Exit(1)
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhooktalosv1alpha1.SetupTalosControlPlaneWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "TalosControlPlane")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 

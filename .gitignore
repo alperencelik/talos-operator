@@ -26,3 +26,8 @@ go.work
 *.swo
 *~
 
+# Any talos config or kubeconfig files
+*talosconfig*
+*kubeconfig*
+*kc*
+

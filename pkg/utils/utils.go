@@ -50,3 +50,12 @@ func HasVersionSuffix(v string) bool {
 	re := regexp.MustCompile(`:v\d+(\.\d+)*$`)
 	return re.MatchString(v)
 }
+
+func GetVersionSuffix(v string) string {
+	re := regexp.MustCompile(`:v(\d+(\.\d+)*)$`)
+	matches := re.FindStringSubmatch(v)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+	return ""
+}
