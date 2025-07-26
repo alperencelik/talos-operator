@@ -408,7 +408,7 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	diskPatch := fmt.Sprintf(talos.InstallDisk, diskName)
 	// Install Image Patch
 	var imagePatch string
-	if tm.Spec.MachineSpec.Image != nil && *tm.Spec.MachineSpec.Image != "" {
+	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.Image != nil && *tm.Spec.MachineSpec.Image != "" {
 		// if the .machineSpec.image has version suffix, directly use it if not append the version to the image
 		var imageWithVersion string
 		if utils.HasVersionSuffix(*tm.Spec.MachineSpec.Image) {

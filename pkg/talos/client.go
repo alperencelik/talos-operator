@@ -98,7 +98,7 @@ func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte) er
 
 func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*string, error) {
 	// Check if installDisk is provided
-	if tm.Spec.MachineSpec.InstallDisk != nil {
+	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.InstallDisk != nil {
 		// If installDisk is provided, return it
 		return tm.Spec.MachineSpec.InstallDisk, nil
 	} else {

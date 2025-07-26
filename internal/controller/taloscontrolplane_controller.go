@@ -363,7 +363,7 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 					return allAvailable, fmt.Errorf("failed to update TalosControlPlane %s status to Available: %w", tcp.Name, err)
 				}
 			}
-			break // Exit the loop if all machines are available
+			return allAvailable, nil
 		}
 		time.Sleep(retryInterval)
 	}
@@ -521,9 +521,12 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 	if err := r.WriteTalosConfig(ctx, tcp); err != nil {
 		return fmt.Errorf("failed to write Talos config for %s: %w", tcp.Name, err)
 	}
-	// Update .status.state to Pending
-	if err := r.updateState(ctx, tcp, talosv1alpha1.StatePending); err != nil {
-		return fmt.Errorf("failed to update TalosControlPlane %s status to Pending: %w", tcp.Name, err)
+	// If the state is empty update it to Pending
+	if tcp.Status.State == "" {
+		// Update .status.state to Pending
+		if err := r.updateState(ctx, tcp, talosv1alpha1.StatePending); err != nil {
+			return fmt.Errorf("failed to update TalosControlPlane %s status to Pending: %w", tcp.Name, err)
+		}
 	}
 	return nil
 }
@@ -571,10 +574,18 @@ func (r *TalosControlPlaneReconciler) WriteTalosConfig(ctx context.Context, tcp 
 	if err != nil {
 		return fmt.Errorf("failed to marshal Talos config for %s: %w", tcp.Name, err)
 	}
+	// If the controlplane is owned by a TalosCluster use it's name
+	var secretName string
+	if tcp.GetOwnerReferences() != nil && len(tcp.GetOwnerReferences()) > 0 {
+		secretName = tcp.ObjectMeta.OwnerReferences[0].Name
+	} else {
+		// Fallback to the TalosControlPlane name
+		secretName = tcp.Name
+	}
 	// Write the Talos config to a secret
 	talosConfigSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-talosconfig", tcp.Name),
+			Name:      fmt.Sprintf("%s-talosconfig", secretName),
 			Namespace: tcp.Namespace,
 		},
 	}
@@ -659,10 +670,18 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 	if err != nil {
 		return fmt.Errorf("failed to generate kubeconfig for TalosControlPlane %s: %w", tcp.Name, err)
 	}
+	// If the controlplane is owned by a TalosCluster use it's name
+	var secretName string
+	if tcp.GetOwnerReferences() != nil && len(tcp.GetOwnerReferences()) > 0 {
+		secretName = tcp.ObjectMeta.OwnerReferences[0].Name
+	} else {
+		// Fallback to the TalosControlPlane name
+		secretName = tcp.Name
+	}
 	// Write the kubeconfig to a secret
 	kubeconfigSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-kubeconfig", tcp.Name),
+			Name:      fmt.Sprintf("%s-kubeconfig", secretName),
 			Namespace: tcp.Namespace,
 		},
 	}

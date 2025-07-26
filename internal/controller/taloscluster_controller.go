@@ -19,9 +19,11 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -73,33 +75,10 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	} else {
 		// Object is being deleted
 		if controllerutil.ContainsFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer) {
-			// Delete associated TalosControlPlane and TalosWorker resources
-			var tcp talosv1alpha1.TalosControlPlane
-			if err := r.Get(ctx, client.ObjectKey{
-				Name:      tc.Name + "-controlplane",
-				Namespace: tc.Namespace,
-			}, &tcp); err != nil {
-				if client.IgnoreNotFound(err) != nil {
-					logger.Error(err, "failed to fetch TalosControlPlane for deletion", "name", tc.Name)
-					return ctrl.Result{}, err
-				}
-				// TalosControlPlane not found, continue with deletion
-			} else {
-				// Delete TalosControlPlane resource
-				if err := r.Delete(ctx, &tcp); err != nil {
-					logger.Error(err, "failed to delete TalosControlPlane", "name", tcp.Name)
-					return ctrl.Result{}, err
-				}
-			}
-			var tw talosv1alpha1.TalosWorker
-			if err := r.Get(ctx, client.ObjectKey{
-				Name:      tc.Name + "-worker",
-				Namespace: tc.Namespace,
-			}, &tw); err != nil {
-				if client.IgnoreNotFound(err) != nil {
-					logger.Error(err, "failed to fetch TalosWorker for deletion", "name", tc.Name)
-					return ctrl.Result{}, err
-				}
+
+			res, err := r.handleDelete(ctx, tc)
+			if err != nil {
+				return res, fmt.Errorf("failed to handle delete for TalosCluster %s: %w", tc.Name, err)
 			}
 			// Remove finalizer and update
 			controllerutil.RemoveFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer)
@@ -167,6 +146,7 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 				Mode:             tc.Spec.ControlPlane.Mode,
 				Replicas:         tc.Spec.ControlPlane.Replicas,
 				Endpoint:         tc.Spec.ControlPlane.Endpoint,
+				MetalSpec:        tc.Spec.ControlPlane.MetalSpec,
 				KubeVersion:      tc.Spec.ControlPlane.KubeVersion,
 				ClusterDomain:    tc.Spec.ControlPlane.ClusterDomain,
 				StorageClassName: tc.Spec.ControlPlane.StorageClassName,
@@ -192,8 +172,12 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 		switch op {
 		case controllerutil.OperationResultCreated:
 			r.Recorder.Event(tc, corev1.EventTypeNormal, "Created", "TalosControlPlane created successfully")
+			// Requeue the request to ensure that talosWorker is created after control plane is ready
+			return ctrl.Result{Requeue: true, RequeueAfter: 5 * time.Second}, nil
 		case controllerutil.OperationResultUpdated:
 			r.Recorder.Event(tc, corev1.EventTypeNormal, "Updated", "TalosControlPlane updated successfully")
+			// If it's only a update then requeue immediately
+			return ctrl.Result{Requeue: true}, nil
 		}
 		logger.Info("Reconciled TalosControlPlane", "operation", op, "name", tcp.Name, "namespace", tcp.Namespace)
 	}
@@ -248,6 +232,7 @@ func (r *TalosClusterReconciler) reconcileWorker(ctx context.Context, tc *talosv
 			Version:          tc.Spec.Worker.Version,
 			Mode:             tc.Spec.Worker.Mode,
 			Replicas:         tc.Spec.Worker.Replicas,
+			MetalSpec:        tc.Spec.Worker.MetalSpec,
 			KubeVersion:      tc.Spec.Worker.KubeVersion,
 			StorageClassName: tc.Spec.Worker.StorageClassName,
 			ControlPlaneRef: corev1.LocalObjectReference{
@@ -307,4 +292,43 @@ func (r *TalosClusterReconciler) handleResourceNotFound(ctx context.Context, err
 		return nil
 	}
 	return err
+}
+
+func (r *TalosClusterReconciler) handleDelete(ctx context.Context, tc talosv1alpha1.TalosCluster) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
+	// Update the conditions of the TalosCluster to reflect deletion
+	if !meta.IsStatusConditionPresentAndEqual(tc.Status.Conditions, talosv1alpha1.ConditionDeleting, metav1.ConditionUnknown) {
+		meta.SetStatusCondition(&tc.Status.Conditions, metav1.Condition{
+			Type:    talosv1alpha1.ConditionDeleting,
+			Status:  metav1.ConditionUnknown,
+			Reason:  "Deleting",
+			Message: "TalosCluster is being deleted",
+		})
+		if err := r.Status().Update(ctx, &tc); err != nil {
+			logger.Error(err, "failed to update TalosCluster status during deletion")
+			return ctrl.Result{Requeue: true}, err
+		}
+	}
+	// Delete the child resources if they exist
+	if err := r.Delete(ctx, &talosv1alpha1.TalosWorker{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tc.Name + "-worker",
+			Namespace: tc.Namespace,
+		},
+	}); err != nil && !kerrors.IsNotFound(err) {
+		logger.Error(err, "failed to delete TalosWorker during TalosCluster deletion", "name", tc.Name)
+		return ctrl.Result{}, err
+	}
+	// Delete the TalosControlPlane
+	if err := r.Delete(ctx, &talosv1alpha1.TalosControlPlane{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      tc.Name + "-controlplane",
+			Namespace: tc.Namespace,
+		},
+	}); err != nil && !kerrors.IsNotFound(err) {
+		logger.Error(err, "failed to delete TalosControlPlane during TalosCluster deletion", "name", tc.Name)
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }

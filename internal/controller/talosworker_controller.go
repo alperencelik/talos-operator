@@ -96,10 +96,24 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		// Stop reconciling if the TalosWorker is being deleted
 		return ctrl.Result{}, client.IgnoreNotFound(finErr)
 	}
+	// Make sure the TalosControlPlane ref has the secret bundle in place
+	tcp, err := r.GetControlPlaneRef(ctx, &tw)
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			// If the TalosControlPlane is not found, we can requeue the reconciliation
+			logger.Error(err, "TalosControlPlane not found", "name", tw.Spec.ControlPlaneRef.Name)
+			r.Recorder.Eventf(&tw, corev1.EventTypeWarning, "ControlPlaneNotFound",
+				"TalosControlPlane %s not found in namespace %s", tw.Spec.ControlPlaneRef.Name, tw.Namespace)
+			return ctrl.Result{Requeue: true}, nil // Requeue to retry
+		}
+	}
+	if tcp.Status.SecretBundle == "" {
+		// If the TalosControlPlane does not have a secret bundle, we can requeue the reconciliation
+		return ctrl.Result{Requeue: true, RequeueAfter: 5 * time.Second}, nil // Requeue to retry
+	}
 
 	// Get the mode of the TalosWorker
 	var result ctrl.Result
-	var err error
 	switch tw.Spec.Mode {
 	case TalosModeContainer:
 		result, err = r.reconcileContainerMode(ctx, &tw)
@@ -152,6 +166,21 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 	if err := r.handleTalosMachines(ctx, tw); err != nil {
 		return ctrl.Result{}, err
 	}
+	for {
+		ready, err := r.CheckWorkerMachinesReady(ctx, tw)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to check worker machines ready for TalosWorker %s: %w", tw.Name, err)
+		}
+		if ready {
+			break // All machines are ready, exit the loop
+		}
+		time.Sleep(10 * time.Second) // Wait before checking again
+	}
+	// Update the status of the TalosWorker
+	if err := r.updateState(ctx, tw, talosv1alpha1.StateReady); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosWorker %s status to ready: %w", tw.Name, err)
+	}
+
 	// Return no error and no requeue
 	return ctrl.Result{}, nil
 }
@@ -285,8 +314,8 @@ func (r *TalosWorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		"spec.workerRef.name",
 		func(rawObj client.Object) []string {
 			tm := rawObj.(*talosv1alpha1.TalosMachine)
-			if tm.Spec.ControlPlaneRef != nil {
-				return []string{tm.Spec.ControlPlaneRef.Name}
+			if tm.Spec.WorkerRef != nil {
+				return []string{tm.Spec.WorkerRef.Name}
 			}
 			return nil
 		},
@@ -396,7 +425,7 @@ func (r *TalosWorkerReconciler) SetConfig(ctx context.Context, tw *talosv1alpha1
 	}
 	var replicas int
 	var sans []string
-	if tw.Spec.Mode == "container" {
+	if tw.Spec.Mode == TalosModeContainer {
 		replicas = int(tw.Spec.Replicas)
 		sans = utils.GenSans(tw.Name, &replicas)
 	}
@@ -405,7 +434,7 @@ func (r *TalosWorkerReconciler) SetConfig(ctx context.Context, tw *talosv1alpha1
 		return nil, err
 	}
 	var ClientEndpoint []string
-	if tw.Spec.Mode == "metal" {
+	if tw.Spec.Mode == TalosModeMetal {
 		// TODO: Handle multiple machines in metal mode
 		ClientEndpoint = tw.Spec.MetalSpec.Machines
 	}
@@ -503,6 +532,48 @@ func (r *TalosWorkerReconciler) handleDeletion(ctx context.Context, tw *talosv1a
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *TalosWorkerReconciler) CheckWorkerMachinesReady(ctx context.Context, tw *talosv1alpha1.TalosWorker) (bool, error) {
+	maxRetries := 10
+	retryInterval := 10 * time.Second
+	machines := &talosv1alpha1.TalosMachineList{}
+	opts := []client.ListOption{
+		client.InNamespace(tw.Namespace),
+		client.MatchingFields{"spec.workerRef.name": tw.Name},
+	}
+	var allAvailable bool
+	for i := 0; i < maxRetries; i++ {
+		// Need to re-list machines everytime because the update is not reflected in the cache immediately
+		// Get the machines associated with the TalosControlPlane
+		err := r.List(ctx, machines, opts...)
+		if err != nil {
+			return false, fmt.Errorf("failed to list TalosMachines for TalosWorker %s: %w", tw.Name, err)
+		}
+		// Remove the marked for deletion machines -- or keep the ones that are not marked for deletion
+		for i := len(machines.Items) - 1; i >= 0; i-- {
+			if machines.Items[i].DeletionTimestamp != nil {
+				machines.Items = append(machines.Items[:i], machines.Items[i+1:]...)
+			}
+		}
+		// Check if all machines are available
+		allAvailable = true
+		for _, machine := range machines.Items {
+			if machine.Status.State != talosv1alpha1.StateReady {
+				allAvailable = false
+				break
+			}
+		}
+		if allAvailable {
+			// Update the status of the TalosWorker to ready
+			if err := r.updateState(ctx, tw, talosv1alpha1.StateReady); err != nil {
+				return false, fmt.Errorf("failed to update TalosWorker %s status to ready: %w", tw.Name, err)
+			}
+			return allAvailable, nil
+		}
+		time.Sleep(retryInterval) // Wait before retrying
+	}
+	return allAvailable, nil
 }
 
 func (r *TalosWorkerReconciler) updateState(ctx context.Context, tw *talosv1alpha1.TalosWorker, state string) error {
