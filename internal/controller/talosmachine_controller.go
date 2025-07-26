@@ -161,6 +161,10 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 		// Return since the config has not changed
 		return ctrl.Result{}, nil
 	}
+	// Get the object before update
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tm), tm); err != nil {
+		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
+	}
 	// Write that cpConfig to status.config
 	tm.Status.Config = string(*cpConfig)
 	if err := r.Status().Update(ctx, tm); err != nil {
@@ -222,6 +226,10 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 	if tm.Status.Config == string(*workerConfig) {
 		// Return since the config has not changed
 		return ctrl.Result{}, nil
+	}
+	// Get the object before update
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tm), tm); err != nil {
+		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	// Write that workerConfig to status.config
 	tm.Status.Config = string(*workerConfig)

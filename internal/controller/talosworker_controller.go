@@ -176,6 +176,10 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 		}
 		time.Sleep(10 * time.Second) // Wait before checking again
 	}
+	// Get it before updating the state
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tw), tw); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get TalosWorker %s: %w", tw.Name, err)
+	}
 	// Update the status of the TalosWorker
 	if err := r.updateState(ctx, tw, talosv1alpha1.StateReady); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update TalosWorker %s status to ready: %w", tw.Name, err)
