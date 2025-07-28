@@ -6,6 +6,8 @@ on:
       - '*'
     paths-ignore:
       - '.github/**'
+      - 'docs/**'
+      - '**.md'
 
 jobs:
   release:

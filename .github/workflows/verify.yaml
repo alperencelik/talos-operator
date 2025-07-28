@@ -7,11 +7,15 @@ on:
       - main
     paths-ignore:
       - '.github/**'
+      - 'docs/**'
+      - '**.md'
   push:
     branches:
       - main
     paths-ignore:
       - '.github/**'
+      - 'docs/**'
+      - '**.md'
 
 jobs:
   verify:

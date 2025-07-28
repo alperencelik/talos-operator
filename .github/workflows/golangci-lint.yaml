@@ -5,12 +5,15 @@ on:
     types: [opened, edited, synchronize, reopened]
     paths-ignore:
       - '.github/**'
+      - 'docs/**'
+      - '**.md'
   push:
     branches:
       - '**'
     paths-ignore:
       - '.github/**'
-
+      - 'docs/**'
+      - '**.md'
 jobs:
   golangci:
     name: lint
