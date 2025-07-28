@@ -3,7 +3,7 @@ markdown_extensions:
 - admonition
 
 nav:
-- Overview: overview.md
+- Overview: index.md
 - Getting Started: getting_started.md
 - Custom Resources:
   - Overview: crds/index.md
