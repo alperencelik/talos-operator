@@ -4,7 +4,7 @@ markdown_extensions:
 
 nav:
 - Overview: overview.md
-- getting_started.md
+- Getting Started: getting_started.md
 - Custom Resources:
   - Overview: crds/index.md
   - TalosCluster: crds/taloscluster.md
