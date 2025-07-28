@@ -2,6 +2,10 @@
 
 A Kubernetes operator to manage Talos Linux–based clusters declaratively.
 
+<div style="text-align:center;">
+  <img src="docs/images/logo.png" alt="Logo" width="250" height="250">
+</div>
+
 ## Description
 
 `talos-operator` enables to bootstrap Talos Kubernetes clusters using custom controllers. It allows you to create and manage Talos clusters in different environments, such as bare metal, virtual machines or even in Kubernetes-in-Kubernetes method by using Talos' container support.
