@@ -94,7 +94,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, client.IgnoreNotFound(nil)
 	}
 	// Check whether we should wait for machine to be ready
-	if talosMachine.Status.State == talosv1alpha1.StateInstalling {
+	if talosMachine.Status.State == talosv1alpha1.StateInstalling || talosMachine.Status.State == talosv1alpha1.StateUpgrading {
 		// If the machine is in the installing state, we should wait for it to be ready
 		res, err := r.CheckMachineReady(ctx, &talosMachine)
 		if err != nil {
@@ -157,36 +157,14 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 		return ctrl.Result{}, fmt.Errorf("failed to generate Control Plane config for TalosMachine %s: %w", tm.Name, err)
 	}
 	// Check if the current config is the same as the one in status
-	if tm.Status.Config == string(*cpConfig) {
-		// Return since the config has not changed
+	if tm.Status.Config == string(*cpConfig) && tm.Status.ObservedVersion == bc.Version {
+		// Return since the machine is in desired state
 		return ctrl.Result{}, nil
 	}
-	// Get the object before update
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tm), tm); err != nil {
-		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
-	}
-	// Write that cpConfig to status.config
-	tm.Status.Config = string(*cpConfig)
-	if err := r.Status().Update(ctx, tm); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status with config: %w", tm.Name, err)
-	}
-	var insecure bool
-	if tm.Status.State == talosv1alpha1.StatePending || tm.Status.State == "" {
-		insecure = true // If the machine is pending, we allow insecure TLS
-	} else {
-		insecure = false // Otherwise, we use secure TLS
-	}
-	// Create Talos client
-	tc, err := talos.NewClient(bc, insecure) // true for insecure TLS
+	err = r.UpgradeOrApplyConfig(ctx, tm, bc, cpConfig)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
-	}
-	if err = tc.ApplyConfig(ctx, *cpConfig); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to apply Talos config for TalosMachine %s: %w", tm.Name, err)
-	}
-	// Update the state to Installing
-	if err := r.updateState(ctx, tm, talosv1alpha1.StateInstalling); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status to Installing: %w", tm.Name, err)
+		logger.Error(err, "Failed to apply or upgrade Talos config for TalosMachine", "name", tm.Name)
+		return ctrl.Result{}, fmt.Errorf("failed to apply or upgrade Talos config for TalosMachine %s: %w", tm.Name, err)
 	}
 	// TODO: Review here to make it more event driven -- maybe implement watcher, etc.
 	return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check the machine status again
@@ -474,4 +452,66 @@ func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talo
 		}
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *talosv1alpha1.TalosMachine, bc *talos.BundleConfig, cpConfig *[]byte) error {
+	// Check whether we need to construct maintenance mode or not
+	insecure := tm.Status.State == "" || tm.Status.State == talosv1alpha1.StatePending
+	// Create Talos client
+	tc, err := talos.NewClient(bc, insecure) // true for insecure TLS
+	if err != nil {
+		return fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
+	}
+	configDrift := tm.Status.Config != string(*cpConfig)
+	applyConfigurationFunc := func() error {
+		if err := tc.ApplyConfig(ctx, *cpConfig); err != nil {
+			return fmt.Errorf("failed to apply Talos config for TalosMachine %s: %w", tm.Name, err)
+		}
+		// Prepare a merge patch to update only our status fields
+		orig := tm.DeepCopy()
+		tm.Status.Config = string(*cpConfig)
+		tm.Status.ObservedVersion = bc.Version
+		if tm.Status.State != talosv1alpha1.StateInstalling {
+			tm.Status.State = talosv1alpha1.StateInstalling
+		}
+		if err := r.Status().Patch(ctx, tm, client.MergeFrom(orig)); err != nil {
+			return fmt.Errorf("failed to patch TalosMachine %s status with config: %w", tm.Name, err)
+		}
+		return nil
+	}
+	// If insecure we can only apply the config, otherwise we can upgrade the Talos version
+	// I think if it's insecure I don't need to check whether config drift or not, I can just apply the config
+	if insecure {
+		return applyConfigurationFunc()
+	}
+	// If not insecure then we can check the Talos version and upgrade if necessary
+	// Get current Talos version
+	actualVersion, err := tc.GetTalosVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get Talos version for TalosMachine %s: %w", tm.Name, err)
+	}
+	// If the version is the same, we can apply the config
+	if actualVersion == bc.Version {
+		if configDrift {
+			// Apply the config
+			return applyConfigurationFunc()
+		}
+	}
+	if actualVersion != bc.Version {
+		// If the version is different, we need to upgrade
+		image := fmt.Sprintf("ghcr.io/siderolabs/installer:%s", bc.Version)
+		if err := tc.UpgradeTalosVersion(ctx, image); err != nil {
+			return fmt.Errorf("failed to upgrade Talos version for TalosMachine %s: %w", tm.Name, err)
+		}
+		// Update it to Upgrading state
+		orig := tm.DeepCopy()
+		tm.Status.ObservedVersion = bc.Version
+		if tm.Status.State != talosv1alpha1.StateUpgrading {
+			tm.Status.State = talosv1alpha1.StateUpgrading
+		}
+		if err := r.Status().Patch(ctx, tm, client.MergeFrom(orig)); err != nil {
+			return fmt.Errorf("failed to patch TalosMachine %s status with config: %w", tm.Name, err)
+		}
+	}
+	return nil
 }

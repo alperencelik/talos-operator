@@ -46,6 +46,7 @@ type TalosMachineSpec struct {
 // TalosMachineStatus defines the observed state of TalosMachine.
 type TalosMachineStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	ObservedVersion string `json:"observedVersion,omitempty"` // The version of Talos running on this machine
 	// Important: Run "make" to regenerate code after modifying this file
 	Config string `json:"config,omitempty"` // Base64 encoded Talos configuration
 
