@@ -9,6 +9,7 @@ on:
       - '.github/**'
       - 'docs/**'
       - '**.md'
+      - 'hack/**'
   push:
     branches:
       - main

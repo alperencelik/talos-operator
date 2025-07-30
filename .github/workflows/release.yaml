@@ -8,6 +8,7 @@ on:
       - '.github/**'
       - 'docs/**'
       - '**.md'
+      - 'hack/**'
 
 jobs:
   release:
