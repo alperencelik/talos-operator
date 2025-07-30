@@ -33,6 +33,10 @@ type TalosMachineSpec struct {
 	// +kubebuilder:validation:Required
 	Endpoint string `json:"endpoint,omitempty"`
 
+	// Version is the desired version of Talos to run on this machine.
+	// +kubebuilder:validation:Required
+	Version string `json:"version,omitempty"`
+
 	// MachineSpec is the machine specification for this TalosMachine.
 	MachineSpec *MachineSpec `json:"machineSpec,omitempty"`
 
@@ -46,6 +50,7 @@ type TalosMachineSpec struct {
 // TalosMachineStatus defines the observed state of TalosMachine.
 type TalosMachineStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	ObservedVersion string `json:"observedVersion,omitempty"` // The version of Talos running on this machine
 	// Important: Run "make" to regenerate code after modifying this file
 	Config string `json:"config,omitempty"` // Base64 encoded Talos configuration
 

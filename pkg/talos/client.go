@@ -96,6 +96,38 @@ func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte) er
 	return nil
 }
 
+func (tc *TalosClient) GetTalosVersion(ctx context.Context) (string, error) {
+	// Get the Talos version
+	resp, err := tc.Version(ctx)
+	if err != nil {
+		return "", fmt.Errorf("error getting Talos version: %s", err)
+	}
+	if len(resp.Messages) == 0 {
+		return "", fmt.Errorf("no version information found")
+	}
+	version := resp.Messages[0].Version.Tag
+	return version, nil
+}
+
+func (tc *TalosClient) UpgradeTalosVersion(ctx context.Context, image string) error {
+	// Decode machineConfig to get the image, stage, and force values
+	// yaml.Marshal(machineConfig, &machineConfigStruct)
+	// Create an UpgradeRequest
+	upgradeRequest := &machineapi.UpgradeRequest{
+		Image:      image,
+		Stage:      false,                             // stage is to perform upgrade it after a reboot
+		Force:      true,                              // force etcd checks etc
+		RebootMode: machineapi.UpgradeRequest_DEFAULT, // DEFAULT or POWERCYCLE
+	}
+	resp, err := tc.MachineClient.Upgrade(ctx, upgradeRequest)
+	if err != nil {
+		return fmt.Errorf("error upgrading machine: %s", err)
+	}
+	// Parse the response
+	fmt.Printf("Upgrade response: %s\n", resp.Messages[0].String())
+	return nil
+}
+
 func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*string, error) {
 	// Check if installDisk is provided
 	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.InstallDisk != nil {
