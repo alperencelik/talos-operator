@@ -33,6 +33,10 @@ type TalosMachineSpec struct {
 	// +kubebuilder:validation:Required
 	Endpoint string `json:"endpoint,omitempty"`
 
+	// Version is the desired version of Talos to run on this machine.
+	// +kubebuilder:validation:Required
+	Version string `json:"version,omitempty"`
+
 	// MachineSpec is the machine specification for this TalosMachine.
 	MachineSpec *MachineSpec `json:"machineSpec,omitempty"`
 

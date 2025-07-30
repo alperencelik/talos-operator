@@ -157,7 +157,7 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 		return ctrl.Result{}, fmt.Errorf("failed to generate Control Plane config for TalosMachine %s: %w", tm.Name, err)
 	}
 	// Check if the current config is the same as the one in status
-	if tm.Status.Config == string(*cpConfig) && tm.Status.ObservedVersion == bc.Version {
+	if tm.Status.Config == string(*cpConfig) && tm.Status.ObservedVersion == tm.Spec.Version {
 		// Return since the machine is in desired state
 		return ctrl.Result{}, nil
 	}
@@ -470,7 +470,7 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		// Prepare a merge patch to update only our status fields
 		orig := tm.DeepCopy()
 		tm.Status.Config = string(*cpConfig)
-		tm.Status.ObservedVersion = bc.Version
+		tm.Status.ObservedVersion = tm.Spec.Version
 		if tm.Status.State != talosv1alpha1.StateInstalling {
 			tm.Status.State = talosv1alpha1.StateInstalling
 		}
@@ -491,21 +491,21 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		return fmt.Errorf("failed to get Talos version for TalosMachine %s: %w", tm.Name, err)
 	}
 	// If the version is the same, we can apply the config
-	if actualVersion == bc.Version {
+	if actualVersion == tm.Spec.Version {
 		if configDrift {
 			// Apply the config
 			return applyConfigurationFunc()
 		}
 	}
-	if actualVersion != bc.Version {
+	if actualVersion != tm.Spec.Version {
 		// If the version is different, we need to upgrade
-		image := fmt.Sprintf("ghcr.io/siderolabs/installer:%s", bc.Version)
+		image := fmt.Sprintf("ghcr.io/siderolabs/installer:%s", tm.Spec.Version)
 		if err := tc.UpgradeTalosVersion(ctx, image); err != nil {
 			return fmt.Errorf("failed to upgrade Talos version for TalosMachine %s: %w", tm.Name, err)
 		}
 		// Update it to Upgrading state
 		orig := tm.DeepCopy()
-		tm.Status.ObservedVersion = bc.Version
+		tm.Status.ObservedVersion = tm.Spec.Version
 		if tm.Status.State != talosv1alpha1.StateUpgrading {
 			tm.Status.State = talosv1alpha1.StateUpgrading
 		}

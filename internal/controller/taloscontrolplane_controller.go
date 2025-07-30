@@ -289,6 +289,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 					APIVersion: talosv1alpha1.GroupVersion.String(),
 				},
 				Endpoint:    machine,
+				Version:     tcp.Spec.Version,
 				MachineSpec: tcp.Spec.MetalSpec.MachineSpec,
 			}
 			return nil
