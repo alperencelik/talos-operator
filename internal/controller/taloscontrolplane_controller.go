@@ -84,6 +84,16 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if err := r.Get(ctx, req.NamespacedName, &tcp); err != nil {
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
+
+	// Initialize ObservedKubeVersion if it's empty
+	if tcp.Status.ObservedKubeVersion == "" && tcp.Spec.KubeVersion != "" {
+		tcp.Status.ObservedKubeVersion = tcp.Spec.KubeVersion
+		if err := r.Status().Update(ctx, &tcp); err != nil {
+			logger.Error(err, "failed to initialize ObservedKubeVersion")
+			return ctrl.Result{Requeue: true}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	}
 	// Finalizer
 	var delErr error
 	if tcp.DeletionTimestamp.IsZero() {
@@ -125,7 +135,48 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		logger.Info("Unsupported mode for TalosControlPlane", "mode", tcp.Spec.Mode)
 		return ctrl.Result{}, nil
 	}
+
+	// KubeVersion reconciliation
+	result, err = r.reconcileKubeVersion(ctx, &tcp)
+	if err != nil {
+		logger.Error(err, "failed to reconcile kube version", "name", tcp.Name, "namespace", tcp.Namespace)
+	}
+	if result.Requeue {
+		return result, nil
+	}
+
 	return result, err
+}
+
+// reconcileKubeVersion reconciles the KubeVersion of the TalosControlPlane.
+func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
+	if tcp.Spec.KubeVersion != "" && tcp.Spec.KubeVersion != tcp.Status.ObservedKubeVersion {
+		logger.Info("KubeVersion changed, updating status", "old", tcp.Status.ObservedKubeVersion, "new", tcp.Spec.KubeVersion)
+
+		config, err := r.SetConfig(ctx, tcp)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
+		}
+
+		talosClient, err := talos.NewClient(config, false)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to create Talos client for ControlPlane %s: %w", tcp.Name, err)
+		}
+
+		if err := talosClient.UpgradeKubeVersion(ctx, tcp.Spec.KubeVersion, tcp.Spec.Endpoint); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to upgrade kubernetes version for TalosControlPlane %s: %w", tcp.Name, err)
+		}
+
+		tcp.Status.ObservedKubeVersion = tcp.Spec.KubeVersion
+		if err := r.Status().Update(ctx, tcp); err != nil {
+			logger.Error(err, "failed to update TalosControlPlane status")
+			return ctrl.Result{Requeue: true}, err
+		}
+	}
+
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -747,7 +798,7 @@ func (r *TalosControlPlaneReconciler) SetConfig(ctx context.Context, tcp *talosv
 		ClusterName:    tcp.Name,
 		Endpoint:       endpoint,
 		Version:        tcp.Spec.Version,
-		KubeVersion:    tcp.Spec.KubeVersion,
+		KubeVersion:    tcp.Status.ObservedKubeVersion,
 		SecretsBundle:  *secretBundle,
 		Sans:           sans,
 		ServiceCIDR:    &tcp.Spec.ServiceCIDR,
