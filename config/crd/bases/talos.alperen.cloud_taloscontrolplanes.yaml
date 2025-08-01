@@ -217,6 +217,9 @@ spec:
                 type: array
               config:
                 type: string
+              observedKubeVersion:
+                description: ObservedKubeVersion is the observed version of Kubernetes.
+                type: string
               secretBundle:
                 type: string
               state:
