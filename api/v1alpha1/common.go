@@ -1,19 +1,24 @@
 package v1alpha1
 
 const (
-	ConditionDeleting    = "Deleting"
-	ConditionReady       = "Ready"
-	ConditionFailed      = "Failed"
-	ConditionProgressing = "Progressing"
-	ConditionAvailable   = "Available"
+	ConditionDeleting                    = "Deleting"
+	ConditionReady                       = "Ready"
+	ConditionFailed                      = "Failed"
+	ConditionProgressing                 = "Progressing"
+	ConditionAvailable                   = "Available"
+	ConditionKubernetesUpgradeInProgress = "KubernetesUpgradeInProgress"
+	ConditionKubernetesUpgradeSucceeded  = "KubernetesUpgradeSucceeded"
+	ConditionKubernetesUpgradeFailed     = "KubernetesUpgradeFailed"
+
 	// State of the Talos control plane
-	StatePending      = "Pending"      // Control plane is being created
-	StateAvailable    = "Available"    // Control plane is ready to bootstrap the cluster
-	StateInstalling   = "Installing"   // Machine is being installed
-	StateUpgrading    = "Upgrading"    // Machine is being upgraded
-	StateBootstrapped = "Bootstrapped" // Control plane is ready to accept workloads
-	StateReady        = "Ready"        // Control plane is fully operational
-	StateFailed       = "Failed"       // Control plane creation failed
+	StatePending             = "Pending"             // Control plane is being created
+	StateAvailable           = "Available"           // Control plane is ready to bootstrap the cluster
+	StateInstalling          = "Installing"          // Machine is being installed
+	StateUpgrading           = "Upgrading"           // Machine is being upgraded
+	StateUpgradingKubernetes = "UpgradingKubernetes" // Machine is being upgraded to a new Kubernetes version
+	StateBootstrapped        = "Bootstrapped"        // Control plane is ready to accept workloads
+	StateReady               = "Ready"               // Control plane is fully operational
+	StateFailed              = "Failed"              // Control plane creation failed
 	// State for TalosMachine
 	StateOrphaned = "Orphaned" // Machine is not managed by any TalosCluster or TalosControlPlane
 

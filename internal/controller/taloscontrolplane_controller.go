@@ -25,8 +25,12 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v2"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,9 +44,6 @@ import (
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/pkg/talos"
 	"github.com/alperencelik/talos-operator/pkg/utils"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // TalosControlPlaneReconciler reconciles a TalosControlPlane object
@@ -63,6 +64,9 @@ const (
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=taloscontrolplanes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=taloscontrolplanes/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=taloscontrolplanes/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
@@ -152,31 +156,93 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	if tcp.Spec.KubeVersion != "" && tcp.Spec.KubeVersion != tcp.Status.ObservedKubeVersion {
-		logger.Info("KubeVersion changed, updating status", "old", tcp.Status.ObservedKubeVersion, "new", tcp.Spec.KubeVersion)
-
-		config, err := r.SetConfig(ctx, tcp)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
-		}
-
-		talosClient, err := talos.NewClient(config, false)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to create Talos client for ControlPlane %s: %w", tcp.Name, err)
-		}
-
-		if err := talosClient.UpgradeKubeVersion(ctx, tcp.Spec.KubeVersion, tcp.Spec.Endpoint); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to upgrade kubernetes version for TalosControlPlane %s: %w", tcp.Name, err)
-		}
-
-		tcp.Status.ObservedKubeVersion = tcp.Spec.KubeVersion
-		if err := r.Status().Update(ctx, tcp); err != nil {
-			logger.Error(err, "failed to update TalosControlPlane status")
-			return ctrl.Result{Requeue: true}, err
-		}
+	if tcp.Spec.KubeVersion == "" || tcp.Spec.KubeVersion == tcp.Status.ObservedKubeVersion {
+		return ctrl.Result{}, nil
 	}
 
-	return ctrl.Result{}, nil
+	logger.Info("KubeVersion changed, starting upgrade", "old", tcp.Status.ObservedKubeVersion, "new", tcp.Spec.KubeVersion)
+
+	jobName := fmt.Sprintf("%s-upgrade-%s", tcp.Name, tcp.Spec.KubeVersion)
+	job := &batchv1.Job{}
+	err := r.Get(ctx, client.ObjectKey{Name: jobName, Namespace: tcp.Namespace}, job)
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			// Job does not exist, create it.
+			logger.Info("creating upgrade job", "job", jobName)
+			job = &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jobName,
+					Namespace: tcp.Namespace,
+				},
+			}
+			_, err := controllerutil.CreateOrUpdate(ctx, r.Client, job, func() error {
+				// TODO: Get the operator image dynamically
+				job.Spec.Template.Spec.ServiceAccountName = "talos-operator" // TODO:
+				job.Spec.Template.Spec.Containers = []corev1.Container{
+					{
+						Name:  "upgrade",
+						Image: "alperencelik/talos-operator:arm", // TODO: Change
+						Command: []string{
+							"/manager",
+							"upgrade-k8s",
+						},
+						Env: []corev1.EnvVar{
+							{
+								Name:  "TARGET_VERSION",
+								Value: tcp.Spec.KubeVersion,
+							},
+							{
+								Name:  "TCP_NAME",
+								Value: tcp.Name,
+							},
+							{
+								Name:  "TCP_NAMESPACE",
+								Value: tcp.Namespace,
+							},
+						},
+					},
+				}
+				job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
+				job.Spec.BackoffLimit = func(i int32) *int32 { return &i }(3)
+
+				return controllerutil.SetControllerReference(tcp, job, r.Scheme)
+			})
+
+			if err != nil {
+				logger.Error(err, "failed to create or update upgrade job")
+				return ctrl.Result{Requeue: true}, err
+			}
+			// TODO: Set Upgrading condition
+			tcp.Status.State = talosv1alpha1.StateUpgradingKubernetes
+			if err := r.Status().Update(ctx, tcp); err != nil {
+				logger.Error(err, "failed to update TalosControlPlane status after creating upgrade job")
+			}
+			return ctrl.Result{Requeue: true}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	// Job exists, check its status.
+	if job.Status.Succeeded > 0 {
+		logger.Info("upgrade job succeeded")
+		// TODO: Remove Upgrading condition
+		if err := r.Delete(ctx, job); err != nil {
+			logger.Error(err, "failed to delete successful upgrade job")
+		}
+		return ctrl.Result{}, nil
+	}
+
+	if job.Status.Failed > 0 {
+		logger.Error(nil, "upgrade job failed")
+		// TODO: Set UpgradeFailed condition
+		if err := r.Delete(ctx, job); err != nil {
+			logger.Error(err, "failed to delete failed upgrade job")
+		}
+		return ctrl.Result{}, nil
+	}
+
+	logger.Info("upgrade job is still running")
+	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

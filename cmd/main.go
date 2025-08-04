@@ -17,18 +17,23 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -37,6 +42,7 @@ import (
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/internal/controller"
+	"github.com/alperencelik/talos-operator/pkg/talos"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -53,6 +59,81 @@ func init() {
 }
 
 func main() {
+	opts := zap.Options{
+		Development: true,
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "upgrade-k8s" {
+		// This is the upgrade-k8s command
+		fmt.Println("Upgrading Kubernetes...")
+		fmt.Println("Target version:", os.Getenv("TARGET_VERSION"))
+		fmt.Println("TalosControlPlane:", os.Getenv("TCP_NAME"))
+		fmt.Println("Namespace:", os.Getenv("TCP_NAMESPACE"))
+
+		// Create a new Kubernetes client
+		ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+		kubeClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
+		if err != nil {
+			setupLog.Error(err, "unable to create kube client")
+			os.Exit(1)
+		}
+		// Test the Kubernetes client
+		if err := kubeClient.Get(context.Background(), client.ObjectKey{Name: "kube-system", Namespace: "kube-system"}, &metav1.PartialObjectMetadata{}); err != nil {
+			setupLog.Error(err, "unable to connect to Kubernetes cluster")
+			os.Exit(1)
+		}
+
+		// Get the TalosControlPlane resource
+		var tcp talosv1alpha1.TalosControlPlane
+		if err := kubeClient.Get(context.Background(), client.ObjectKey{Name: os.Getenv("TCP_NAME"), Namespace: os.Getenv("TCP_NAMESPACE")}, &tcp); err != nil {
+			setupLog.Error(err, "unable to get TalosControlPlane")
+			os.Exit(1)
+		}
+
+		// Create a new Talos client
+		config, err := (&controller.TalosControlPlaneReconciler{Client: kubeClient, Scheme: scheme}).SetConfig(context.Background(), &tcp)
+		if err != nil {
+			setupLog.Error(err, "unable to set config")
+			os.Exit(1)
+		}
+
+		talosClient, err := talos.NewClient(config, false)
+		if err != nil {
+			setupLog.Error(err, "unable to create talos client")
+			os.Exit(1)
+		}
+
+		// Upgrade the Kubernetes version
+		if err := talosClient.UpgradeKubeVersion(context.Background(), os.Getenv("TARGET_VERSION"), tcp.Spec.Endpoint); err != nil {
+			setupLog.Error(err, "unable to upgrade kubernetes version")
+			meta.SetStatusCondition(&tcp.Status.Conditions, metav1.Condition{
+				Type:    talosv1alpha1.ConditionKubernetesUpgradeFailed,
+				Status:  metav1.ConditionTrue,
+				Reason:  "UpgradeFailed",
+				Message: err.Error(),
+			})
+			if err := kubeClient.Status().Update(context.Background(), &tcp); err != nil {
+				setupLog.Error(err, "unable to update TalosControlPlane status")
+			}
+			os.Exit(1)
+		}
+
+		// Update the status of the TalosControlPlane resource
+		tcp.Status.ObservedKubeVersion = os.Getenv("TARGET_VERSION")
+		meta.SetStatusCondition(&tcp.Status.Conditions, metav1.Condition{
+			Type:   talosv1alpha1.ConditionKubernetesUpgradeSucceeded,
+			Status: metav1.ConditionTrue,
+			Reason: "UpgradeSucceeded",
+		})
+		if err := kubeClient.Status().Update(context.Background(), &tcp); err != nil {
+			setupLog.Error(err, "unable to update TalosControlPlane status")
+			os.Exit(1)
+		}
+
+		fmt.Println("Kubernetes upgrade complete.")
+		return
+	}
+
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -69,9 +150,6 @@ func main() {
 		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
-	opts := zap.Options{
-		Development: true,
-	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
