@@ -7,6 +7,7 @@ require (
 	github.com/magefile/mage v1.15.0
 	github.com/onsi/ginkgo/v2 v2.21.0
 	github.com/onsi/gomega v1.35.1
+	github.com/siderolabs/go-kubernetes v0.2.23
 	github.com/siderolabs/talos v1.10.4
 	github.com/siderolabs/talos/pkg/machinery v1.10.4
 	google.golang.org/protobuf v1.36.6
@@ -134,7 +135,6 @@ require (
 	github.com/siderolabs/crypto v0.6.0 // indirect
 	github.com/siderolabs/gen v0.8.4 // indirect
 	github.com/siderolabs/go-api-signature v0.3.6 // indirect
-	github.com/siderolabs/go-kubernetes v0.2.23 // indirect
 	github.com/siderolabs/go-pointer v1.0.1 // indirect
 	github.com/siderolabs/go-procfs v0.1.2 // indirect
 	github.com/siderolabs/go-retry v0.3.3 // indirect
