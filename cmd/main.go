@@ -78,20 +78,23 @@ func main() {
 			os.Exit(1)
 		}
 		// Test the Kubernetes client
-		if err := kubeClient.Get(context.Background(), client.ObjectKey{Name: "kube-system", Namespace: "kube-system"}, &metav1.PartialObjectMetadata{}); err != nil {
+		if err := kubeClient.Get(context.Background(), client.ObjectKey{
+			Name: "kube-system", Namespace: "kube-system"}, &metav1.PartialObjectMetadata{}); err != nil {
 			setupLog.Error(err, "unable to connect to Kubernetes cluster")
 			os.Exit(1)
 		}
 
 		// Get the TalosControlPlane resource
 		var tcp talosv1alpha1.TalosControlPlane
-		if err := kubeClient.Get(context.Background(), client.ObjectKey{Name: os.Getenv("TCP_NAME"), Namespace: os.Getenv("TCP_NAMESPACE")}, &tcp); err != nil {
+		if err := kubeClient.Get(context.Background(), client.ObjectKey{
+			Name: os.Getenv("TCP_NAME"), Namespace: os.Getenv("TCP_NAMESPACE")}, &tcp); err != nil {
 			setupLog.Error(err, "unable to get TalosControlPlane")
 			os.Exit(1)
 		}
 
 		// Create a new Talos client
-		config, err := (&controller.TalosControlPlaneReconciler{Client: kubeClient, Scheme: scheme}).SetConfig(context.Background(), &tcp)
+		config, err := (&controller.TalosControlPlaneReconciler{
+			Client: kubeClient, Scheme: scheme}).SetConfig(context.Background(), &tcp)
 		if err != nil {
 			setupLog.Error(err, "unable to set config")
 			os.Exit(1)
@@ -104,7 +107,8 @@ func main() {
 		}
 
 		// Upgrade the Kubernetes version
-		if err := talosClient.UpgradeKubeVersion(context.Background(), os.Getenv("TARGET_VERSION"), tcp.Spec.Endpoint); err != nil {
+		if err := talosClient.UpgradeKubeVersion(context.Background(),
+			os.Getenv("TARGET_VERSION"), tcp.Spec.Endpoint); err != nil {
 			setupLog.Error(err, "unable to upgrade kubernetes version")
 			meta.SetStatusCondition(&tcp.Status.Conditions, metav1.Condition{
 				Type:    talosv1alpha1.ConditionKubernetesUpgradeFailed,
