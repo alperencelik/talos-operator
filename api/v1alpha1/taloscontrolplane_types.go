@@ -123,6 +123,9 @@ type TalosControlPlaneStatus struct {
 	Config       string             `json:"config,omitempty"`       // Reference to the Talos configuration used for the control plane
 	SecretBundle string             `json:"secretBundle,omitempty"` // Reference to the secrets bundle used for the control plane
 	BundleConfig string             `json:"bundleConfig,omitempty"` // Reference to the bundle configuration used for the control plane
+	// ObservedKubeVersion is the observed version of Kubernetes.
+	// +kubebuilder:validation:Optional
+	ObservedKubeVersion string `json:"observedKubeVersion,omitempty"`
 }
 
 // +kubebuilder:object:root=true

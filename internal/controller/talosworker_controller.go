@@ -456,7 +456,7 @@ func (r *TalosWorkerReconciler) SetConfig(ctx context.Context, tw *talosv1alpha1
 		ClusterName:    tcp.Name,
 		Endpoint:       endpoint,
 		Version:        tcp.Spec.Version,
-		KubeVersion:    tcp.Spec.KubeVersion,
+		KubeVersion:    tcp.Status.ObservedKubeVersion,
 		SecretsBundle:  sb,
 		Sans:           sans,
 		ServiceCIDR:    &tcp.Spec.ServiceCIDR,

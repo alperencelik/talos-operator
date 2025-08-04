@@ -55,6 +55,7 @@ type TalosWorkerSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	// +kubebuilder:default="v1.33.1"
+	// TODO: Deprecate this field since the KubeVersion is derived fromm the control plane version
 	KubeVersion string `json:"kubeVersion,omitempty"`
 
 	// StorageClassName is the name of the storage class to use for persistent volumes
