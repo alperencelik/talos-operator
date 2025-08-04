@@ -183,12 +183,14 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 				},
 			}
 			_, err := controllerutil.CreateOrUpdate(ctx, r.Client, job, func() error {
-				// TODO: Get the operator image dynamically
-				job.Spec.Template.Spec.ServiceAccountName = "talos-operator" // TODO:
+				image := utils.GetEnv("TALOS_OPERATOR_IMAGE", "alperencelik/talos-operator:latest")
+				serviceAccount := utils.GetEnv("TALOS_OPERATOR_SERVICE_ACCOUNT", "talos-operator")
+
+				job.Spec.Template.Spec.ServiceAccountName = serviceAccount
 				job.Spec.Template.Spec.Containers = []corev1.Container{
 					{
 						Name:  "upgrade",
-						Image: "alperencelik/talos-operator:arm", // TODO: Change
+						Image: image,
 						Command: []string{
 							"/manager",
 							"upgrade-k8s",
@@ -237,9 +239,8 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 		}
 		return ctrl.Result{}, nil
 	}
-
 	logger.Info("upgrade job is still running")
-	// TODO: Mkae that event driven rather than polling
+	// TODO: Make that event driven rather than polling
 	return ctrl.Result{RequeueAfter: 120 * time.Second}, nil
 }
 

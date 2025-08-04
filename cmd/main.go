@@ -77,12 +77,6 @@ func main() {
 			setupLog.Error(err, "unable to create kube client")
 			os.Exit(1)
 		}
-		// Test the Kubernetes client
-		if err := kubeClient.Get(context.Background(), client.ObjectKey{
-			Name: "kube-system", Namespace: "kube-system"}, &metav1.PartialObjectMetadata{}); err != nil {
-			setupLog.Error(err, "unable to connect to Kubernetes cluster")
-			os.Exit(1)
-		}
 
 		// Get the TalosControlPlane resource
 		var tcp talosv1alpha1.TalosControlPlane

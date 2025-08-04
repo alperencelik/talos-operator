@@ -3,12 +3,20 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
 	"gopkg.in/yaml.v2"
 )
+
+func GetEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
 
 func SecretBundleDecoder(bs string) (*secrets.Bundle, error) {
 	decoder := yaml.NewDecoder(strings.NewReader(bs))
