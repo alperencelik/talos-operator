@@ -162,7 +162,14 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 
 	logger.Info("KubeVersion changed, starting upgrade", "old", tcp.Status.ObservedKubeVersion, "new", tcp.Spec.KubeVersion)
 
-	jobName := fmt.Sprintf("%s-upgrade-%s", tcp.Name, tcp.Spec.KubeVersion)
+	// Define the jobName
+	var jobNamePrefix string
+	if tcp.GetOwnerReferences() != nil && len(tcp.GetOwnerReferences()) > 0 {
+		jobNamePrefix = tcp.ObjectMeta.OwnerReferences[0].Name
+	} else {
+		jobNamePrefix = tcp.Name
+	}
+	jobName := fmt.Sprintf("%s-upgrade-%s", jobNamePrefix, tcp.Spec.KubeVersion)
 	job := &batchv1.Job{}
 	err := r.Get(ctx, client.ObjectKey{Name: jobName, Namespace: tcp.Namespace}, job)
 	if err != nil {
@@ -212,37 +219,28 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 				logger.Error(err, "failed to create or update upgrade job")
 				return ctrl.Result{Requeue: true}, err
 			}
-			// TODO: Set Upgrading condition
 			tcp.Status.State = talosv1alpha1.StateUpgradingKubernetes
 			if err := r.Status().Update(ctx, tcp); err != nil {
 				logger.Error(err, "failed to update TalosControlPlane status after creating upgrade job")
 			}
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
 
-	// Job exists, check its status.
-	if job.Status.Succeeded > 0 {
-		logger.Info("upgrade job succeeded")
-		// TODO: Remove Upgrading condition
-		if err := r.Delete(ctx, job); err != nil {
-			logger.Error(err, "failed to delete successful upgrade job")
-		}
-		return ctrl.Result{}, nil
-	}
-
 	if job.Status.Failed > 0 {
 		logger.Error(nil, "upgrade job failed")
-		// TODO: Set UpgradeFailed condition
-		if err := r.Delete(ctx, job); err != nil {
-			logger.Error(err, "failed to delete failed upgrade job")
+		tcp.Status.State = talosv1alpha1.StateKubernetesUpgradeFailed
+		if err := r.Status().Update(ctx, tcp); err != nil {
+			logger.Error(err, "failed to update TalosControlPlane status after upgrade job failed")
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
 
 	logger.Info("upgrade job is still running")
-	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	// TODO: Mkae that event driven rather than polling
+	return ctrl.Result{RequeueAfter: 120 * time.Second}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -270,6 +268,8 @@ func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(stsPredicate)).
 		Owns(&corev1.Service{}, builder.WithPredicates(svcPredicate)).
 		Owns(&talosv1alpha1.TalosMachine{}, builder.WithPredicates(talosMachinePredicate)).
+		// TODO: Look into this, for some reason it doesn't trigger reconciliation when the job is updated
+		// Owns(&batchv1.Job{}, builder.WithPredicates(jobPredicate)).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				// Only reconcile if the generation of the object has changed
