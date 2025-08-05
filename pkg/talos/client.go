@@ -32,7 +32,7 @@ func NewClient(cfg *BundleConfig, insecure bool) (*TalosClient, error) {
 		return nil, err
 	}
 	var endpoints []string
-	if cfg.ClientEndpoint != nil {
+	if cfg.ClientEndpoint != nil && len(*cfg.ClientEndpoint) > 0 {
 		endpoints = *cfg.ClientEndpoint
 	} else {
 		endpoints = []string{cfg.ClusterName}

@@ -306,12 +306,15 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 	}
 
 	// Get the statefulset for the TalosControlPlane
-	if err := r.reconcileStatefulSet(ctx, tcp); err != nil {
+	result, err := r.reconcileStatefulSet(ctx, tcp)
+	if err != nil {
 		logger.Error(err, "Failed to reconcile StatefulSet for TalosControlPlane", "name", tcp.Name, "error", err)
-		return ctrl.Result{}, nil
+		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to reconcile StatefulSet for TalosControlPlane %s: %w", tcp.Name, err)
 	}
-
-	// TODO: Implement something that waits for the StatefulSet to be ready before proceeding
+	// If the previous op was create then requeue so that we refresh the cache and check the status
+	if result.Requeue {
+		return result, nil
+	}
 	if _, err := r.CheckControlPlaneReady(ctx, tcp); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to check if TalosControlPlane %s is ready: %w", tcp.Name, err)
 	}
@@ -581,7 +584,7 @@ func (r *TalosControlPlaneReconciler) reconcileService(ctx context.Context, tcp 
 	return nil
 }
 
-func (r *TalosControlPlaneReconciler) reconcileStatefulSet(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
+func (r *TalosControlPlaneReconciler) reconcileStatefulSet(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (ctrl.Result, error) {
 	stsName := tcp.Name
 
 	sts := &appsv1.StatefulSet{
@@ -591,19 +594,23 @@ func (r *TalosControlPlaneReconciler) reconcileStatefulSet(ctx context.Context, 
 		},
 	}
 	if err := controllerutil.SetControllerReference(tcp, sts, r.Scheme); err != nil {
-		return fmt.Errorf("failed to set controller reference for StatefulSet %s: %w", stsName, err)
+		return ctrl.Result{}, fmt.Errorf("failed to set controller reference for StatefulSet %s: %w", stsName, err)
 	}
 
 	extraEnvs := BuildUserDataEnvVar(tcp.Spec.ConfigRef, tcp.Name, TalosMachineTypeControlPlane)
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
+	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
 		sts.Spec = BuildStsSpec(tcp.Name, tcp.Spec.Replicas, tcp.Spec.Version, TalosMachineTypeControlPlane, extraEnvs, tcp.Spec.StorageClassName)
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create or update StatefulSet %s: %w", stsName, err)
+		return ctrl.Result{}, fmt.Errorf("failed to create or update StatefulSet %s: %w", stsName, err)
 	}
-	return nil
+	if op == controllerutil.OperationResultCreated {
+		// If the StatefulSet was created, we need to requeue to check the status
+		return ctrl.Result{Requeue: true}, nil
+	}
+	return ctrl.Result{}, nil
 }
 
 func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {

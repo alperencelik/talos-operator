@@ -111,10 +111,7 @@ spec:
                       the Talos control plane.
                     items:
                       type: string
-                    minItems: 1
                     type: array
-                required:
-                - machines
                 type: object
               mode:
                 enum:

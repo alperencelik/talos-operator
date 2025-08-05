@@ -100,6 +100,10 @@ spec:
                     description: Wipe indicates whether to wipe the disk before installation.
                     type: boolean
                 type: object
+              version:
+                description: Version is the desired version of Talos to run on this
+                  machine.
+                type: string
               workerRef:
                 description: WorkerRef is a reference to the TalosWorker this machine
                   belongs to.
@@ -146,6 +150,7 @@ spec:
                 x-kubernetes-map-type: atomic
             required:
             - endpoint
+            - version
             type: object
           status:
             description: TalosMachineStatus defines the observed state of TalosMachine.
@@ -209,9 +214,12 @@ spec:
                   type: object
                 type: array
               config:
-                description: |-
-                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-                  Important: Run "make" to regenerate code after modifying this file
+                description: 'Important: Run "make" to regenerate code after modifying
+                  this file'
+                type: string
+              observedVersion:
+                description: INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster
                 type: string
               state:
                 type: string

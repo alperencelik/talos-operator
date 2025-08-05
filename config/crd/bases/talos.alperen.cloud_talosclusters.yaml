@@ -109,10 +109,7 @@ spec:
                           for the Talos control plane.
                         items:
                           type: string
-                        minItems: 1
                         type: array
-                    required:
-                    - machines
                     type: object
                   mode:
                     enum:
@@ -157,8 +154,8 @@ spec:
                 x-kubernetes-validations:
                 - message: ClusterDomain is immutable
                   rule: '!has(oldSelf.clusterDomain) || has(self.clusterDomain)'
-                - message: MetalSpec is required when mode 'metal'
-                  rule: self.mode!='metal' || has(self.metalSpec)
+                - message: Machines is required when mode is 'metal'
+                  rule: self.mode != 'metal' || size(self.metalSpec.machines) > 0
               controlPlaneRef:
                 description: ControlPlaneRef references the TalosControlPlane resource
                   that manages the control plane.
@@ -251,10 +248,7 @@ spec:
                           for the Talos control plane.
                         items:
                           type: string
-                        minItems: 1
                         type: array
-                    required:
-                    - machines
                     type: object
                   mode:
                     enum:

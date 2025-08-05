@@ -26,7 +26,7 @@ import (
 
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.clusterDomain) || has(self.clusterDomain)", message="ClusterDomain is immutable"
 // +kubebuilder:validadtion:XValidation:rule="!has(oldSelf.mode) || has(self.mode)", message="Mode is immutable"
-// +kubebuilder:validation:XValidation:rule="self.mode!='metal' || has(self.metalSpec)", message="MetalSpec is required when mode 'metal'"
+// +kubebuilder:validation:XValidation:rule="self.mode != 'metal' || size(self.metalSpec.machines) > 0",message="Machines is required when mode is 'metal'"
 
 // TalosControlPlaneSpec defines the desired state of TalosControlPlane.
 type TalosControlPlaneSpec struct {
@@ -91,8 +91,6 @@ type TalosControlPlaneSpec struct {
 
 type MetalSpec struct {
 	// Machines is a list of machine specifications for the Talos control plane.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinItems=1
 	Machines []string `json:"machines,omitempty"`
 	// MachineSpec defines the specifications for each Talos control plane machine.
 	// +kubebuilder:validation:Optional
