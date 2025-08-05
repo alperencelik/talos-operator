@@ -80,6 +80,7 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		finErr = r.handleFinalizer(ctx, tw)
 		if finErr != nil {
 			logger.Error(finErr, "failed to handle finalizer for TalosWorker", "name", tw.Name)
+			r.Recorder.Event(&tw, corev1.EventTypeWarning, "FinalizerFailed", "Failed to handle finalizer for TalosWorker")
 			return ctrl.Result{}, finErr
 		}
 	} else {
@@ -90,6 +91,7 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			res, finErr = r.handleDeletion(ctx, &tw)
 			if finErr != nil {
 				logger.Error(finErr, "failed to handle deletion for TalosWorker", "name", tw.Name)
+				r.Recorder.Event(&tw, corev1.EventTypeWarning, "DeleteFailed", "Failed to handle deletion for TalosWorker")
 				return res, finErr
 			}
 		}
@@ -109,20 +111,23 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	if tcp.Status.SecretBundle == "" {
 		// If the TalosControlPlane does not have a secret bundle, we can requeue the reconciliation
-		return ctrl.Result{Requeue: true, RequeueAfter: 5 * time.Second}, nil // Requeue to retry
+		r.Recorder.Eventf(&tw, corev1.EventTypeWarning, "SecretBundleNotFound", "TalosControlPlane %s does not have a secret bundle yet", tcp.Name)
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil // Requeue to retry
 	}
 
 	// Get the mode of the TalosWorker
 	var result ctrl.Result
 	switch tw.Spec.Mode {
 	case TalosModeContainer:
+		r.Recorder.Event(&tw, corev1.EventTypeNormal, "Reconciling", "Reconciling TalosWorker in container mode")
 		result, err = r.reconcileContainerMode(ctx, &tw)
 		if err != nil {
 			logger.Error(err, "failed to reconcile TalosWorker in container mode", "name", tw.Name)
 		}
 		return result, nil
 	case TalosModeMetal:
-		result, err := r.reconcileMetalMode(ctx, &tw)
+		r.Recorder.Event(&tw, corev1.EventTypeNormal, "Reconciling", "Reconciling TalosWorker in metal mode")
+		result, err = r.reconcileMetalMode(ctx, &tw)
 		if err != nil {
 			logger.Error(err, "failed to reconcile TalosWorker in metal mode", "name", tw.Name)
 		}
@@ -139,6 +144,7 @@ func (r *TalosWorkerReconciler) reconcileContainerMode(ctx context.Context, tw *
 	// Generate the worker configuration
 	if err := r.GenerateConfig(ctx, tw); err != nil {
 		// Error is due to ref not found so report it in status and return without requeueing
+		r.Recorder.Eventf(tw, corev1.EventTypeWarning, "ConfigGenerationFailed", "Failed to generate worker config for TalosWorker %s: %s", tw.Name, err.Error())
 		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to generate worker config for TalosWorker %s: %w", tw.Name, err)
 	}
 	if err := r.reconcileService(ctx, tw); err != nil {
