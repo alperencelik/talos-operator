@@ -55,10 +55,6 @@ type TalosControlPlaneReconciler struct {
 
 const (
 	TalosImage = "ghcr.io/siderolabs/talos"
-
-	// TalosContainer Vars
-	TalosPlatformKey       = "PLATFORM"
-	TalosPlatformContainer = "container"
 )
 
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=taloscontrolplanes,verbs=get;list;watch;create;update;patch;delete
@@ -74,10 +70,6 @@ const (
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the TalosControlPlane object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
@@ -255,8 +247,6 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// TODO: Interesting stuff, look further into this
-	// I did implement since I had to use client.MatchingFields but look through the documentation to understand how it works
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&talosv1alpha1.TalosMachine{},
@@ -435,7 +425,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 func (r *TalosControlPlaneReconciler) CheckControlPlaneReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (bool, error) {
 	// Check if all replicas of the StatefulSet are ready
 	switch tcp.Spec.Mode {
-	case TalosPlatformContainer:
+	case TalosModeContainer:
 		return r.checkContainerModeReady(ctx, tcp)
 	case TalosModeMetal:
 		return r.checkMetalModeReady(ctx, tcp)
@@ -589,7 +579,6 @@ func (r *TalosControlPlaneReconciler) reconcileService(ctx context.Context, tcp 
 	if err != nil {
 		return fmt.Errorf("failed to create or update Service %s: %w", tcp.Name, err)
 	}
-	// TODO: Proper logging for the op
 	return nil
 }
 
@@ -763,7 +752,6 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 		return nil
 	}
 	// Make sure that the .status.state is set to Available before bootstrapping
-	// TODO: Implement properly
 	if tcp.Status.State != talosv1alpha1.StateAvailable {
 		return fmt.Errorf("TalosControlPlane %s is not in Available to bootstrap, current state: %s", tcp.Name, tcp.Status.State)
 	}
@@ -801,7 +789,6 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 }
 
 func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
-	//
 	config, err := r.SetConfig(ctx, tcp)
 	if err != nil {
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
@@ -856,7 +843,7 @@ func (r *TalosControlPlaneReconciler) SetConfig(ctx context.Context, tcp *talosv
 	// Genenrate the Subject Alternative Names (SANs) for the Talos ControlPlane
 	var replicas int
 	var sans []string
-	if tcp.Spec.Mode == "container" {
+	if tcp.Spec.Mode == TalosModeContainer {
 		replicas = int(tcp.Spec.Replicas)
 		sans = utils.GenSans(tcp.Name, &replicas)
 	}

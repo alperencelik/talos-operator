@@ -59,10 +59,6 @@ type TalosWorkerReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the TalosWorker object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
@@ -278,7 +274,6 @@ func (r *TalosWorkerReconciler) reconcileService(ctx context.Context, tw *talosv
 }
 
 func (r *TalosWorkerReconciler) reconcileStatefulSet(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
-	// TODO: Implement the logic to reconcile the StatefulSet for the TalosWorker
 	stsName := tw.Name
 
 	sts := &appsv1.StatefulSet{
@@ -446,7 +441,6 @@ func (r *TalosWorkerReconciler) SetConfig(ctx context.Context, tw *talosv1alpha1
 	}
 	var ClientEndpoint []string
 	if tw.Spec.Mode == TalosModeMetal {
-		// TODO: Handle multiple machines in metal mode
 		ClientEndpoint = tw.Spec.MetalSpec.Machines
 	}
 	var endpoint string

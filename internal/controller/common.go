@@ -105,7 +105,7 @@ func BuildStsSpec(name string, replicas int32, version string, machineType strin
 						Env: append(extraEnvs,
 							corev1.EnvVar{
 								Name:  TalosPlatformKey,
-								Value: TalosPlatformContainer,
+								Value: TalosModeContainer,
 							},
 						),
 						Ports: []corev1.ContainerPort{

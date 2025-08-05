@@ -68,14 +68,7 @@ func (tc *TalosClient) BootstrapNode(cfg *BundleConfig) error {
 		RecoverEtcd:          false,
 		RecoverSkipHashCheck: false,
 	}
-	// TODO: Fix here
-	// Perform the bootstrap operation
-	// 	if err := tc.Client.Bootstrap(context.Background(), req); err != nil {
-	// return err
-	// }
-	err := tc.Bootstrap(context.Background(), req)
-	_ = err // TODO: Handle error properly
-	return nil
+	return tc.Bootstrap(context.Background(), req)
 }
 
 // ApplyConfig applies the config to the machine by using talos client

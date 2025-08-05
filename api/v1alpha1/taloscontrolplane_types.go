@@ -39,7 +39,7 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:default="v1.10.3"
 	Version string `json:"version,omitempty"`
 
-	// TODO: Add support for other modes like metal, cloud, etc.
+	// TODO: Add support for cloud mode
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=container;metal;cloud
 	Mode string `json:"mode,omitempty"`
@@ -61,6 +61,7 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	// +kubebuilder:default="v1.33.1"
+	// +kubebuilder:validation:XValidation:rule="self >= oldSelf",message="KubeVersion can not be decreased"
 	KubeVersion string `json:"kubeVersion,omitempty"`
 
 	// ClusterDomain is the domain for the Kubernetes cluster

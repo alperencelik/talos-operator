@@ -38,7 +38,7 @@ type TalosWorkerSpec struct {
 	// +kubebuilder:default="v1.33.1"
 	Version string `json:"version,omitempty"`
 
-	// TODO: Add support for other modes like metal, cloud, etc.
+	// TODO: Add support for cloud mode
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=container;metal;cloud
 	Mode string `json:"mode,omitempty"`
@@ -56,6 +56,7 @@ type TalosWorkerSpec struct {
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	// +kubebuilder:default="v1.33.1"
 	// TODO: Deprecate this field since the KubeVersion is derived fromm the control plane version
+	// +kubebuilder:validation:XValidation:rule="self >= oldSelf",message="KubeVersion can not be decreased"
 	KubeVersion string `json:"kubeVersion,omitempty"`
 
 	// StorageClassName is the name of the storage class to use for persistent volumes
@@ -65,7 +66,6 @@ type TalosWorkerSpec struct {
 	StorageClassName *string `json:"storageClassName,omitempty"`
 
 	// ControlPlaneRef is a reference to the TalosControlPlane that this worker belongs to
-	// TODO:
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Format=objectreference
 	ControlPlaneRef corev1.LocalObjectReference `json:"controlPlaneRef"`
