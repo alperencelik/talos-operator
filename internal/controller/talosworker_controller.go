@@ -564,7 +564,7 @@ func (r *TalosWorkerReconciler) CheckWorkerMachinesReady(ctx context.Context, tw
 		// Check if all machines are available
 		allAvailable = true
 		for _, machine := range machines.Items {
-			if machine.Status.State != talosv1alpha1.StateReady {
+			if machine.Status.State != talosv1alpha1.StateAvailable {
 				allAvailable = false
 				break
 			}

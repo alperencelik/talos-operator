@@ -26,3 +26,8 @@ go.work
 *.swo
 *~
 
+# Skip anything looks like a Kubeconfig or Talos config file  
+*kc*
+*kube*
+*talosconfig*
+*tc*

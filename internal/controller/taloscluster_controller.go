@@ -169,7 +169,7 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 		case controllerutil.OperationResultCreated:
 			r.Recorder.Event(tc, corev1.EventTypeNormal, "Created", "TalosControlPlane created successfully")
 			// Requeue the request to ensure that talosWorker is created after control plane is ready
-			return ctrl.Result{Requeue: true, RequeueAfter: 5 * time.Second}, nil
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		case controllerutil.OperationResultUpdated:
 			r.Recorder.Event(tc, corev1.EventTypeNormal, "Updated", "TalosControlPlane updated successfully")
 			// If it's only a update then requeue immediately
