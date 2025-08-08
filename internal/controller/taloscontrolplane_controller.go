@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -136,6 +137,17 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		logger.Info("Unsupported mode for TalosControlPlane", "mode", tcp.Spec.Mode)
 		return ctrl.Result{}, nil
 	}
+	// DEBUG
+	// Get upgrade job
+	// jobName := fmt.Sprintf("%s-upgrade-%s", tcp.Name, tcp.Spec.KubeVersion)
+	// job := &batchv1.Job{}
+	// if err := r.Get(ctx, client.ObjectKey{Name: jobName, Namespace: tcp.Namespace}, job); err != nil {
+	// if kerrors.IsNotFound(err) {
+	// logger.Info("Upgrade job not found", "jobName", jobName)
+	// }
+	// }
+	// logger.Info("Job status", "jobName", jobName, "status", job.Status)
+	// time.Sleep(10 * time.Second)
 
 	// KubeVersion reconciliation
 	result, err = r.reconcileKubeVersion(ctx, &tcp)
@@ -191,8 +203,10 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 						Name:  "upgrade",
 						Image: image,
 						Command: []string{
-							"/manager",
-							"upgrade-k8s",
+							// . "/manager",
+							// "upgrade-k8s",
+							"sleep",
+							"10", // Wait for the TalosControlPlane to be ready
 						},
 						Env: []corev1.EnvVar{
 							{
@@ -270,6 +284,49 @@ func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&talosv1alpha1.TalosMachine{}, builder.WithPredicates(talosMachinePredicate)).
 		// TODO: Look into this, for some reason it doesn't trigger reconciliation when the job is updated
 		// Owns(&batchv1.Job{}, builder.WithPredicates(jobPredicate)).
+		Owns(&batchv1.Job{}).
+		Watches(&batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						Kind: talosv1alpha1.GroupKindControlPlane,
+					},
+				},
+			},
+		}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, job client.Object) []ctrl.Request {
+			logger := log.FromContext(ctx)
+			// Check if the job is related to a TalosControlPlane
+			logger.Info("Watching job", "job", job.GetName(), "namespace", job.GetNamespace())
+			// Implement a watcher for that job
+			tcpName := job.GetOwnerReferences()[0].Name
+			tcpNamespace := job.GetNamespace()
+			// Get the tcp object to check if there is a diff in between .spec.kubeVersion and .status.observedKubeVersion
+			tcp := &talosv1alpha1.TalosControlPlane{}
+			if err := r.Get(ctx, client.ObjectKey{Name: tcpName, Namespace: tcpNamespace}, tcp); err != nil {
+				if kerrors.IsNotFound(err) {
+					logger.Info("TalosControlPlane not found for job", "job", job.GetName(), "tcpName", tcpName, "tcpNamespace", tcpNamespace)
+					return nil // If the TalosControlPlane is not found, do not enqueue any request
+				}
+			}
+			if tcp.Spec.KubeVersion != tcp.Status.ObservedKubeVersion {
+				// Upgrade is on progress so reconcile the TalosControlPlane when job is completed
+				logger.Info("Upgrade is still going oonnnn")
+				// Wait till job is completed
+				upgradeJob := &batchv1.Job{}
+				if err := r.Get(ctx, client.ObjectKey{Name: job.GetName(), Namespace: job.GetNamespace()}, job); err != nil {
+					if kerrors.IsNotFound(err) {
+						logger.Info("Job not found, skipping reconciliation", "job", job.GetName())
+						return nil // If the job is not found, do not enqueue any request
+					}
+				}
+				// DEBUG: The upgradeJob.Status returns empty here but in the controller it returns the status
+				logger.Info("Job status", "job", job.GetName(), "status", upgradeJob.Status)
+				if upgradeJob.Status.Succeeded > 0 || upgradeJob.Status.Failed > 0 {
+					logger.Info("Job completed, enqueueing TalosControlPlane for reconciliation", "job", job.GetName(), "tcpName", tcpName, "tcpNamespace", tcpNamespace)
+				}
+			}
+			return []ctrl.Request{}
+		})).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				// Only reconcile if the generation of the object has changed
