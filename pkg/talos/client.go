@@ -69,7 +69,7 @@ func (tc *TalosClient) BootstrapNode(cfg *BundleConfig) error {
 		RecoverSkipHashCheck: false,
 	}
 	// TODO: Fix this one
-	tc.Bootstrap(context.Background(), req)
+	_ = tc.Bootstrap(context.Background(), req)
 	return nil
 }
 
