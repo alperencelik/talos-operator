@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"fmt"
+
+	batchv1 "k8s.io/api/batch/v1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -26,16 +29,19 @@ var talosMachinePredicate = predicate.Funcs{
 	},
 }
 
-// var jobPredicate = predicate.Funcs{
-// GenericFunc: func(e event.GenericEvent) bool {
-// // Only reconcile if the job is not completed or failed
-// job, ok := e.Object.(*batchv1.Job)
-// if !ok {
-// return false
-// }
-// isFinished := func(j *batchv1.Job) bool {
-// return j.Status.Succeeded > 0 || j.Status.Failed > 0
-// }
-// return isFinished(job)
-// },
-// }
+var jobPredicate = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		// Reconcile when the job is completed or failed
+		oldJob, ok1 := e.ObjectOld.(*batchv1.Job)
+		newJob, ok2 := e.ObjectNew.(*batchv1.Job)
+		if !ok1 || !ok2 {
+			return false
+		}
+		if oldJob.Status.Succeeded != newJob.Status.Succeeded ||
+			oldJob.Status.Failed != newJob.Status.Failed {
+			fmt.Println("job update status")
+			return true
+		}
+		return false
+	},
+}

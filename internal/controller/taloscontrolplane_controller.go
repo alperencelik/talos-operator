@@ -240,9 +240,12 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 		}
 		return ctrl.Result{}, nil
 	}
-	logger.Info("upgrade job is still running")
-	// TODO: Make that event driven rather than polling
-	return ctrl.Result{RequeueAfter: 120 * time.Second}, nil
+	if job.Status.Succeeded > 0 {
+		logger.Info("upgrade job succeeded", "job", jobName)
+	} else {
+		logger.Info("upgrade job is running", "job", jobName)
+	}
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -270,10 +273,20 @@ func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&talosv1alpha1.TalosMachine{}, builder.WithPredicates(talosMachinePredicate)).
 		// TODO: Look into this, for some reason it doesn't trigger reconciliation when the job is updated
 		// Owns(&batchv1.Job{}, builder.WithPredicates(jobPredicate)).
+		Owns(&batchv1.Job{}, builder.WithPredicates(jobPredicate)).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				// Only reconcile if the generation of the object has changed
-				return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+				oldTcp, ok1 := e.ObjectOld.(*talosv1alpha1.TalosControlPlane)
+				newTcp, ok2 := e.ObjectNew.(*talosv1alpha1.TalosControlPlane)
+				if !ok1 || !ok2 {
+					return false
+				}
+				// Check if the generation has changed
+				condition1 := oldTcp.GetGeneration() != newTcp.GetGeneration()
+				// Check if the observed kubeVersion has changed
+				condition2 := oldTcp.Status.ObservedKubeVersion != newTcp.Status.ObservedKubeVersion
+				return condition1 || condition2
 			},
 		}).
 		Named("taloscontrolplane").
@@ -748,7 +761,7 @@ func (r *TalosControlPlaneReconciler) WriteTalosConfig(ctx context.Context, tcp 
 func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
 	logger := log.FromContext(ctx)
 	// Check if it's already bootstrapped
-	if tcp.Status.State == talosv1alpha1.StateBootstrapped || tcp.Status.State == talosv1alpha1.StateReady || tcp.Status.State == talosv1alpha1.StateAvailable {
+	if tcp.Status.State == talosv1alpha1.StateBootstrapped || tcp.Status.State == talosv1alpha1.StateReady {
 		return nil
 	}
 	// Make sure that the .status.state is set to Available before bootstrapping
