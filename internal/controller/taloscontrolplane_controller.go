@@ -184,35 +184,7 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 			_, err := controllerutil.CreateOrUpdate(ctx, r.Client, job, func() error {
 				image := utils.GetEnv("TALOS_OPERATOR_IMAGE", "alperencelik/talos-operator:latest")
 				serviceAccount := utils.GetEnv("TALOS_OPERATOR_SERVICE_ACCOUNT", "talos-operator")
-
-				job.Spec.Template.Spec.ServiceAccountName = serviceAccount
-				job.Spec.Template.Spec.Containers = []corev1.Container{
-					{
-						Name:  "upgrade",
-						Image: image,
-						Command: []string{
-							"/manager",
-							"upgrade-k8s",
-						},
-						Env: []corev1.EnvVar{
-							{
-								Name:  "TARGET_VERSION",
-								Value: tcp.Spec.KubeVersion,
-							},
-							{
-								Name:  "TCP_NAME",
-								Value: tcp.Name,
-							},
-							{
-								Name:  "TCP_NAMESPACE",
-								Value: tcp.Namespace,
-							},
-						},
-					},
-				}
-				job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
-				job.Spec.BackoffLimit = func(i int32) *int32 { return &i }(3)
-
+				job.Spec = BuildK8sUpgradeJobSpec(tcp, image, serviceAccount)
 				return controllerutil.SetControllerReference(tcp, job, r.Scheme)
 			})
 

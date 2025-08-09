@@ -481,14 +481,18 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 	if err != nil {
 		return fmt.Errorf("failed to get Talos version for TalosMachine %s: %w", tm.Name, err)
 	}
+	// Make sure that actual version complies with the version format: vX.Y.Z
+	if !utils.IsValidTalosVersion(actualVersion) {
+		return fmt.Errorf("invalid Talos version format for TalosMachine %s: %s", tm.Name, actualVersion)
+	}
+
 	// If the version is the same, we can apply the config
 	if actualVersion == tm.Spec.Version {
 		if configDrift {
 			// Apply the config
 			return applyConfigurationFunc()
 		}
-	}
-	if actualVersion != tm.Spec.Version {
+	} else {
 		// If the version is different, we need to upgrade
 		image := fmt.Sprintf("ghcr.io/siderolabs/installer:%s", tm.Spec.Version)
 		if err := tc.UpgradeTalosVersion(ctx, image); err != nil {

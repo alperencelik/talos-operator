@@ -58,3 +58,8 @@ func HasVersionSuffix(v string) bool {
 	re := regexp.MustCompile(`:v\d+(\.\d+)*$`)
 	return re.MatchString(v)
 }
+
+func IsValidTalosVersion(v string) bool {
+	re := regexp.MustCompile(`^v\d+(\.\d+)*$`)
+	return re.MatchString(v)
+}

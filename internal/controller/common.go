@@ -3,7 +3,9 @@ package controller
 import (
 	"fmt"
 
+	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -261,5 +263,40 @@ func BuildStsSpec(name string, replicas int32, version string, machineType strin
 				},
 			},
 		},
+	}
+}
+func BuildK8sUpgradeJobSpec(tcp *talosv1alpha1.TalosControlPlane, image, serviceAccount string) batchv1.JobSpec {
+	return batchv1.JobSpec{
+		Template: corev1.PodTemplateSpec{
+			Spec: corev1.PodSpec{
+				RestartPolicy: corev1.RestartPolicyOnFailure,
+				Containers: []corev1.Container{
+					{
+						Name:  "upgrade",
+						Image: image,
+						Command: []string{
+							"/manager",
+							"upgrade-k8s",
+						},
+						Env: []corev1.EnvVar{
+							{
+								Name:  "TARGET_VERSION",
+								Value: tcp.Spec.KubeVersion,
+							},
+							{
+								Name:  "TCP_NAME",
+								Value: tcp.Name,
+							},
+							{
+								Name:  "TCP_NAMESPACE",
+								Value: tcp.Namespace,
+							},
+						},
+					},
+				},
+				ServiceAccountName: serviceAccount,
+			},
+		},
+		BackoffLimit: func(i int32) *int32 { return &i }(3),
 	}
 }
