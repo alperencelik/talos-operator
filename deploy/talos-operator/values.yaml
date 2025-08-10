@@ -19,7 +19,7 @@ image:
 ui:
   enabled: true 
   image:
-    repository: alperencelik/talos-operator-ui # Assuming a separate image for the UI
+    repository: alperencelik/talos-operator-ui
     pullPolicy: Always
     tag: "latest"
   containerPort: 8080 

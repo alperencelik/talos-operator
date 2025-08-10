@@ -209,8 +209,14 @@ build-ui: ## Build the UI for the operator
 	@echo "--- Building UI"
 	@docker build -t talos-operator-ui:latest -f Dockerfile.ui .
 
+.PHONY: push-ui
+push-ui: build-ui ## Push the UI for the operator
+	@echo "--- Pushing UI"
+	@docker tag talos-operator-ui:latest alperencelik/talos-operator-ui:latest
+	@docker push alperencelik/talos-operator-ui:latest
+
 .PHONY: run-ui
-run-ui: ## Run the UI for the operator
+run-ui: build-ui ## Run the UI for the operator
 	@echo "--- Running UI"
 	@docker run -p 8080:8080 -v ~/.kube/config:/root/.kube/config talos-operator-ui:latest
 
