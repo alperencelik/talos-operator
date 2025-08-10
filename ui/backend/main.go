@@ -13,11 +13,21 @@ import (
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/yaml"
 )
+
+func removeMetadata(meta *metav1.ObjectMeta) {
+	meta.UID = ""
+	meta.ResourceVersion = ""
+	meta.ManagedFields = nil
+	if meta.Annotations != nil {
+		delete(meta.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+	}
+}
 
 func main() {
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -67,10 +77,30 @@ func getResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	machines := &talosv1alpha1.TalosMachineList{}
+	if err := k8sClient.List(r.Context(), machines); err != nil {
+		http.Error(w, fmt.Sprintf("Error fetching TalosMachines: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	for i := range clusters.Items {
+		removeMetadata(&clusters.Items[i].ObjectMeta)
+	}
+	for i := range controlPlanes.Items {
+		removeMetadata(&controlPlanes.Items[i].ObjectMeta)
+	}
+	for i := range workers.Items {
+		removeMetadata(&workers.Items[i].ObjectMeta)
+	}
+	for i := range machines.Items {
+		removeMetadata(&machines.Items[i].ObjectMeta)
+	}
+
 	resources := map[string]interface{}{
 		"talosClusters":      clusters.Items,
 		"talosControlPlanes": controlPlanes.Items,
 		"talosWorkers":       workers.Items,
+		"talosMachines":      machines.Items,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

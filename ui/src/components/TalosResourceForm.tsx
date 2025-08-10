@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Form, Button, Card, Tab, Nav } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import ClusterVisualizer from './ClusterVisualizer';
+import 'reactflow/dist/style.css';
 import YAML from 'js-yaml';
 import axios from 'axios';
 
@@ -10,15 +12,7 @@ function isRFC1123(name: string): boolean {
   return rfc1123Regex.test(name);
 }
 
-function isValidIPv4(ip: string): boolean {
-  const ipv4Regex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
-  return ipv4Regex.test(ip);
-}
 
-function isValidURLWithIPv4(url: string): boolean {
-  const urlRegex = /^https?:\/\/(?:[0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]+$/;
-  return urlRegex.test(url);
-}
 
 // --- Main App Component ---
 function TalosResourceForm() {
@@ -61,16 +55,11 @@ function TalosResourceForm() {
 
   const [generatedYaml, setGeneratedYaml] = useState('');
   const [errors, setErrors] = useState<any>({});
-  const [touched, setTouched] = useState<any>({});
   const [copySuccess, setCopySuccess] = useState('');
   const [applySuccess, setApplySuccess] = useState('');
   const [clusterResources, setClusterResources] = useState<any>(null);
 
   // --- Handlers ---
-  const handleBlur = (field: string) => {
-    setTouched({ ...touched, [field]: true });
-  };
-
   const handleDownload = () => {
     const blob = new Blob([generatedYaml], { type: 'application/x-yaml' });
     const url = URL.createObjectURL(blob);
@@ -93,7 +82,57 @@ function TalosResourceForm() {
     });
   };
 
+  const validateAllFields = () => {
+    const newErrors: any = {};
+
+    if (!name) {
+        newErrors.name = 'Name is required.';
+    } else if (!isRFC1123(name)) {
+        newErrors.name = 'Name must be RFC1123 compliant.';
+    } else if (name.length > 63) {
+        newErrors.name = 'Name cannot be longer than 63 characters.';
+    }
+
+    const validateVersionFields = (version: string, kubeVersion: string, prefix: string) => {
+      if (!version) newErrors[`${prefix}TalosVersion`] = `${prefix}Talos version is required.`;
+      if (!kubeVersion) newErrors[`${prefix}KubernetesVersion`] = `${prefix}Kubernetes version is required.`;
+    };
+
+    const validateMetalFields = (endpoint: string, machines: string, endpointPrefix: string, machinesPrefix: string) => {
+    };
+
+    if (resourceType === 'TalosControlPlane' || resourceType === 'TalosWorker') {
+      validateVersionFields(talosVersion, kubernetesVersion, '');
+      if (mode === 'metal') {
+      }
+    } else if (resourceType === 'TalosCluster' && talosClusterDefinitionMode === 'inline') {
+      validateVersionFields(inlineCPTalosVersion, inlineCPKubernetesVersion, 'inlineCP');
+      validateVersionFields(inlineWKTalosVersion, inlineWKKubernetesVersion, 'inlineWK');
+      if (mode === 'metal') {
+      }
+    }
+    
+    if (resourceType === 'TalosCluster' && talosClusterDefinitionMode === 'reference') {
+        if (!controlPlaneRef) newErrors.controlPlaneRef = 'Control Plane reference is required.';
+        if (!workerRef) newErrors.workerRef = 'Worker reference is required.';
+    }
+    
+    if (resourceType === 'TalosWorker') {
+        if (!workerControlPlaneRef) newErrors.workerControlPlaneRef = 'Control Plane reference is required.';
+    }
+
+    return newErrors;
+  };
+
   const handleApply = () => {
+    const validationErrors = validateAllFields();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setApplySuccess('Please fix the validation errors.');
+      setTimeout(() => setApplySuccess(''), 2000);
+      return;
+    }
+
     axios.post('/api/apply', generatedYaml, { headers: { 'Content-Type': 'application/x-yaml' } })
       .then(() => {
         setApplySuccess('Applied!');
@@ -144,66 +183,7 @@ function TalosResourceForm() {
     setInlineWKMachines('<worker-machine-ip-1>\n<worker-machine-ip-2>');
     setInlineWKReplicas(2);
     setErrors({});
-    setTouched({});
   }, [resourceType]);
-
-  useEffect(() => {
-    const newErrors: any = {};
-
-    if (touched.name && !name) {
-        newErrors.name = 'Name is required.';
-    } else if (touched.name && !isRFC1123(name)) {
-        newErrors.name = 'Name must be RFC1123 compliant.';
-    } else if (touched.name && name.length > 63) {
-        newErrors.name = 'Name cannot be longer than 63 characters.';
-    }
-
-    // Validation for TalosControlPlane and TalosWorker (standalone and inline)
-    const validateVersionFields = (version: string, kubeVersion: string, prefix: string) => {
-      if (touched[`${prefix}TalosVersion`] && !version) newErrors[`${prefix}TalosVersion`] = `${prefix}Talos version is required.`;
-      if (touched[`${prefix}KubernetesVersion`] && !kubeVersion) newErrors[`${prefix}KubernetesVersion`] = `${prefix}Kubernetes version is required.`;
-    };
-
-    const validateMetalFields = (endpoint: string, machines: string, endpointPrefix: string, machinesPrefix: string) => {
-      if (touched[endpointPrefix] && !isValidURLWithIPv4(endpoint)) {
-        newErrors[endpointPrefix] = 'Endpoint must be a valid URL with an IPv4.';
-      }
-      const machineIPs = machines.split('\n').filter(m => m.trim() !== '');
-      if (touched[machinesPrefix] && machineIPs.some(m => !isValidIPv4(m))) {
-        newErrors[machinesPrefix] = 'All machines must be valid IPv4 addresses.';
-      }
-    };
-
-    if (resourceType === 'TalosControlPlane' || resourceType === 'TalosWorker') {
-      validateVersionFields(talosVersion, kubernetesVersion, '');
-      if (mode === 'metal') {
-        validateMetalFields(controlPlaneEndpoint, machines, 'controlPlaneEndpoint', 'machines');
-      }
-    } else if (resourceType === 'TalosCluster' && talosClusterDefinitionMode === 'inline') {
-      validateVersionFields(inlineCPTalosVersion, inlineCPKubernetesVersion, 'inlineCP');
-      validateVersionFields(inlineWKTalosVersion, inlineWKKubernetesVersion, 'inlineWK');
-      if (mode === 'metal') {
-        validateMetalFields(inlineCPEndpoint, inlineCPMachines, 'inlineCPEndpoint', 'inlineCPMachines');
-        validateMetalFields('', inlineWKMachines, '', 'inlineWKMachines'); // Worker doesn't have endpoint
-      }
-    }
-    
-    if (resourceType === 'TalosCluster' && talosClusterDefinitionMode === 'reference') {
-        if (touched.controlPlaneRef && !controlPlaneRef) newErrors.controlPlaneRef = 'Control Plane reference is required.';
-        if (touched.workerRef && !workerRef) newErrors.workerRef = 'Worker reference is required.';
-    }
-    
-    if (resourceType === 'TalosWorker') {
-        if (touched.workerControlPlaneRef && !workerControlPlaneRef) newErrors.workerControlPlaneRef = 'Control Plane reference is required.';
-    }
-
-    setErrors(newErrors);
-  }, [
-    resourceType, name, mode, talosVersion, kubernetesVersion, machines, 
-    controlPlaneEndpoint, controlPlaneRef, workerRef, workerControlPlaneRef, 
-    talosClusterDefinitionMode, inlineCPTalosVersion, inlineCPKubernetesVersion, inlineCPEndpoint, inlineCPMachines, inlineCPReplicas,
-    inlineWKTalosVersion, inlineWKKubernetesVersion, inlineWKMachines, inlineWKReplicas, touched
-  ]);
 
   useEffect(() => {
     let resource: any;
@@ -324,12 +304,12 @@ function TalosResourceForm() {
               <>
                 <Form.Group className="mb-3">
                   <Form.Label>Control Plane Reference Name</Form.Label>
-                  <Form.Control type="text" value={controlPlaneRef} onChange={e => setControlPlaneRef(e.target.value)} onBlur={() => handleBlur('controlPlaneRef')} isInvalid={!!errors.controlPlaneRef} />
+                  <Form.Control type="text" value={controlPlaneRef} onChange={e => setControlPlaneRef(e.target.value)} isInvalid={!!errors.controlPlaneRef} />
                   <Form.Control.Feedback type="invalid">{errors.controlPlaneRef}</Form.Control.Feedback>
                 </Form.Group>
                 <Form.Group className="mb-3">
                   <Form.Label>Worker Reference Name</Form.Label>
-                  <Form.Control type="text" value={workerRef} onChange={e => setWorkerRef(e.target.value)} onBlur={() => handleBlur('workerRef')} isInvalid={!!errors.workerRef} />
+                  <Form.Control type="text" value={workerRef} onChange={e => setWorkerRef(e.target.value)} isInvalid={!!errors.workerRef} />
                   <Form.Control.Feedback type="invalid">{errors.workerRef}</Form.Control.Feedback>
                 </Form.Group>
               </>
@@ -346,25 +326,23 @@ function TalosResourceForm() {
                 <h5>Control Plane (Inline)</h5>
                 <Form.Group className="mb-3">
                   <Form.Label>Talos Version</Form.Label>
-                  <Form.Control type="text" value={inlineCPTalosVersion} onChange={e => setInlineCPTalosVersion(e.target.value)} onBlur={() => handleBlur('inlineCPTalosVersion')} isInvalid={!!errors.inlineCPTalosVersion} />
+                  <Form.Control type="text" value={inlineCPTalosVersion} onChange={e => setInlineCPTalosVersion(e.target.value)} isInvalid={!!errors.inlineCPTalosVersion} />
                   <Form.Control.Feedback type="invalid">{errors.inlineCPTalosVersion}</Form.Control.Feedback>
                 </Form.Group>
                 <Form.Group className="mb-3">
                   <Form.Label>Kubernetes Version</Form.Label>
-                  <Form.Control type="text" value={inlineCPKubernetesVersion} onChange={e => setInlineCPKubernetesVersion(e.target.value)} onBlur={() => handleBlur('inlineCPKubernetesVersion')} isInvalid={!!errors.inlineCPKubernetesVersion} />
+                  <Form.Control type="text" value={inlineCPKubernetesVersion} onChange={e => setInlineCPKubernetesVersion(e.target.value)} isInvalid={!!errors.inlineCPKubernetesVersion} />
                   <Form.Control.Feedback type="invalid">{errors.inlineCPKubernetesVersion}</Form.Control.Feedback>
                 </Form.Group>
                 {mode === 'metal' ? (
                   <>
                     <Form.Group className="mb-3">
                       <Form.Label>Control Plane Endpoint</Form.Label>
-                      <Form.Control type="text" value={inlineCPEndpoint} onChange={e => setInlineCPEndpoint(e.target.value)} onBlur={() => handleBlur('inlineCPEndpoint')} isInvalid={!!errors.inlineCPEndpoint} />
-                      <Form.Control.Feedback type="invalid">{errors.inlineCPEndpoint}</Form.Control.Feedback>
+                      <Form.Control type="text" value={inlineCPEndpoint} onChange={e => setInlineCPEndpoint(e.target.value)} />
                     </Form.Group>
                     <Form.Group className="mb-3">
                       <Form.Label>Control Plane Machines (one IP per line)</Form.Label>
-                      <Form.Control as="textarea" rows={3} value={inlineCPMachines} onChange={e => setInlineCPMachines(e.target.value)} onBlur={() => handleBlur('inlineCPMachines')} isInvalid={!!errors.inlineCPMachines} />
-                      <Form.Control.Feedback type="invalid">{errors.inlineCPMachines}</Form.Control.Feedback>
+                      <Form.Control as="textarea" rows={3} value={inlineCPMachines} onChange={e => setInlineCPMachines(e.target.value)} />
                     </Form.Group>
                   </>
                 ) : (
@@ -377,19 +355,18 @@ function TalosResourceForm() {
                 <h5>Worker (Inline)</h5>
                 <Form.Group className="mb-3">
                   <Form.Label>Talos Version</Form.Label>
-                  <Form.Control type="text" value={inlineWKTalosVersion} onChange={e => setInlineWKTalosVersion(e.target.value)} onBlur={() => handleBlur('inlineWKTalosVersion')} isInvalid={!!errors.inlineWKTalosVersion} />
+                  <Form.Control type="text" value={inlineWKTalosVersion} onChange={e => setInlineWKTalosVersion(e.target.value)} isInvalid={!!errors.inlineWKTalosVersion} />
                   <Form.Control.Feedback type="invalid">{errors.inlineWKTalosVersion}</Form.Control.Feedback>
                 </Form.Group>
                 <Form.Group className="mb-3">
                   <Form.Label>Kubernetes Version</Form.Label>
-                  <Form.Control type="text" value={inlineWKKubernetesVersion} onChange={e => setInlineWKKubernetesVersion(e.target.value)} onBlur={() => handleBlur('inlineWKKubernetesVersion')} isInvalid={!!errors.inlineWKKubernetesVersion} />
+                  <Form.Control type="text" value={inlineWKKubernetesVersion} onChange={e => setInlineWKKubernetesVersion(e.target.value)} isInvalid={!!errors.inlineWKKubernetesVersion} />
                   <Form.Control.Feedback type="invalid">{errors.inlineWKKubernetesVersion}</Form.Control.Feedback>
                 </Form.Group>
                 {mode === 'metal' ? (
                   <Form.Group className="mb-3">
                     <Form.Label>Worker Machines (one IP per line)</Form.Label>
-                    <Form.Control as="textarea" rows={3} value={inlineWKMachines} onChange={e => setInlineWKMachines(e.target.value)} onBlur={() => handleBlur('inlineWKMachines')} isInvalid={!!errors.inlineWKMachines} />
-                    <Form.Control.Feedback type="invalid">{errors.inlineWKMachines}</Form.Control.Feedback>
+                    <Form.Control as="textarea" rows={3} value={inlineWKMachines} onChange={e => setInlineWKMachines(e.target.value)} />
                   </Form.Group>
                 ) : (
                   <Form.Group className="mb-3">
@@ -414,18 +391,18 @@ function TalosResourceForm() {
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Talos Version</Form.Label>
-              <Form.Control type="text" value={talosVersion} onChange={e => setTalosVersion(e.target.value)} onBlur={() => handleBlur('talosVersion')} isInvalid={!!errors.talosVersion} />
+              <Form.Control type="text" value={talosVersion} onChange={e => setTalosVersion(e.target.value)} isInvalid={!!errors.talosVersion} />
               <Form.Control.Feedback type="invalid">{errors.talosVersion}</Form.Control.Feedback>
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Kubernetes Version</Form.Label>
-              <Form.Control type="text" value={kubernetesVersion} onChange={e => setKubernetesVersion(e.target.value)} onBlur={() => handleBlur('kubernetesVersion')} isInvalid={!!errors.kubernetesVersion} />
+              <Form.Control type="text" value={kubernetesVersion} onChange={e => setKubernetesVersion(e.target.value)} isInvalid={!!errors.kubernetesVersion} />
               <Form.Control.Feedback type="invalid">{errors.kubernetesVersion}</Form.Control.Feedback>
             </Form.Group>
             {resourceType === 'TalosWorker' && (
                  <Form.Group className="mb-3">
                     <Form.Label>Control Plane Reference Name</Form.Label>
-                    <Form.Control type="text" value={workerControlPlaneRef} onChange={e => setWorkerControlPlaneRef(e.target.value)} onBlur={() => handleBlur('workerControlPlaneRef')} isInvalid={!!errors.workerControlPlaneRef} />
+                    <Form.Control type="text" value={workerControlPlaneRef} onChange={e => setWorkerControlPlaneRef(e.target.value)} isInvalid={!!errors.workerControlPlaneRef} />
                     <Form.Control.Feedback type="invalid">{errors.workerControlPlaneRef}</Form.Control.Feedback>
                  </Form.Group>
             )}
@@ -434,14 +411,12 @@ function TalosResourceForm() {
                 {resourceType === 'TalosControlPlane' && (
                   <Form.Group className="mb-3">
                     <Form.Label>Control Plane Endpoint</Form.Label>
-                    <Form.Control type="text" value={controlPlaneEndpoint} onChange={e => setControlPlaneEndpoint(e.target.value)} onBlur={() => handleBlur('controlPlaneEndpoint')} isInvalid={!!errors.controlPlaneEndpoint} />
-                    <Form.Control.Feedback type="invalid">{errors.controlPlaneEndpoint}</Form.Control.Feedback>
+                    <Form.Control type="text" value={controlPlaneEndpoint} onChange={e => setControlPlaneEndpoint(e.target.value)} />
                   </Form.Group>
                 )}
                 <Form.Group className="mb-3">
                   <Form.Label>Machines (one IP per line)</Form.Label>
-                  <Form.Control as="textarea" rows={3} value={machines} onChange={e => setMachines(e.target.value)} onBlur={() => handleBlur('machines')} isInvalid={!!errors.machines} />
-                  <Form.Control.Feedback type="invalid">{errors.machines}</Form.Control.Feedback>
+                  <Form.Control as="textarea" rows={3} value={machines} onChange={e => setMachines(e.target.value)} />
                 </Form.Group>
               </>
             ) : (
@@ -476,7 +451,7 @@ function TalosResourceForm() {
     <Container fluid className="p-4">
       <Row>
         <Col>
-          <h1 className="mb-4">Talos Operator UI Helper</h1>
+          <h1 className="mb-4">Talos Operator UI</h1>
         </Col>
       </Row>
       <Tab.Container defaultActiveKey="generator">
@@ -511,7 +486,7 @@ function TalosResourceForm() {
                           <hr/>
                           <Form.Group className="mb-3">
                             <Form.Label>Name</Form.Label>
-                            <Form.Control type="text" value={name} onChange={e => setName(e.target.value)} onBlur={() => handleBlur('name')} isInvalid={!!errors.name} />
+                            <Form.Control type="text" value={name} onChange={e => setName(e.target.value)} isInvalid={!!errors.name} />
                             <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
                           </Form.Group>
                           {renderForm()}
@@ -535,13 +510,7 @@ function TalosResourceForm() {
                 </Row>
               </Tab.Pane>
               <Tab.Pane eventKey="visualizer">
-                {clusterResources ? (
-                  <>
-                    {renderResources('TalosClusters', clusterResources.talosClusters)}
-                    {renderResources('TalosControlPlanes', clusterResources.talosControlPlanes)}
-                    {renderResources('TalosWorkers', clusterResources.talosWorkers)}
-                  </>
-                ) : <p>Loading resources...</p>}
+                <ClusterVisualizer />
               </Tab.Pane>
             </Tab.Content>
           </Col>

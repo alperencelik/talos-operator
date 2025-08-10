@@ -20,7 +20,12 @@
     "web-vitals": "^2.1.4",
     "js-yaml": "^4.1.0",
     "@types/js-yaml": "^4.0.9",
-    "axios": "^1.7.2"
+    "axios": "^1.7.2",
+    "reactflow": "^11.11.4",
+    "dagre": "^0.8.5"
+  },
+  "devDependencies": {
+    "@types/dagre": "*"
   },
   "proxy": "http://localhost:8080",
   "scripts": {
