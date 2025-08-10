@@ -145,15 +145,17 @@ func applyResource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	patch := client.Apply
-	force := true
-	opts := &client.PatchOptions{Force: &force, FieldManager: "talos-ui"}
-
-	if err := k8sClient.Patch(r.Context(), obj, patch, opts); err != nil {
-		http.Error(w, fmt.Sprintf("Error applying resource: %s", err), http.StatusInternalServerError)
-		return
+	if err := k8sClient.Create(r.Context(), obj); err != nil {
+		if client.IgnoreAlreadyExists(err) != nil {
+			http.Error(w, fmt.Sprintf("Error applying resource: %s", err), http.StatusInternalServerError)
+			return
+		}
+		// If the resource already exists, we can update it
+		if err := k8sClient.Update(r.Context(), obj); err != nil {
+			http.Error(w, fmt.Sprintf("Error updating resource: %s", err), http.StatusInternalServerError)
+			return
+		}
 	}
-
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "Resource applied successfully")
 }

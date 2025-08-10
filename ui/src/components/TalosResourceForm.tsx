@@ -1,18 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Form, Button, Card, Tab, Nav } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, Card, Tab, Nav, Toast, ToastContainer } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import ClusterVisualizer from './ClusterVisualizer';
 import 'reactflow/dist/style.css';
 import YAML from 'js-yaml';
 import axios from 'axios';
-
-// --- Validation Functions ---
-function isRFC1123(name: string): boolean {
-  const rfc1123Regex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
-  return rfc1123Regex.test(name);
-}
-
-
 
 // --- Main App Component ---
 function TalosResourceForm() {
@@ -21,6 +13,7 @@ function TalosResourceForm() {
 
   // Common
   const [name, setName] = useState('sample');
+  const [namespace, setNamespace] = useState('default');
   const [mode, setMode] = useState('metal');
   const [talosVersion, setTalosVersion] = useState('v1.10.3');
   const [kubernetesVersion, setKubernetesVersion] = useState('v1.31.0');
@@ -54,10 +47,42 @@ function TalosResourceForm() {
 
 
   const [generatedYaml, setGeneratedYaml] = useState('');
-  const [errors, setErrors] = useState<any>({});
   const [copySuccess, setCopySuccess] = useState('');
   const [applySuccess, setApplySuccess] = useState('');
   const [clusterResources, setClusterResources] = useState<any>(null);
+
+  type Notice = { variant: 'success' | 'danger' | 'warning' | 'info'; message: string };
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [activeTab, setActiveTab] = useState<'generator' | 'visualizer'>(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? window.localStorage.getItem('activeTab') : null;
+      return saved === 'visualizer' || saved === 'generator' ? (saved as 'generator' | 'visualizer') : 'generator';
+    } catch {
+      return 'generator';
+    }
+  });
+  const [resourcesStale, setResourcesStale] = useState<boolean>(false);
+
+  // Extract a human-friendly message from Axios errors (network / response / other)
+  const extractAxiosError = (err: any): string => {
+    // Use axios.isAxiosError to discriminate
+    if (axios.isAxiosError && axios.isAxiosError(err)) {
+      if (err.response) {
+        const status = err.response.status;
+        const statusText = (err.response as any).statusText || '';
+        const data = typeof err.response.data === 'string' ? err.response.data : JSON.stringify(err.response.data);
+        return `status ${status}${statusText ? ` ${statusText}` : ''}${data ? `: ${data}` : ''}`;
+      }
+      if (err.request) {
+        return 'No response received from the server (network error or CORS).';
+      }
+      return err.message || 'Request failed.';
+    }
+    try { return (err && (err as any).message) ? (err as any).message : String(err); } catch { return 'Unknown error'; }
+  };
+
+//
+
 
   // --- Handlers ---
   const handleDownload = () => {
@@ -82,65 +107,21 @@ function TalosResourceForm() {
     });
   };
 
-  const validateAllFields = () => {
-    const newErrors: any = {};
-
-    if (!name) {
-        newErrors.name = 'Name is required.';
-    } else if (!isRFC1123(name)) {
-        newErrors.name = 'Name must be RFC1123 compliant.';
-    } else if (name.length > 63) {
-        newErrors.name = 'Name cannot be longer than 63 characters.';
-    }
-
-    const validateVersionFields = (version: string, kubeVersion: string, prefix: string) => {
-      if (!version) newErrors[`${prefix}TalosVersion`] = `${prefix}Talos version is required.`;
-      if (!kubeVersion) newErrors[`${prefix}KubernetesVersion`] = `${prefix}Kubernetes version is required.`;
-    };
-
-    const validateMetalFields = (endpoint: string, machines: string, endpointPrefix: string, machinesPrefix: string) => {
-    };
-
-    if (resourceType === 'TalosControlPlane' || resourceType === 'TalosWorker') {
-      validateVersionFields(talosVersion, kubernetesVersion, '');
-      if (mode === 'metal') {
-      }
-    } else if (resourceType === 'TalosCluster' && talosClusterDefinitionMode === 'inline') {
-      validateVersionFields(inlineCPTalosVersion, inlineCPKubernetesVersion, 'inlineCP');
-      validateVersionFields(inlineWKTalosVersion, inlineWKKubernetesVersion, 'inlineWK');
-      if (mode === 'metal') {
-      }
-    }
-    
-    if (resourceType === 'TalosCluster' && talosClusterDefinitionMode === 'reference') {
-        if (!controlPlaneRef) newErrors.controlPlaneRef = 'Control Plane reference is required.';
-        if (!workerRef) newErrors.workerRef = 'Worker reference is required.';
-    }
-    
-    if (resourceType === 'TalosWorker') {
-        if (!workerControlPlaneRef) newErrors.workerControlPlaneRef = 'Control Plane reference is required.';
-    }
-
-    return newErrors;
-  };
-
   const handleApply = () => {
-    const validationErrors = validateAllFields();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      setApplySuccess('Please fix the validation errors.');
-      setTimeout(() => setApplySuccess(''), 2000);
-      return;
-    }
-
     axios.post('/api/apply', generatedYaml, { headers: { 'Content-Type': 'application/x-yaml' } })
       .then(() => {
         setApplySuccess('Applied!');
         setTimeout(() => setApplySuccess(''), 2000);
-        fetchResources();
+        setResourcesStale(true);
+        if (activeTab === 'visualizer') {
+          fetchResources();
+          setResourcesStale(false);
+        }
       })
       .catch(err => {
-        setApplySuccess(`Apply failed: ${err.response?.data || err.message}`);
+        const msg = extractAxiosError(err);
+        setApplySuccess(`Apply failed: ${msg}`);
+        setNotice({ variant: 'danger', message: `Apply failed: ${msg}` });
         setTimeout(() => setApplySuccess(''), 5000);
       });
   };
@@ -151,18 +132,21 @@ function TalosResourceForm() {
         setClusterResources(response.data);
       })
       .catch(error => {
-        console.error("Error fetching resources:", error);
+        setClusterResources(null);
+        const msg = extractAxiosError(error);
+        setNotice({ variant: 'danger', message: `Failed to fetch cluster resources: ${msg}` });
+        console.error('Error fetching resources:', error);
       });
   };
 
   // --- Effects ---
-  useEffect(() => {
-    fetchResources();
-  }, []);
+
+  // (Effect to clear errors for fields that are not currently visible removed)
 
   useEffect(() => {
     // Reset state on resource type change
     setName('sample');
+    setNamespace('default');
     setMode('metal');
     setTalosVersion('v1.10.3');
     setKubernetesVersion('v1.31.0');
@@ -182,7 +166,7 @@ function TalosResourceForm() {
     setInlineWKKubernetesVersion('v1.31.0');
     setInlineWKMachines('<worker-machine-ip-1>\n<worker-machine-ip-2>');
     setInlineWKReplicas(2);
-    setErrors({});
+    // setErrors({}); // removed
   }, [resourceType]);
 
   useEffect(() => {
@@ -195,7 +179,7 @@ function TalosResourceForm() {
           resource = {
             apiVersion,
             kind: 'TalosCluster',
-            metadata: { name },
+            metadata: { name, namespace },
             spec: {
               controlPlaneRef: { name: controlPlaneRef },
               workerRef: { name: workerRef },
@@ -229,7 +213,7 @@ function TalosResourceForm() {
           resource = {
             apiVersion,
             kind: 'TalosCluster',
-            metadata: { name },
+            metadata: { name, namespace },
             spec: {
               controlPlane: inlineCPSpec,
               worker: inlineWKSpec,
@@ -252,7 +236,7 @@ function TalosResourceForm() {
         resource = {
           apiVersion,
           kind: 'TalosControlPlane',
-          metadata: { name },
+          metadata: { name, namespace },
           spec: cpSpec,
         };
         break;
@@ -271,7 +255,7 @@ function TalosResourceForm() {
         resource = {
           apiVersion,
           kind: 'TalosWorker',
-          metadata: { name },
+          metadata: { name, namespace },
           spec: workerSpec,
         };
         break;
@@ -281,11 +265,13 @@ function TalosResourceForm() {
 
     setGeneratedYaml(YAML.dump(resource));
   }, [
-    resourceType, name, mode, talosVersion, kubernetesVersion, machines, replicas,
+    resourceType, name, namespace, mode, talosVersion, kubernetesVersion, machines, replicas,
     controlPlaneEndpoint, controlPlaneRef, workerRef, workerControlPlaneRef,
     talosClusterDefinitionMode, inlineCPTalosVersion, inlineCPKubernetesVersion, inlineCPEndpoint, inlineCPMachines, inlineCPReplicas,
     inlineWKTalosVersion, inlineWKKubernetesVersion, inlineWKMachines, inlineWKReplicas
   ]);
+
+  // (Field onChange wrappers with live validation removed)
 
   // --- Render ---
   const renderForm = () => {
@@ -304,13 +290,11 @@ function TalosResourceForm() {
               <>
                 <Form.Group className="mb-3">
                   <Form.Label>Control Plane Reference Name</Form.Label>
-                  <Form.Control type="text" value={controlPlaneRef} onChange={e => setControlPlaneRef(e.target.value)} isInvalid={!!errors.controlPlaneRef} />
-                  <Form.Control.Feedback type="invalid">{errors.controlPlaneRef}</Form.Control.Feedback>
+                  <Form.Control type="text" value={controlPlaneRef} onChange={e => setControlPlaneRef(e.target.value)} />
                 </Form.Group>
                 <Form.Group className="mb-3">
                   <Form.Label>Worker Reference Name</Form.Label>
-                  <Form.Control type="text" value={workerRef} onChange={e => setWorkerRef(e.target.value)} isInvalid={!!errors.workerRef} />
-                  <Form.Control.Feedback type="invalid">{errors.workerRef}</Form.Control.Feedback>
+                  <Form.Control type="text" value={workerRef} onChange={e => setWorkerRef(e.target.value)} />
                 </Form.Group>
               </>
             ) : (
@@ -326,13 +310,11 @@ function TalosResourceForm() {
                 <h5>Control Plane (Inline)</h5>
                 <Form.Group className="mb-3">
                   <Form.Label>Talos Version</Form.Label>
-                  <Form.Control type="text" value={inlineCPTalosVersion} onChange={e => setInlineCPTalosVersion(e.target.value)} isInvalid={!!errors.inlineCPTalosVersion} />
-                  <Form.Control.Feedback type="invalid">{errors.inlineCPTalosVersion}</Form.Control.Feedback>
+                  <Form.Control type="text" value={inlineCPTalosVersion} onChange={e => setInlineCPTalosVersion(e.target.value)} />
                 </Form.Group>
                 <Form.Group className="mb-3">
                   <Form.Label>Kubernetes Version</Form.Label>
-                  <Form.Control type="text" value={inlineCPKubernetesVersion} onChange={e => setInlineCPKubernetesVersion(e.target.value)} isInvalid={!!errors.inlineCPKubernetesVersion} />
-                  <Form.Control.Feedback type="invalid">{errors.inlineCPKubernetesVersion}</Form.Control.Feedback>
+                  <Form.Control type="text" value={inlineCPKubernetesVersion} onChange={e => setInlineCPKubernetesVersion(e.target.value)} />
                 </Form.Group>
                 {mode === 'metal' ? (
                   <>
@@ -355,13 +337,11 @@ function TalosResourceForm() {
                 <h5>Worker (Inline)</h5>
                 <Form.Group className="mb-3">
                   <Form.Label>Talos Version</Form.Label>
-                  <Form.Control type="text" value={inlineWKTalosVersion} onChange={e => setInlineWKTalosVersion(e.target.value)} isInvalid={!!errors.inlineWKTalosVersion} />
-                  <Form.Control.Feedback type="invalid">{errors.inlineWKTalosVersion}</Form.Control.Feedback>
+                  <Form.Control type="text" value={inlineWKTalosVersion} onChange={e => setInlineWKTalosVersion(e.target.value)} />
                 </Form.Group>
                 <Form.Group className="mb-3">
                   <Form.Label>Kubernetes Version</Form.Label>
-                  <Form.Control type="text" value={inlineWKKubernetesVersion} onChange={e => setInlineWKKubernetesVersion(e.target.value)} isInvalid={!!errors.inlineWKKubernetesVersion} />
-                  <Form.Control.Feedback type="invalid">{errors.inlineWKKubernetesVersion}</Form.Control.Feedback>
+                  <Form.Control type="text" value={inlineWKKubernetesVersion} onChange={e => setInlineWKKubernetesVersion(e.target.value)} />
                 </Form.Group>
                 {mode === 'metal' ? (
                   <Form.Group className="mb-3">
@@ -391,19 +371,16 @@ function TalosResourceForm() {
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Talos Version</Form.Label>
-              <Form.Control type="text" value={talosVersion} onChange={e => setTalosVersion(e.target.value)} isInvalid={!!errors.talosVersion} />
-              <Form.Control.Feedback type="invalid">{errors.talosVersion}</Form.Control.Feedback>
+              <Form.Control type="text" value={talosVersion} onChange={e => setTalosVersion(e.target.value)} />
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Kubernetes Version</Form.Label>
-              <Form.Control type="text" value={kubernetesVersion} onChange={e => setKubernetesVersion(e.target.value)} isInvalid={!!errors.kubernetesVersion} />
-              <Form.Control.Feedback type="invalid">{errors.kubernetesVersion}</Form.Control.Feedback>
+              <Form.Control type="text" value={kubernetesVersion} onChange={e => setKubernetesVersion(e.target.value)} />
             </Form.Group>
             {resourceType === 'TalosWorker' && (
                  <Form.Group className="mb-3">
                     <Form.Label>Control Plane Reference Name</Form.Label>
-                    <Form.Control type="text" value={workerControlPlaneRef} onChange={e => setWorkerControlPlaneRef(e.target.value)} isInvalid={!!errors.workerControlPlaneRef} />
-                    <Form.Control.Feedback type="invalid">{errors.workerControlPlaneRef}</Form.Control.Feedback>
+                    <Form.Control type="text" value={workerControlPlaneRef} onChange={e => setWorkerControlPlaneRef(e.target.value)} />
                  </Form.Group>
             )}
             {mode === 'metal' ? (
@@ -454,7 +431,37 @@ function TalosResourceForm() {
           <h1 className="mb-4">Talos Operator UI</h1>
         </Col>
       </Row>
-      <Tab.Container defaultActiveKey="generator">
+      <ToastContainer position="bottom-end" className="p-3">
+        {notice && (
+          <Toast
+            onClose={() => setNotice(null)}
+            show={!!notice}
+            delay={5000}
+            autohide
+            bg={notice.variant === 'warning' || notice.variant === 'info' ? 'light' : notice.variant}
+            className={notice.variant === 'warning' || notice.variant === 'info' ? '' : 'text-white'}
+          >
+            <Toast.Header closeButton={false}>
+              <strong className="me-auto">
+                {notice.variant === 'danger' ? 'Error' : notice.variant.charAt(0).toUpperCase() + notice.variant.slice(1)}
+              </strong>
+            </Toast.Header>
+            <Toast.Body>{notice.message}</Toast.Body>
+          </Toast>
+        )}
+      </ToastContainer>
+      <Tab.Container
+        activeKey={activeTab}
+        onSelect={(k) => {
+          const key = (k ?? 'generator') as 'generator' | 'visualizer';
+          setActiveTab(key);
+          try { window.localStorage.setItem('activeTab', key); } catch {}
+          if (key === 'visualizer' && (resourcesStale || !clusterResources)) {
+            fetchResources();
+            setResourcesStale(false);
+          }
+        }}
+      >
         <Row>
           <Col sm={3}>
             <Nav variant="pills" className="flex-column">
@@ -462,7 +469,7 @@ function TalosResourceForm() {
                 <Nav.Link eventKey="generator">Resource Generator</Nav.Link>
               </Nav.Item>
               <Nav.Item>
-                <Nav.Link eventKey="visualizer">Cluster Visualizer</Nav.Link>
+                <Nav.Link eventKey="visualizer">Resource Visualizer</Nav.Link>
               </Nav.Item>
             </Nav>
           </Col>
@@ -486,8 +493,11 @@ function TalosResourceForm() {
                           <hr/>
                           <Form.Group className="mb-3">
                             <Form.Label>Name</Form.Label>
-                            <Form.Control type="text" value={name} onChange={e => setName(e.target.value)} isInvalid={!!errors.name} />
-                            <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>
+                            <Form.Control type="text" value={name} onChange={e => setName(e.target.value)} />
+                          </Form.Group>
+                          <Form.Group className="mb-3">
+                            <Form.Label>Namespace</Form.Label>
+                            <Form.Control type="text" value={namespace} onChange={e => setNamespace(e.target.value)} />
                           </Form.Group>
                           {renderForm()}
                         </Form>
@@ -501,9 +511,9 @@ function TalosResourceForm() {
                         <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', backgroundColor: '#f8f9fa', padding: '1rem', borderRadius: '0.25rem' }}>
                           <code>{generatedYaml}</code>
                         </pre>
-                        <Button variant="success" onClick={handleApply} disabled={Object.keys(errors).length > 0}>{applySuccess || 'Apply'}</Button>
-                        <Button variant="secondary" onClick={handleCopy} disabled={Object.keys(errors).length > 0} className="ms-2">{copySuccess || 'Copy YAML'}</Button>
-                        <Button variant="primary" onClick={handleDownload} disabled={Object.keys(errors).length > 0} className="ms-2">Download YAML</Button>
+                        <Button variant="success" onClick={handleApply}>{applySuccess || 'Apply'}</Button>
+                        <Button variant="secondary" onClick={handleCopy} className="ms-2">{copySuccess || 'Copy YAML'}</Button>
+                        <Button variant="primary" onClick={handleDownload} className="ms-2">Download YAML</Button>
                       </Card.Body>
                     </Card>
                   </Col>
