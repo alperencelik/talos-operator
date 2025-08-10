@@ -35,6 +35,10 @@ func main() {
 	http.HandleFunc("/api/resources", getResources)
 	http.HandleFunc("/api/apply", applyResource)
 
+	// Serve static files from the "web" directory
+	fs := http.FileServer(http.Dir("./web"))
+	http.Handle("/", fs)
+
 	fmt.Println("Server starting on port 8080...")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		fmt.Printf("Error starting server: %s\n", err)

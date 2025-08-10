@@ -1,0 +1,22 @@
+# Stage 1: Build the React frontend
+FROM node:20-alpine3.18 AS frontend-builder
+WORKDIR /app/ui
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+COPY ./ui ./
+RUN npm run build
+
+# Stage 2: Build the Go backend
+FROM golang:1.24.4-alpine AS backend-builder
+WORKDIR /app/ui/backend
+COPY ui/backend/ ./ 
+RUN ls -la
+RUN go build -o /usr/local/bin/talos-operator-ui  
+
+FROM alpine:latest
+WORKDIR /app
+COPY --from=backend-builder /usr/local/bin/talos-operator-ui .
+COPY --from=frontend-builder /app/ui/build ./web
+
+EXPOSE 8080
+CMD ["./talos-operator-ui"]

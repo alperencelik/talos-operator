@@ -204,6 +204,16 @@ chart: manifests ## Copies and cleans CRDs for the Helm chart.
 custom-dashboard: ## Run the custom dashboard generator. For more information check out https://kubebuilder.io/plugins/available/grafana-v1-alpha
 	kubebuilder edit --plugins grafana.kubebuilder.io/v1-alpha
 
+.PHONY: build-ui 
+build-ui: ## Build the UI for the operator
+	@echo "--- Building UI"
+	@docker build -t talos-operator-ui:latest -f Dockerfile.ui .
+
+.PHONY: run-ui
+run-ui: ## Run the UI for the operator
+	@echo "--- Running UI"
+	@docker run -p 8080:8080 -v ~/.kube/config:/root/.kube/config talos-operator-ui:latest
+
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary
 # $2 - package url which can be installed
