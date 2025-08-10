@@ -16,6 +16,28 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
+ui:
+  enabled: true 
+  image:
+    repository: alperencelik/talos-operator-ui # Assuming a separate image for the UI
+    pullPolicy: Always
+    tag: "latest"
+  containerPort: 8080 
+  service:
+    type: ClusterIP
+    port: 8080
+  resources: {}
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: ui.chart-example.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: []
+
 # This is for the secretes for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
 # This is to override the chart name.
