@@ -9,7 +9,6 @@ markdown_extensions:
 nav:
 - Overview: index.md
 - Getting Started: getting_started.md
-- Kubernetes Upgrade Flow: kubernetes_upgrade_flow_diagram.md
 - Custom Resources:
   - Overview: crds/index.md
   - TalosCluster: crds/taloscluster.md

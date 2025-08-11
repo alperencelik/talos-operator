@@ -1,3 +1,6 @@
 # TalosMachine
 
-This page provides details about the `TalosMachine` CRD.
+`TalosMachine` is a Kubernetes custom resource definition (CRD) that represents a machine running Talos, a modern operating system designed for Kubernetes. This CRD is used to manage the lifecycle of Talos machines within a Kubernetes cluster. It's subsidiary to the `TalosControlPlane` and `TalosWoorker` resources, when they are defined in `metal` mode, and is used to manage the individual machines that make up the Talos cluster. No matter the mode that you run you shouldn't define `TalosMachine` resources directly, but rather use the `TalosControlPlane` and `TalosWorker` resources to manage the machines. TalosMachines are created and managed by the Talos operator, to be able to track each machine individually and apply the desired state defined in the `TalosControlPlane` or `TalosWorker` resources. You can use `TalosMachine` to monitor the status of each machine, including its health, configuration, and any issues that may arise. The Talos operator will ensure that the machines are running the correct version of Talos and are configured according to the specifications defined in the `TalosControlPlane` or `TalosWorker` resources.
+
+!!!warning
+    Users shouldn't define `TalosMachine` resources directly, but rather use the `TalosControlPlane` and `TalosWorker` resources to manage the machines. The Talos operator will automatically create and manage the `TalosMachine` resources based on the specifications defined in the `TalosControlPlane` or `TalosWorker` resources.

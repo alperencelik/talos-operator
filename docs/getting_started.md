@@ -11,12 +11,6 @@ helm repo add talos-operator https://alperencelik.github.io/talos-operator
 helm install talos-operator talos-operator/talos-operator
 ```
 
-## Creating your first Talos Cluster
-
-To create your first Talos cluster using the `talos-operator`, you need to define a `TalosCluster` custom resource. You can find an examples of `TalosCluster` in the `examples/` directory. 
-
-TO be updated
-
 ## Features
 
 - **Decoupled Design**: The operator is designed to decouple a Kubernetes cluster in two parts: the control plane and the worker nodes. This allows you to manage the control plane and worker nodes independently, which is useful different purposes. You can create control planes without any worker nodes, and vice versa. You can design many scenarious with this decoupled design, such as control plane as a service, or control plane as a pod in Kubernetes, or even more. To learn more please see the `examples/` directory.

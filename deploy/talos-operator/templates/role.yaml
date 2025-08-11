@@ -76,3 +76,32 @@ rules:
   - patch
   - update
   - watch
+# Events
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+## Leader election
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete

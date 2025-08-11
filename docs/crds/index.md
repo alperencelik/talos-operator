@@ -1,8 +1,13 @@
 # Custom Resource Definitions (CRDs)
 
-The talos-operator introduces the following CRDs to manage Talos clusters:
+This section provides detailed documentation for the Custom Resource Definitions (CRDs) used by the Talos Operator. CRDs are extensions of the Kubernetes API that allow you to manage custom resources. In the context of the Talos Operator, these resources are used to define and manage Talos clusters in a declarative way.
 
-- **TalosCluster**: Represents a Talos cluster.
-- **TalosControlPlane**: Represents the control plane of a Talos cluster.
-- **TalosWorker**: Represents a worker nodes in a Talos cluster.
-- **TalosMachine**: Represents a physical/virtual machine in a Talos cluster.
+Here you will find information on the following CRDs:
+
+*   [TalosCluster](./taloscluster.md)
+*   [TalosControlPlane](./taloscontrolplane.md)
+*   [TalosMachine](./talosmachine.md)
+*   [TalosWorker](./talosworker.md)
+
+
+
