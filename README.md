@@ -10,6 +10,10 @@ A Kubernetes operator to manage Talos Linux–based clusters declaratively.
 
 `talos-operator` enables to bootstrap Talos Kubernetes clusters using custom controllers. It allows you to create and manage Talos clusters in different environments, such as bare metal, virtual machines or even in Kubernetes-in-Kubernetes method by using Talos' container support.
 
+## Documentation
+
+Documentation is also available at [https://alperencelik.github.io/talos-operator/](https://alperencelik.github.io/talos-operator/).
+
 ## Motivation
 
 Talos Linux is a great choice for running Kubernetes clusters due to its security, simplicity, and API driven design. However, as a person who is against CLI tools to install clusters, I wanted to create a way to manage Talos clusters declaratively using Kubernetes operators. This operator allows you to define your Talos cluster configuration in Kubernetes Custom Resource Definitions (CRDs) and manage the lifecycle of Talos clusters using Kubernetes controllers. You don't need to worry about Talosconfigs, secret bundles or any-other operation that needs to be done via Talos CLI. The operator takes care all of those and you don't need to run any Talos CLI commands manually.
