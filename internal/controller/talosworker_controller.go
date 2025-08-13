@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -111,6 +112,18 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil // Requeue to retry
 	}
 
+	// Get the reconcile mode from the annotation
+	reconcileMode := r.getReconciliationMode(ctx, &tw)
+	switch reconcileMode {
+	case ReconcileModeDisable:
+		logger.Info("Reconciliation is disabled for this TalosWorker", "name", tw.Name, "namespace", tw.Namespace)
+		return ctrl.Result{}, nil
+	case ReconcileModeDryRun:
+		logger.Info("Dry run mode is not implemented yet, skipping reconciliation", "name", tw.Name, "namespace", tw.Namespace)
+		return ctrl.Result{}, nil
+	case ReconcileModeNormal:
+		// Do nothing, proceed with reconciliation
+	}
 	// Get the mode of the TalosWorker
 	var result ctrl.Result
 	switch tw.Spec.Mode {
@@ -591,4 +604,27 @@ func (r *TalosWorkerReconciler) updateState(ctx context.Context, tw *talosv1alph
 
 	}
 	return nil
+}
+
+func (r *TalosWorkerReconciler) getReconciliationMode(ctx context.Context, tw *talosv1alpha1.TalosWorker) string {
+	logger := log.FromContext(ctx)
+	// Check if the annotation exists
+	mode, exists := tw.Annotations[ReconcileModeAnnotation]
+	if !exists {
+		return ReconcileModeNormal
+	}
+	switch strings.ToLower(mode) {
+	case ReconcileModeNormal:
+		logger.Info("Reconciliation mode is set to Normal")
+		return ReconcileModeNormal
+	case ReconcileModeDisable:
+		logger.Info("Reconciliation mode is set to Disable")
+		return ReconcileModeDisable
+	case ReconcileModeDryRun:
+		logger.Info("Reconciliation mode is set to DryRun")
+		return ReconcileModeDryRun
+	default:
+		logger.Info("Unknown reconciliation mode, defaulting to Normal")
+		return ReconcileModeNormal
+	}
 }

@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -86,7 +87,21 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Stop reconciliation as object is under deletion
 		return ctrl.Result{}, nil
 	}
+
 	logger.Info("Reconciling TalosCluster", "name", tc.Name, "namespace", tc.Namespace)
+	// Get Reconciliation mode from annotation
+	reconcileMode := r.getReconciliationMode(ctx, &tc)
+	switch strings.ToLower(reconcileMode) {
+	case ReconcileModeDisable:
+		logger.Info("Reconciliation is disabled for this TalosCluster", "name", tc.Name, "namespace", tc.Namespace)
+		return ctrl.Result{}, nil
+	case ReconcileModeDryRun:
+		logger.Info("Dry run mode is not implemented yet, skipping reconciliation", "name", tc.Name, "namespace", tc.Namespace)
+		return ctrl.Result{}, nil
+	case ReconcileModeNormal:
+		// Do nothing, proceed with reconciliation
+	}
+
 	// Control Plane reconciliation
 	res, err := r.reconcileControlPlane(ctx, &tc)
 	if err != nil {
@@ -327,4 +342,27 @@ func (r *TalosClusterReconciler) handleDelete(ctx context.Context, tc talosv1alp
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *TalosClusterReconciler) getReconciliationMode(ctx context.Context, tc *talosv1alpha1.TalosCluster) string {
+	logger := log.FromContext(ctx)
+	// Check if the annotation exists
+	mode, exists := tc.Annotations[ReconcileModeAnnotation]
+	if !exists {
+		return ReconcileModeNormal
+	}
+	switch mode {
+	case ReconcileModeNormal:
+		logger.Info("Reconciliation mode is set to Normal")
+		return ReconcileModeNormal
+	case ReconcileModeDisable:
+		logger.Info("Reconciliation mode is set to Disable")
+		return ReconcileModeDisable
+	case ReconcileModeDryRun:
+		logger.Info("Reconciliation mode is set to DryRun")
+		return ReconcileModeDryRun
+	default:
+		logger.Info("Unknown reconciliation mode, defaulting to Normal")
+		return ReconcileModeNormal
+	}
 }
