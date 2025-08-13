@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"time"
 
+	"strings"
+
 	"gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -114,6 +116,19 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 		// Stop reconciliation as the object is being deleted
 		return ctrl.Result{}, client.IgnoreNotFound(delErr)
+	}
+
+	// Get the reconcile mode from the annotation
+	reconcileMode := r.getReconciliationMode(ctx, &tcp)
+	switch strings.ToLower(reconcileMode) {
+	case ReconcileModeDisable:
+		logger.Info("Reconciliation is disabled for this TalosControlplane", "name", tcp.Name, "namespace", tcp.Namespace)
+		return ctrl.Result{}, nil
+	case ReconcileModeDryRun:
+		logger.Info("Dry run mode is not implemented yet, skipping reconciliation", "name", tcp.Name, "namespace", tcp.Namespace)
+		return ctrl.Result{}, nil
+	case ReconcileModeNormal:
+		// Do nothing, proceed with reconciliation
 	}
 
 	// Get the mode of the TalosControlPlane
@@ -1037,4 +1052,27 @@ func (r *TalosControlPlaneReconciler) updateState(ctx context.Context, tcp *talo
 
 	}
 	return nil
+}
+
+func (r *TalosControlPlaneReconciler) getReconciliationMode(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) string {
+	logger := log.FromContext(ctx)
+	// Check if the annotation exists
+	mode, exists := tcp.Annotations[ReconcileModeAnnotation]
+	if !exists {
+		return ReconcileModeNormal
+	}
+	switch strings.ToLower(mode) {
+	case ReconcileModeNormal:
+		logger.Info("Reconciliation mode is set to Normal")
+		return ReconcileModeNormal
+	case ReconcileModeDisable:
+		logger.Info("Reconciliation mode is set to Disable")
+		return ReconcileModeDisable
+	case ReconcileModeDryRun:
+		logger.Info("Reconciliation mode is set to DryRun")
+		return ReconcileModeDryRun
+	default:
+		logger.Info("Unknown reconciliation mode, defaulting to Normal")
+		return ReconcileModeNormal
+	}
 }

@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -93,6 +94,18 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 		// Stop the reconciliation if the finalizer is not present
 		return ctrl.Result{}, client.IgnoreNotFound(nil)
+	}
+	// Get the reconcile mode from the annotation
+	reconcileMode := r.getReconciliationMode(ctx, &talosMachine)
+	switch reconcileMode {
+	case ReconcileModeDisable:
+		logger.Info("Reconciliation is disabled for this TalosWorker", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
+		return ctrl.Result{}, nil
+	case ReconcileModeDryRun:
+		logger.Info("Dry run mode is not implemented yet, skipping reconciliation", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
+		return ctrl.Result{}, nil
+	case ReconcileModeNormal:
+		// Do nothing, proceed with reconciliation
 	}
 	// Check whether we should wait for machine to be ready
 	if talosMachine.Status.State == talosv1alpha1.StateInstalling || talosMachine.Status.State == talosv1alpha1.StateUpgrading {
@@ -509,4 +522,27 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		}
 	}
 	return nil
+}
+
+func (r *TalosMachineReconciler) getReconciliationMode(ctx context.Context, tm *talosv1alpha1.TalosMachine) string {
+	logger := log.FromContext(ctx)
+	// Check if the annotation exists
+	mode, exists := tm.Annotations[ReconcileModeAnnotation]
+	if !exists {
+		return ReconcileModeNormal
+	}
+	switch strings.ToLower(mode) {
+	case ReconcileModeNormal:
+		logger.Info("Reconciliation mode is set to Normal")
+		return ReconcileModeNormal
+	case ReconcileModeDisable:
+		logger.Info("Reconciliation mode is set to Disable")
+		return ReconcileModeDisable
+	case ReconcileModeDryRun:
+		logger.Info("Reconciliation mode is set to DryRun")
+		return ReconcileModeDryRun
+	default:
+		logger.Info("Unknown reconciliation mode, defaulting to Normal")
+		return ReconcileModeNormal
+	}
 }
