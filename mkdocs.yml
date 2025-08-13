@@ -15,6 +15,12 @@ nav:
   - TalosContolPlane: crds/taloscontrolplane.md
   - TalosWorker: crds/talosworker.md
   - TalosMachine: crds/talosmachine.md
+- Operator Manual: 
+  - Overview: operator_manual/index.md
+  - Reconciliation Modes: operator_manual/reconciliation_modes.md
+  - Modes: operator_manual/modes.md
+  - Upgrading Versions: operator_manual/upgrade_versions.md
+  
 - metrics.md
 - contributing.md
 - roadmap.md
