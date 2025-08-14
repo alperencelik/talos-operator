@@ -23,30 +23,23 @@ helm install talos-operator talos-operator/talos-operator
 
 To get started with the **talos-operator**, follow these steps:
 
-1. **Install the operator**  
+- **Install the operator**  
    Follow the installation instructions above to deploy the talos-operator in your Kubernetes cluster.
 
-2. **Create a Talos resource**  
+- **Create a Talos resource**  
    Define a `TalosCluster` or `TalosControlPlane` resource in your cluster. You can start with the examples in the `examples/` directory.
 
-3. **Apply the configuration**  
-   Apply your resource definition.
-
-   ```bash
-   kubectl apply -f <your-talos-resource>.yaml
-   ```
-
-4. **Monitor the operator**
+- **Monitor the operator and resources**
     You can monitor the operator logs to see the progress of the Talos cluster creation and management. You can use kubectl logs -f <talos-operator-pod> to follow the logs. Alternatively, you can see the status of the Talos objects you created using `kubectl get talosclusters` or `kubectl get taloscontrolplanes`
 
-5. **Access the Talos cluster**
+- **Access the Talos cluster**
    The operator generates a kubeconfig and stores it (base64-encoded) in a Secret named `<talos-cluster-name>-kubeconfig`. You can retrieve it using:
 
    ```bash
    kubectl get secret <talos-cluster-name>-kubeconfig -o jsonpath='{.data.kubeconfig}' | base64 --decode
    ```
 
-6. **Getting the Talosconfig**
+- **Getting the Talosconfig**
    The operator also generates a TalosConfig and stores it in a Secret named `<talos-cluster-name>-talosconfig`. You can retrieve it using:
 
    ```bash
