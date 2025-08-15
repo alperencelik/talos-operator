@@ -157,12 +157,12 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if err != nil {
 		logger.Error(err, "failed to reconcile kube version", "name", tcp.Name, "namespace", tcp.Namespace)
 		r.Recorder.Event(&tcp, corev1.EventTypeWarning, "KubeVersionReconciliationFailed", "Failed to reconcile kube version")
+		return result, err
 	}
 	if result.Requeue {
 		return result, nil
 	}
-
-	return result, err
+	return ctrl.Result{}, nil
 }
 
 // reconcileKubeVersion reconciles the KubeVersion of the TalosControlPlane.
@@ -326,6 +326,10 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 		return ctrl.Result{}, fmt.Errorf("failed to write kubeconfig for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 
+	if err := r.WriteTalosConfig(ctx, tcp); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to write Talos config for %s: %w", tcp.Name, err)
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -364,6 +368,11 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 	if err := r.WriteKubeconfig(ctx, tcp); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to write kubeconfig for TalosControlPlane %s: %w", tcp.Name, err)
 	}
+
+	if err := r.WriteTalosConfig(ctx, tcp); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to write Talos config for %s: %w", tcp.Name, err)
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -641,10 +650,6 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 	if err != nil {
 		return fmt.Errorf("failed to write Talos ControlPlane config for %s: %w", tcp.Name, err)
 	}
-	// Write talosconfig to a Secret
-	if err := r.WriteTalosConfig(ctx, tcp); err != nil {
-		return fmt.Errorf("failed to write Talos config for %s: %w", tcp.Name, err)
-	}
 	// If the state is empty update it to Pending
 	if tcp.Status.State == "" {
 		// Update .status.state to Pending
@@ -721,7 +726,7 @@ func (r *TalosControlPlaneReconciler) WriteTalosConfig(ctx context.Context, tcp 
 	if err := controllerutil.SetControllerReference(tcp, talosConfigSecret, r.Scheme); err != nil {
 		return fmt.Errorf("failed to set controller reference for TalosConfig Secret %s: %w", talosConfigSecret.Name, err)
 	}
-	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, talosConfigSecret, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, talosConfigSecret, func() error {
 		key := fmt.Sprintf("%s.talosconfig", tcp.Name)
 		existing, exists := talosConfigSecret.Data[key]
 		if exists && bytes.Equal(existing, data) {
@@ -735,12 +740,6 @@ func (r *TalosControlPlaneReconciler) WriteTalosConfig(ctx context.Context, tcp 
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create or update TalosConfig Secret %s: %w", talosConfigSecret.Name, err)
-	}
-	switch op {
-	case controllerutil.OperationResultCreated:
-		r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "TalosConfigCreated", "Created Talos config for %s", tcp.Name)
-	case controllerutil.OperationResultUpdated:
-		r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "TalosConfigUpdated", "Updated Talos config for %s", tcp.Name)
 	}
 	return nil
 }

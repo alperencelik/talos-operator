@@ -3,13 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/siderolabs/go-kubernetes/kubernetes/upgrade"
 	"github.com/siderolabs/talos/pkg/cluster"
 	k8s "github.com/siderolabs/talos/pkg/cluster/kubernetes"
+	machineapi "github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/client"
 	"github.com/siderolabs/talos/pkg/machinery/config/encoder"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 type tc struct {
@@ -34,6 +37,13 @@ func main() {
 	if err := talosClient.upgradeK8s(ctx); err != nil {
 		panic(fmt.Errorf("error upgrading Kubernetes: %w", err))
 	}
+	// Test cert renewal
+	crt, key, err := talosClient.RenewTalosClientCert(ctx)
+	if err != nil {
+		panic(fmt.Errorf("error renewing Talos client certificate: %w", err))
+	}
+	fmt.Printf("New certificate: %s\n", *crt)
+	fmt.Printf("New key: %s\n", *key)
 }
 
 func (c *tc) upgradeK8s(ctx context.Context) error {
@@ -80,4 +90,24 @@ func (c *tc) upgradeK8s(ctx context.Context) error {
 		return fmt.Errorf("error upgrading Kubernetes: %w", err)
 	}
 	return nil
+}
+
+func (c *tc) RenewTalosClientCert(ctx context.Context) (*string, *string, error) {
+	var roles []string
+	roles = append(roles, "os:admin")
+	// Set the duration for the certificate
+	duration := 8760 * time.Hour // Default to 1 year
+
+	resp, err := c.GenerateClientConfiguration(ctx, &machineapi.GenerateClientConfigurationRequest{
+		Roles:  roles,
+		CrtTtl: durationpb.New(duration),
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("error generating client configuration: %w", err)
+	}
+	// Retrieve the certificate and key from the response
+	crt := string(resp.Messages[0].Crt)
+	key := string(resp.Messages[0].Key)
+
+	return &crt, &key, nil
 }
