@@ -59,7 +59,9 @@ func (ew *ExternalWatchers) RemoveWatcher(name string) {
 }
 
 // StartWatcher starts the watchers for the given object.
-func (ew *ExternalWatchers) StartWatcher(name string, startWatcherfunc func(ctx context.Context, stopChan <-chan struct{}) (ctrl.Result, error)) {
+func (ew *ExternalWatchers) StartWatcher(name string,
+	startWatcherfunc func(ctx context.Context, stopChan <-chan struct{}) (ctrl.Result, error)) {
+
 	go func() {
 		stopChan := make(chan struct{})
 		result, err := startWatcherfunc(context.Background(), stopChan)

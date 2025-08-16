@@ -541,27 +541,6 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 	return nil
 }
 
-func (r *TalosMachineReconciler) triggerReconciliation(ctx context.Context, tm *talosv1alpha1.TalosMachine) {
-	logger := log.FromContext(ctx)
-	logger.Info("Watcher triggered reconciliation for machine", "machine", tm.Name)
-	// To trigger a new reconciliation, we can update an annotation on the object.
-	// This will cause the controller-runtime to re-enqueue the object.
-	// We need to get the latest version of the object first.
-	var machine talosv1alpha1.TalosMachine
-	if err := r.Get(context.Background(), client.ObjectKey{Name: tm.Name, Namespace: tm.Namespace}, &machine); err != nil {
-		logger.Error(err, "failed to get TalosMachine for watcher", "machine", tm.Name)
-		return
-	}
-	if machine.Annotations == nil {
-		machine.Annotations = make(map[string]string)
-	}
-	machine.Annotations["talos.alperen.cloud/reconcile-at"] = time.Now().Format(time.RFC3339)
-	if err := r.Update(context.Background(), &machine); err != nil {
-		logger.Error(err, "failed to update TalosMachine for watcher", "machine", tm.Name)
-		return
-	}
-}
-
 func (r *TalosMachineReconciler) handleWatcher(ctx context.Context, tm *talosv1alpha1.TalosMachine) {
 	logger := log.FromContext(ctx)
 	if !r.Watchers.HasWatcher(tm.Name) {
