@@ -10,6 +10,7 @@ import (
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	machineapi "github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/client"
+	"github.com/siderolabs/talos/pkg/machinery/formatters"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -175,6 +176,22 @@ func (tc *TalosClient) GetServiceStatus(ctx context.Context, svcName string) str
 	return svc.Service.State
 	// state := "running" // Placeholder for actual service state
 	// return state
+}
+
+func (tc *TalosClient) GetServiceList(ctx context.Context) ([]string, error) {
+	// Get the service status
+	resp, err := tc.ServiceList(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting services: %w", err)
+	}
+	var svcIDs []string
+	for _, msg := range resp.Messages {
+		for _, s := range msg.Services {
+			svc := formatters.ServiceInfoWrapper{ServiceInfo: s}
+			svcIDs = append(svcIDs, svc.Id)
+		}
+	}
+	return svcIDs, nil
 }
 
 // func (tc *TalosClient) GetMachineStatus(ctx context.Context) (*string, error) {

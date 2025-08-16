@@ -246,6 +246,7 @@ func main() {
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("talosmachine-controller"),
+		Watchers: talos.NewExternalWatchers(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosMachine")
 		os.Exit(1)

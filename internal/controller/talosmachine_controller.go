@@ -43,7 +43,15 @@ type TalosMachineReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
+	Watchers talos.Watcher
 }
+
+var (
+	ObserveInterval = 30 * time.Second // Interval to observe the machine status
+	WaitForReady    = 10 * time.Second // Maximum time to wait for the machine to be ready
+	MaxRetries      = 5                // Maximum number of retries to check the machine status
+
+)
 
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosmachines,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosmachines/status,verbs=get;update;patch
@@ -66,6 +74,9 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	logger.Info("Reconciling TalosMachine", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
+
+	// Handle the external watcher
+	r.handleWatcher(ctx, &talosMachine)
 	// Finalizer
 	if talosMachine.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so we add the finalizer if it's not already present
@@ -107,6 +118,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	case ReconcileModeNormal:
 		// Do nothing, proceed with reconciliation
 	}
+
 	// Check whether we should wait for machine to be ready
 	if talosMachine.Status.State == talosv1alpha1.StateInstalling || talosMachine.Status.State == talosv1alpha1.StateUpgrading {
 		// If the machine is in the installing state, we should wait for it to be ready
@@ -357,6 +369,11 @@ func (r *TalosMachineReconciler) handleFinalizer(ctx context.Context, tm *talosv
 }
 
 func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
+	// First remove the watcher for the TalosMachine
+	if r.Watchers.HasWatcher(tm.Name) {
+		r.Watchers.RemoveWatcher(tm.Name)
+	}
+
 	// If machine is orphaned, we don't need to do anything
 	if tm.Status.State == talosv1alpha1.StateOrphaned {
 		return ctrl.Result{}, nil
@@ -522,6 +539,75 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		}
 	}
 	return nil
+}
+
+func (r *TalosMachineReconciler) triggerReconciliation(ctx context.Context, tm *talosv1alpha1.TalosMachine) {
+	logger := log.FromContext(ctx)
+	logger.Info("Watcher triggered reconciliation for machine", "machine", tm.Name)
+	// To trigger a new reconciliation, we can update an annotation on the object.
+	// This will cause the controller-runtime to re-enqueue the object.
+	// We need to get the latest version of the object first.
+	var machine talosv1alpha1.TalosMachine
+	if err := r.Get(context.Background(), client.ObjectKey{Name: tm.Name, Namespace: tm.Namespace}, &machine); err != nil {
+		logger.Error(err, "failed to get TalosMachine for watcher", "machine", tm.Name)
+		return
+	}
+	if machine.Annotations == nil {
+		machine.Annotations = make(map[string]string)
+	}
+	machine.Annotations["talos.alperen.cloud/reconcile-at"] = time.Now().Format(time.RFC3339)
+	if err := r.Update(context.Background(), &machine); err != nil {
+		logger.Error(err, "failed to update TalosMachine for watcher", "machine", tm.Name)
+		return
+	}
+}
+
+func (r *TalosMachineReconciler) handleWatcher(ctx context.Context, tm *talosv1alpha1.TalosMachine) {
+	logger := log.FromContext(ctx)
+	if !r.Watchers.HasWatcher(tm.Name) {
+		// logger.Info("Creating a new watcher for machine", "machine", tm.Name)
+
+		// Create the channel and add the watcher.
+		ch := make(chan ctrl.Result)
+		r.Watchers.AddWatcher(tm.Name, ch)
+
+		// Define the watcher function.
+		startWatcherFunc := func(ctx context.Context, stopChan <-chan struct{}) (ctrl.Result, error) {
+			// logger.Info("Starting watcher for machine", "machine", tm.Name)
+			defer r.Watchers.RemoveWatcher(tm.Name)
+			// Create Talos client
+			config, err := r.GetBundleConfig(ctx, tm)
+			if err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
+			}
+			insecure := tm.Status.State == "" || tm.Status.State == talosv1alpha1.StatePending
+			tc, err := talos.NewClient(config, insecure)
+			if err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
+			}
+			ticker := time.NewTicker(ObserveInterval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					// TODO: Implement proper watch conditions here
+					// Get the service list
+					svcList, err := tc.GetServiceList(ctx)
+					if err != nil {
+						logger.Error(err, "Failed to get service list for machine", "machine", tm.Name)
+					}
+					logger.Info("Service list for machine", "machine", tm.Name, "services", svcList)
+
+				case <-stopChan:
+					logger.Info("Stopping watcher for machine", "machine", tm.Name)
+					return ctrl.Result{}, nil // Stop the watcher
+				}
+			}
+		}
+		// Start the watcher.
+		r.Watchers.StartWatcher(tm.Name, startWatcherFunc)
+	}
 }
 
 func (r *TalosMachineReconciler) getReconciliationMode(ctx context.Context, tm *talosv1alpha1.TalosMachine) string {
