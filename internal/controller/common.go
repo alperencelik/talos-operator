@@ -274,8 +274,7 @@ func BuildK8sUpgradeJobSpec(tcp *talosv1alpha1.TalosControlPlane, image, service
 					{
 						Name:  "upgrade",
 						Image: image,
-						Command: []string{
-							"/manager",
+						Args: []string{
 							"upgrade-k8s",
 						},
 						Env: []corev1.EnvVar{
