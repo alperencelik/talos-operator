@@ -2,9 +2,11 @@
 package talos
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
+	"text/template"
 	"time"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
@@ -15,6 +17,7 @@ import (
 
 type TalosClient struct {
 	*client.Client
+	Endpoint string
 }
 
 const (
@@ -175,6 +178,35 @@ func (tc *TalosClient) GetServiceStatus(ctx context.Context, svcName string) str
 	return svc.Service.State
 	// state := "running" // Placeholder for actual service state
 	// return state
+}
+
+func (tc *TalosClient) ApplyMetaKey(ctx context.Context, endpoint string, meta *talosv1alpha1.META) error {
+	var key uint8
+	key = 0x0a
+
+	// Create a new template and parse the template string
+	t, err := template.New("metakey").Parse(metaKeyTemplate)
+	if err != nil {
+		return err
+	}
+
+	// Create a new buffer to store the generated YAML
+	var tpl bytes.Buffer
+
+	data := struct {
+		*talosv1alpha1.META
+		Endpoint string
+	}{
+		META:     meta,
+		Endpoint: endpoint,
+	}
+
+	// Execute the template with the meta data
+	if err := t.Execute(&tpl, data); err != nil {
+		return err
+	}
+
+	return tc.MetaWrite(ctx, key, tpl.Bytes())
 }
 
 // func (tc *TalosClient) GetMachineStatus(ctx context.Context) (*string, error) {
