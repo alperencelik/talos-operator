@@ -901,6 +901,9 @@ func (r *TalosControlPlaneReconciler) SecretBundle(ctx context.Context, tcp *tal
 				return nil, fmt.Errorf("failed to get configRef for TalosControlPlane %s: %w", tcp.Name, err)
 			}
 			secretBundle, err = talos.GetSecretBundleFromConfig(ctx, []byte(*data))
+			if err != nil {
+				return nil, fmt.Errorf("failed to get SecretBundle from configRef for TalosControlPlane %s: %w", tcp.Name, err)
+			}
 		} else {
 			logger.Info("SecretBundle is nil, generating new one")
 			secretBundle, err = talos.NewSecretBundle()
