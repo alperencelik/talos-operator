@@ -249,6 +249,7 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 				Endpoint:    machine,
 				Version:     tw.Spec.Version,
 				MachineSpec: tw.Spec.MetalSpec.MachineSpec,
+				ConfigRef:   tw.Spec.ConfigRef,
 			}
 			return nil
 		})

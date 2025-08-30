@@ -420,6 +420,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 				Endpoint:    machine,
 				Version:     tcp.Spec.Version,
 				MachineSpec: tcp.Spec.MetalSpec.MachineSpec,
+				ConfigRef:   tcp.Spec.ConfigRef,
 			}
 			return nil
 		})
@@ -892,10 +893,20 @@ func (r *TalosControlPlaneReconciler) SecretBundle(ctx context.Context, tcp *tal
 	var err error
 	// Get the secret bundle for the TalosControlPlane from .status.SecretBundle
 	if tcp.Status.SecretBundle == "" {
-		logger.Info("SecretBundle is nil, generating new one")
-		secretBundle, err = talos.NewSecretBundle()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create new SecretBundle for TalosControlPlane %s: %w", tcp.Name, err)
+		// Check if the configRef is set
+		if tcp.Spec.ConfigRef != nil {
+			// Get the config from the ConfigMap
+			data, err := r.GetConfigMapData(ctx, tcp)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get configRef for TalosControlPlane %s: %w", tcp.Name, err)
+			}
+			secretBundle, err = talos.GetSecretBundleFromConfig(ctx, []byte(*data))
+		} else {
+			logger.Info("SecretBundle is nil, generating new one")
+			secretBundle, err = talos.NewSecretBundle()
+			if err != nil {
+				return nil, fmt.Errorf("failed to create new SecretBundle for TalosControlPlane %s: %w", tcp.Name, err)
+			}
 		}
 		// Update the TalosControlPlane status with the new SecretBundle
 		secretBundleBytes, err := yaml.Marshal(secretBundle)
@@ -1074,4 +1085,19 @@ func (r *TalosControlPlaneReconciler) getReconciliationMode(ctx context.Context,
 		logger.Info("Unknown reconciliation mode, defaulting to Normal")
 		return ReconcileModeNormal
 	}
+}
+
+func (r *TalosControlPlaneReconciler) GetConfigMapData(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (*string, error) {
+	cm := &corev1.ConfigMap{}
+	if err := r.Get(ctx, client.ObjectKey{
+		Name:      tcp.Spec.ConfigRef.Name,
+		Namespace: tcp.Namespace,
+	}, cm); err != nil {
+		return nil, r.handleResourceNotFound(ctx, err)
+	}
+	data, ok := cm.Data[tcp.Spec.ConfigRef.Key]
+	if !ok {
+		return nil, fmt.Errorf("key %s not found in ConfigMap %s for TalosMachine %s", tcp.Spec.ConfigRef.Key, tcp.Spec.ConfigRef.Name, tcp.Name)
+	}
+	return &data, nil
 }
