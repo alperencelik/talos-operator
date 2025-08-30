@@ -63,3 +63,8 @@ func IsValidTalosVersion(v string) bool {
 	re := regexp.MustCompile(`^v\d+(\.\d+)*$`)
 	return re.MatchString(v)
 }
+
+func StringToBytePtr(s string) *[]byte {
+	b := []byte(s)
+	return &b
+}

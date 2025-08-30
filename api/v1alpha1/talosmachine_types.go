@@ -45,6 +45,10 @@ type TalosMachineSpec struct {
 
 	// WorkerRef is a reference to the TalosWorker this machine belongs to.
 	WorkerRef *corev1.ObjectReference `json:"workerRef,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// Reference to a ConfigMap containing the Talos cluster configuration
+	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
 }
 
 // TalosMachineStatus defines the observed state of TalosMachine.
