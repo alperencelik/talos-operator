@@ -110,6 +110,23 @@ type MachineSpec struct {
 	// Image is the Talos image to use for this machine.
 	// +kubebuilder:validation:Optional
 	Image *string `json:"image,omitempty"`
+	// Meta is the meta partition that used by Talos.
+	// +kubebuilder:validation:Optional
+	Meta *META `json:"meta,omitempty"`
+}
+
+// META is network metadata for Talos machines
+type META struct {
+	// Hostname is the hostname for the Talos machines.
+	Hostname string `json:"hostname,omitempty"`
+	// Interface is the network interface name for Talos machines.
+	Interface string `json:"interface,omitempty"`
+	// Subnet is the subnet for the Talos machines.
+	Subnet int `json:"subnet,omitempty"` // The subnet for the Talos machines
+	// Gateway is the gateway for the Talos machines.
+	Gateway string `json:"gateway,omitempty"`
+	// DNS Servers is a list of DNS servers for the Talos machines.
+	DNSServers []string `json:"dnsServers,omitempty"`
 }
 
 // TalosControlPlaneStatus defines the observed state of TalosControlPlane.

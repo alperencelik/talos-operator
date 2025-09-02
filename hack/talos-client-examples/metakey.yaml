@@ -1,0 +1,35 @@
+addresses:
+    - address: [IP_ADDRESS]/[SUBNET_MASK]
+      linkName: [INTERFACE_NAME]
+      family: inet4
+      scope: global
+      flags: permanent
+      layer: platform
+links:
+    - name: [INTERFACE_NAME]
+      logical: false
+      up: true
+      mtu: 0
+      kind: ""
+      type: ether
+      layer: platform
+routes:
+    - family: inet4
+      dst: ""
+      src: ""
+      gateway: [GATEWAY_IP]
+      outLinkName: [INTERFACE_NAME]
+      table: main
+      scope: global
+      type: unicast
+      flags: ""
+      protocol: static
+      layer: platform
+hostnames: []
+resolvers:
+    - dnsServers:
+        - [DNS_SERVER_IP] 
+      layer: platform
+timeServers: []
+operators: []
+externalIPs: []

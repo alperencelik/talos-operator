@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/encoder"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	authz "github.com/siderolabs/talos/pkg/grpc/middleware/authz"
 )
 
 type tc struct {
@@ -22,10 +25,27 @@ type tc struct {
 func main() {
 	ctx := context.Background()
 	// Initialize the talos client
-	c, err := client.New(ctx, client.WithConfigFromFile("talosconfig"))
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true, // For testing purposes, skip TLS verification
+	}
+	c, err := client.New(ctx, client.WithConfigFromFile("talosconfig"),
+		client.WithTLSConfig(tlsConfig),
+		client.WithDefaultConfig(),
+		client.WithEndpoints("10.0.153.140"),
+	)
 	if err != nil {
 		panic(err)
 	}
+
+	// Get Roles
+	fmt.Printf("Getting roles \n")
+	roleset := authz.GetRoles(ctx)
+
+	fmt.Printf("Roles in context: %v\n", roleset)
+
+	//
+	time.Sleep(10 * time.Second)
+
 	resp, err := c.Version(ctx)
 	if err != nil {
 		panic(err)
@@ -33,17 +53,17 @@ func main() {
 	fmt.Printf("Talos version: %s\n", resp.Messages[0].Version.Tag)
 
 	// Test upgrade Kubernetes
-	talosClient := &tc{Client: c}
-	if err := talosClient.upgradeK8s(ctx); err != nil {
-		panic(fmt.Errorf("error upgrading Kubernetes: %w", err))
-	}
-	// Test cert renewal
-	crt, key, err := talosClient.RenewTalosClientCert(ctx)
-	if err != nil {
-		panic(fmt.Errorf("error renewing Talos client certificate: %w", err))
-	}
-	fmt.Printf("New certificate: %s\n", *crt)
-	fmt.Printf("New key: %s\n", *key)
+	//	talosClient := &tc{Client: c}
+	//if err := talosClient.upgradeK8s(ctx); err != nil {
+	//panic(fmt.Errorf("error upgrading Kubernetes: %w", err))
+	//}
+	//// Test cert renewal
+	//crt, key, err := talosClient.RenewTalosClientCert(ctx)
+	//if err != nil {
+	//panic(fmt.Errorf("error renewing Talos client certificate: %w", err))
+	//}
+	//fmt.Printf("New certificate: %s\n", *crt)
+	//fmt.Printf("New key: %s\n", *key)
 }
 
 func (c *tc) upgradeK8s(ctx context.Context) error {
@@ -110,4 +130,9 @@ func (c *tc) RenewTalosClientCert(ctx context.Context) (*string, *string, error)
 	key := string(resp.Messages[0].Key)
 
 	return &crt, &key, nil
+}
+
+func (c *tc) SetMetaKey(ctx context.Context, key uint8, value []byte) error {
+	// Set the meta key
+	return c.MetaWrite(ctx, key, value)
 }
