@@ -613,6 +613,7 @@ func (r *TalosMachineReconciler) handleMetaKey(ctx context.Context, tm *talosv1a
 	}
 
 	return nil
+}
 
 func (r *TalosMachineReconciler) GetConfigMapData(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*string, error) {
 	if tm.Spec.ConfigRef == nil {

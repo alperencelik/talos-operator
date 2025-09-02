@@ -208,6 +208,7 @@ func (tc *TalosClient) ApplyMetaKey(ctx context.Context, endpoint string, meta *
 	}
 
 	return tc.MetaWrite(ctx, key, tpl.Bytes())
+}
 
 func GetSecretBundleFromConfig(ctx context.Context, machineConfig []byte) (*secrets.Bundle, error) {
 	// Load cfg from machineConfig
