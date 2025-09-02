@@ -12,6 +12,8 @@ import (
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	machineapi "github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/client"
+	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
+	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -206,6 +208,15 @@ func (tc *TalosClient) ApplyMetaKey(ctx context.Context, endpoint string, meta *
 	}
 
 	return tc.MetaWrite(ctx, key, tpl.Bytes())
+
+func GetSecretBundleFromConfig(ctx context.Context, machineConfig []byte) (*secrets.Bundle, error) {
+	// Load cfg from machineConfig
+	cfg, err := configloader.NewFromBytes(machineConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error loading config from machineConfig: %w", err)
+	}
+	// Create a SecretBundle from the configData
+	return secrets.NewBundleFromConfig(secrets.NewFixedClock(time.Now()), cfg), nil
 }
 
 // func (tc *TalosClient) GetMachineStatus(ctx context.Context) (*string, error) {

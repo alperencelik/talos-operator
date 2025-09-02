@@ -173,16 +173,35 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 		r.Recorder.Event(tm, corev1.EventTypeNormal, "BundleConfigNotSet", "TalosControlPlane bundleConfig is not set, waiting for it to be ready")
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check again
 	}
-	// Apply patches to config before applying it
-	patches, err := r.metalConfigPatches(ctx, tm, bc)
-	if err != nil {
-		r.Recorder.Event(tm, corev1.EventTypeWarning, "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
-		return ctrl.Result{}, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
-	}
-	cpConfig, err := talos.GenerateControlPlaneConfig(bc, patches)
-	if err != nil {
-		r.Recorder.Event(tm, corev1.EventTypeWarning, "ConfigGenerationFailed", "Failed to generate Control Plane config for TalosMachine")
-		return ctrl.Result{}, fmt.Errorf("failed to generate Control Plane config for TalosMachine %s: %w", tm.Name, err)
+
+	var cpConfig *[]byte
+	// If the TalosMachine has a configRef, get the config from there. Else generate the config from the bundleConfig
+	if tm.Spec.ConfigRef != nil {
+		// Get the config from the ConfigMap
+		cm := &corev1.ConfigMap{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Name:      tm.Spec.ConfigRef.Name,
+			Namespace: tm.Namespace,
+		}, cm); err != nil {
+			return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
+		}
+		data, ok := cm.Data[tm.Spec.ConfigRef.Key]
+		if !ok {
+			return ctrl.Result{}, fmt.Errorf("key %s not found in ConfigMap %s for TalosMachine %s", tm.Spec.ConfigRef.Key, tm.Spec.ConfigRef.Name, tm.Name)
+		}
+		cpConfig = utils.StringToBytePtr(strings.TrimSpace(data))
+	} else {
+		// Apply patches to config before applying it
+		patches, err := r.metalConfigPatches(ctx, tm, bc)
+		if err != nil {
+			r.Recorder.Event(tm, corev1.EventTypeWarning, "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
+			return ctrl.Result{}, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
+		}
+		cpConfig, err = talos.GenerateControlPlaneConfig(bc, patches)
+		if err != nil {
+			r.Recorder.Event(tm, corev1.EventTypeWarning, "ConfigGenerationFailed", "Failed to generate Control Plane config for TalosMachine")
+			return ctrl.Result{}, fmt.Errorf("failed to generate Control Plane config for TalosMachine %s: %w", tm.Name, err)
+		}
 	}
 	// Check if the current config is the same as the one in status
 	if tm.Status.Config == string(*cpConfig) && tm.Status.ObservedVersion == tm.Spec.Version {
@@ -222,18 +241,32 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 		r.Recorder.Event(tm, corev1.EventTypeNormal, "BundleConfigNotSet", "TalosControlPlane bundleConfig is not set, waiting for it to be ready")
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check again
 	}
-	// Apply patches to config before applying it
-	patches, err := r.metalConfigPatches(ctx, tm, bc)
-	if err != nil {
-		r.Recorder.Event(tm, corev1.EventTypeWarning, "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
-		return ctrl.Result{}, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
+
+	var workerConfig *[]byte
+
+	// If the TalosMachine has a configRef, get the config from there. Else generate the config from the bundleConfig
+	if tm.Spec.ConfigRef != nil {
+		// Get the config from the ConfigMap
+		data, err := r.GetConfigMapData(ctx, tm)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to get configRef for TalosMachine %s: %w", tm.Name, err)
+		}
+		workerConfig = utils.StringToBytePtr(strings.TrimSpace(*data))
+	} else {
+		// Apply patches to config before applying it
+		patches, err := r.metalConfigPatches(ctx, tm, bc)
+		if err != nil {
+			r.Recorder.Event(tm, corev1.EventTypeWarning, "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
+			return ctrl.Result{}, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
+		}
+		// Generate the worker config
+		workerConfig, err = talos.GenerateWorkerConfig(bc, patches)
+		if err != nil {
+			r.Recorder.Event(tm, corev1.EventTypeWarning, "ConfigGenerationFailed", "Failed to generate Worker config for TalosMachine")
+			return ctrl.Result{}, fmt.Errorf("failed to generate Worker config for TalosMachine %s: %w", tm.Name, err)
+		}
 	}
-	// Generate the worker config
-	workerConfig, err := talos.GenerateWorkerConfig(bc, patches)
-	if err != nil {
-		r.Recorder.Event(tm, corev1.EventTypeWarning, "ConfigGenerationFailed", "Failed to generate Worker config for TalosMachine")
-		return ctrl.Result{}, fmt.Errorf("failed to generate Worker config for TalosMachine %s: %w", tm.Name, err)
-	}
+
 	// Check if the current config is the same as the one in status
 	if tm.Status.Config == string(*workerConfig) && tm.Status.ObservedVersion == tm.Spec.Version {
 		// Return since the machine is in desired state
@@ -580,4 +613,21 @@ func (r *TalosMachineReconciler) handleMetaKey(ctx context.Context, tm *talosv1a
 	}
 
 	return nil
+
+func (r *TalosMachineReconciler) GetConfigMapData(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*string, error) {
+	if tm.Spec.ConfigRef == nil {
+		cm := &corev1.ConfigMap{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Name:      tm.Spec.ConfigRef.Name,
+			Namespace: tm.Namespace,
+		}, cm); err != nil {
+			return nil, r.handleResourceNotFound(ctx, err)
+		}
+		data, ok := cm.Data[tm.Spec.ConfigRef.Key]
+		if !ok {
+			return nil, fmt.Errorf("key %s not found in ConfigMap %s for TalosMachine %s", tm.Spec.ConfigRef.Key, tm.Spec.ConfigRef.Name, tm.Name)
+		}
+		return &data, nil
+	}
+	return nil, nil
 }
