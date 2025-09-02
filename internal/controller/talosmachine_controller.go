@@ -556,8 +556,12 @@ func (r *TalosMachineReconciler) getReconciliationMode(ctx context.Context, tm *
 }
 
 func (r *TalosMachineReconciler) handleMetaKey(ctx context.Context, tm *talosv1alpha1.TalosMachine) error {
-	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.Meta == nil {
-		return nil // No meta key specified, nothing to do
+	if tm.Spec.MachineSpec == nil {
+		return nil // No machine spec, early return
+	} else {
+		if tm.Spec.MachineSpec.Meta == nil {
+			return nil // No meta key is set
+		}
 	}
 	bc, err := r.GetBundleConfig(ctx, tm)
 	if err != nil {

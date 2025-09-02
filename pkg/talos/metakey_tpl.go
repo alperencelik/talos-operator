@@ -1,10 +1,8 @@
 package talos
 
-//     - address: {{ .Endpoint }}/{{ .Subnet }}
-
 const metaKeyTemplate = `
 addresses:
-    - address: 172.26.17.11/{{ .Subnet }}
+    - address: {{ .Endpoint }}/{{ .Subnet }}
       linkName: {{ .Interface }}
       family: inet4
       scope: global
@@ -30,7 +28,13 @@ routes:
       flags: ""
       protocol: static
       layer: platform
+{{- if .Hostname }}
+hostnames:
+  - hostname: {{ .Hostname }}
+    layer: platform
+{{- else }}
 hostnames: []
+{{- end }}
 resolvers:
     - dnsServers:
       {{- range .DNSServers }}
