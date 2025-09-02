@@ -181,9 +181,8 @@ func (tc *TalosClient) GetServiceStatus(ctx context.Context, svcName string) str
 }
 
 func (tc *TalosClient) ApplyMetaKey(ctx context.Context, endpoint string, meta *talosv1alpha1.META) error {
-	var key uint8
-	key = 0x0a
-
+	// Set the meta key
+	var key uint8 = 0x0a
 	// Create a new template and parse the template string
 	t, err := template.New("metakey").Parse(metaKeyTemplate)
 	if err != nil {
