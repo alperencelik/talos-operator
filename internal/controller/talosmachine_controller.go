@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -124,6 +125,17 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Re-get the machine object to ensure we have the latest state
 	if err := r.Get(ctx, req.NamespacedName, &talosMachine); err != nil {
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
+	}
+
+	// Check if feature flag for meta key is enabled and handle it
+	if os.Getenv("ENABLE_META_KEY") == "true" {
+		// Handle the meta key if there is any entry to pass
+		err := r.handleMetaKey(ctx, &talosMachine)
+		if err != nil {
+			logger.Error(err, "Failed to handle meta key for TalosMachine", "name", talosMachine.Name)
+			r.Recorder.Event(&talosMachine, corev1.EventTypeWarning, "MetaKeyFailed", "Failed to handle meta key for TalosMachine")
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Check for the machine type and handle accordingly
@@ -578,6 +590,33 @@ func (r *TalosMachineReconciler) getReconciliationMode(ctx context.Context, tm *
 		logger.Info("Unknown reconciliation mode, defaulting to Normal")
 		return ReconcileModeNormal
 	}
+}
+
+func (r *TalosMachineReconciler) handleMetaKey(ctx context.Context, tm *talosv1alpha1.TalosMachine) error {
+	if tm.Spec.MachineSpec == nil {
+		return nil // No machine spec, early return
+	} else {
+		if tm.Spec.MachineSpec.Meta == nil {
+			return nil // No meta key is set
+		}
+	}
+	bc, err := r.GetBundleConfig(ctx, tm)
+	if err != nil {
+		return fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
+	}
+	// Check whether we need to construct maintenance mode or not
+	insecure := tm.Status.State == "" || tm.Status.State == talosv1alpha1.StatePending
+	// Create Talos client
+	tc, err := talos.NewClient(bc, insecure) // true for insecure TLS
+	if err != nil {
+		return fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
+	}
+	// Apply the meta key
+	if err := tc.ApplyMetaKey(ctx, tm.Spec.Endpoint, tm.Spec.MachineSpec.Meta); err != nil {
+		return fmt.Errorf("failed to apply meta key for TalosMachine %s: %w", tm.Name, err)
+	}
+
+	return nil
 }
 
 func (r *TalosMachineReconciler) GetConfigMapData(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*string, error) {

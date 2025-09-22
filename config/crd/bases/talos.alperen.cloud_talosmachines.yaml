@@ -121,6 +121,29 @@ spec:
                       on the control plane machines.
                     pattern: ^/dev/[a-z]+[0-9]*$
                     type: string
+                  meta:
+                    description: Meta is the meta partition that used by Talos.
+                    properties:
+                      dnsServers:
+                        description: DNS Servers is a list of DNS servers for the
+                          Talos machines.
+                        items:
+                          type: string
+                        type: array
+                      gateway:
+                        description: Gateway is the gateway for the Talos machines.
+                        type: string
+                      hostname:
+                        description: Hostname is the hostname for the Talos machines.
+                        type: string
+                      interface:
+                        description: Interface is the network interface name for Talos
+                          machines.
+                        type: string
+                      subnet:
+                        description: Subnet is the subnet for the Talos machines.
+                        type: integer
+                    type: object
                   wipe:
                     default: false
                     description: Wipe indicates whether to wipe the disk before installation.
