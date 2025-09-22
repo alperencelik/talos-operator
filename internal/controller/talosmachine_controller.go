@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -126,12 +127,15 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 
-	// Handle the meta key if there is any entry to pass
-	err := r.handleMetaKey(ctx, &talosMachine)
-	if err != nil {
-		logger.Error(err, "Failed to handle meta key for TalosMachine", "name", talosMachine.Name)
-		r.Recorder.Event(&talosMachine, corev1.EventTypeWarning, "MetaKeyFailed", "Failed to handle meta key for TalosMachine")
-		return ctrl.Result{}, err
+	// Check if feature flag for meta key is enabled and handle it
+	if os.Getenv("ENABLE_META_KEY") == "true" {
+		// Handle the meta key if there is any entry to pass
+		err := r.handleMetaKey(ctx, &talosMachine)
+		if err != nil {
+			logger.Error(err, "Failed to handle meta key for TalosMachine", "name", talosMachine.Name)
+			r.Recorder.Event(&talosMachine, corev1.EventTypeWarning, "MetaKeyFailed", "Failed to handle meta key for TalosMachine")
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Check for the machine type and handle accordingly

@@ -43,6 +43,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.serviceAccountName
+            - name: ENABLE_META_KEY
+              value: "{{ .Values.featureFlags.enableMetaKey | default "false" }}"
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
