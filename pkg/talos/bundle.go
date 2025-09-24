@@ -21,7 +21,7 @@ var (
 	InstallDisk            = `[{"op": "replace", "path": "/machine/install/disk", "value": "%s"}]`
 	InstallImage           = `[{"op": "replace", "path": "/machine/install/image", "value": "%s"}]`
 	WipeDisk               = `[{"op": "replace", "path": "/machine/install/wipe", "value": true}]`
-	AirGapp                = `[{"op": "add", "path": "/machine/time", "value": {"disabled": true}}, {"op": "replace", "path": "/cluster/discovery/enabled", "value": false}]`
+	AirGapp                = `[{"op": "add", "path": "/machine/time", "value": {"disabled": true}}, {"op": "replace", "path": "/cluster/discovery/enabled", "value": false}]` // nolint:lll
 	ImageCache             = `[{"op": "add", "path": "/machine/features/imageCache", "value": {"localEnabled": true}}]`
 	ImageCacheVolumeConfig = `
 ---
