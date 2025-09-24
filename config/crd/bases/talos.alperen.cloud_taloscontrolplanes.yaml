@@ -88,9 +88,19 @@ spec:
                     description: MachineSpec defines the specifications for each Talos
                       control plane machine.
                     properties:
+                      airGap:
+                        default: false
+                        description: AirGap indicates whether the machine is in an
+                          air-gapped environment.
+                        type: boolean
                       image:
                         description: Image is the Talos image to use for this machine.
                         type: string
+                      imageCache:
+                        default: false
+                        description: ImageCache indicates whether to enable local
+                          image caching on the machine.
+                        type: boolean
                       installDisk:
                         description: InstallDisk is the disk to use for installing
                           Talos on the control plane machines.
