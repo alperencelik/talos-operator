@@ -113,6 +113,14 @@ type MachineSpec struct {
 	// Meta is the meta partition that used by Talos.
 	// +kubebuilder:validation:Optional
 	Meta *META `json:"meta,omitempty"`
+	// AirGap indicates whether the machine is in an air-gapped environment.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	AirGap bool `json:"airGap,omitempty"`
+	// ImageCache indicates whether to enable local image caching on the machine.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	ImageCache bool `json:"imageCache,omitempty"`
 }
 
 // META is network metadata for Talos machines

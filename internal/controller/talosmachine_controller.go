@@ -206,6 +206,9 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 			r.Recorder.Event(tm, corev1.EventTypeWarning, "ConfigGenerationFailed", "Failed to generate Control Plane config for TalosMachine")
 			return ctrl.Result{}, fmt.Errorf("failed to generate Control Plane config for TalosMachine %s: %w", tm.Name, err)
 		}
+		if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.ImageCache {
+			*cpConfig = append(*cpConfig, []byte(talos.ImageCacheVolumeConfig)...)
+		}
 	}
 	// Check if the current config is the same as the one in status
 	if tm.Status.Config == string(*cpConfig) && tm.Status.ObservedVersion == tm.Spec.Version {
@@ -268,6 +271,9 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 		if err != nil {
 			r.Recorder.Event(tm, corev1.EventTypeWarning, "ConfigGenerationFailed", "Failed to generate Worker config for TalosMachine")
 			return ctrl.Result{}, fmt.Errorf("failed to generate Worker config for TalosMachine %s: %w", tm.Name, err)
+		}
+		if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.ImageCache {
+			*workerConfig = append(*workerConfig, []byte(talos.ImageCacheVolumeConfig)...)
 		}
 	}
 
@@ -453,8 +459,26 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 		}
 		imagePatch = fmt.Sprintf(talos.InstallImage, imageWithVersion)
 	}
+	// patches
+	var patches []string
+	patches = append(patches, diskPatch)
+	patches = append(patches, talos.WipeDisk)
+	if imagePatch != "" {
+		patches = append(patches, imagePatch)
+	}
+	var airGappedPatch string
+	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.AirGap {
+		airGappedPatch = talos.AirGapp
+		patches = append(patches, airGappedPatch)
+	}
 
-	return &[]string{diskPatch, talos.WipeDisk, imagePatch}, nil
+	var imageCachePatch string
+	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.ImageCache {
+		imageCachePatch = talos.ImageCache
+		patches = append(patches, imageCachePatch)
+	}
+
+	return &patches, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
