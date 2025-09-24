@@ -31,3 +31,10 @@ resources:
 - taloscluster_editor_role.yaml
 - taloscluster_viewer_role.yaml
 
+# For each CRD, "Admin", "Editor" and "Viewer" roles are scaffolded by
+# default, aiding admins in cluster management. Those roles are
+# not used by the talos-operator itself. You can comment the following lines
+# if you do not want those helpers be installed with your Project.
+- talosetcdbackup_admin_role.yaml
+- talosetcdbackup_editor_role.yaml
+- talosetcdbackup_viewer_role.yaml

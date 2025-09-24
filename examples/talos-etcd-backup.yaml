@@ -1,0 +1,18 @@
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosEtcdBackup
+metadata:
+  name: talosetcdbackup-sample
+spec:
+  talosControlPlaneRef:
+    name: taloscontrolplane-sample
+  backupStorage:
+    s3:
+      bucket: my-etcd-backups
+      region: us-west-2
+      accessKeyID:
+        name: my-s3-credentials
+        key: accessKeyID
+      secretAccessKey:
+        name: my-s3-credentials
+        key: secretAccessKey
+      endpoint: s3.us-west-2.amazonaws.com

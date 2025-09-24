@@ -28,6 +28,7 @@ const (
 	TalosControlPlaneFinalizer = "taloscontrolplane.talos.alperen.cloud/finalizer"
 	TalosWorkerFinalizer       = "talosworker.talos.alperen.cloud/finalizer"
 	TalosMachineFinalizer      = "talosmachine.talos.alperen.cloud/finalizer"
+	TalosEtcdBackupFinalizer   = "talosetcdbackup.talos.alperen.cloud/finalizer"
 
 	// GVK for the API group
 	GroupName             = "talos.alperen.cloud"

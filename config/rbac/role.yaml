@@ -61,6 +61,7 @@ rules:
   resources:
   - talosclusters
   - taloscontrolplanes
+  - talosetcdbackups
   - talosmachines
   - talosworkers
   verbs:
@@ -76,6 +77,7 @@ rules:
   resources:
   - talosclusters/finalizers
   - taloscontrolplanes/finalizers
+  - talosetcdbackups/finalizers
   - talosmachines/finalizers
   - talosworkers/finalizers
   verbs:
@@ -85,6 +87,7 @@ rules:
   resources:
   - talosclusters/status
   - taloscontrolplanes/status
+  - talosetcdbackups/status
   - talosmachines/status
   - talosworkers/status
   verbs:
