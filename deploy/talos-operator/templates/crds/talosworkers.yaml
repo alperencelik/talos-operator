@@ -109,7 +109,7 @@ spec:
                       installDisk:
                         description: InstallDisk is the disk to use for installing
                           Talos on the control plane machines.
-                        pattern: ^/dev/[a-z]+[0-9]*$
+                        pattern: ^/dev/(sd[a-z][0-9]*|vd[a-z][0-9]*|nvme[0-9]+n[0-9]+(p[0-9]+)?)$
                         type: string
                       meta:
                         description: Meta is the meta partition that used by Talos.
