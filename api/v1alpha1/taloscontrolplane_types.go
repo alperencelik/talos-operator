@@ -101,7 +101,7 @@ type MetalSpec struct {
 type MachineSpec struct {
 	// InstallDisk is the disk to use for installing Talos on the control plane machines.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^/dev/[a-z]+[0-9]*$`
+	// +kubebuilder:validation:Pattern=`^/dev/(sd[a-z][0-9]*|vd[a-z][0-9]*|nvme[0-9]+n[0-9]+(p[0-9]+)?)$`
 	InstallDisk *string `json:"installDisk,omitempty"`
 	// Wipe indicates whether to wipe the disk before installation.
 	// +kubebuilder:validation:Optional
