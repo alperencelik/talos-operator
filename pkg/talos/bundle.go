@@ -23,7 +23,7 @@ var (
 	WipeDisk                       = `[{"op": "replace", "path": "/machine/install/wipe", "value": true}]`
 	AirGapp                        = `[{"op": "add", "path": "/machine/time", "value": {"disabled": true}}, {"op": "replace", "path": "/cluster/discovery/enabled", "value": false}]` // nolint:lll
 	AllowSchedulingOnControlPlanes = `[{"op": "add", "path": "/cluster/allowSchedulingOnControlPlanes", "value": true}]`
-	ImageCache                     = `[{"op": "add", "path": "/machine/features/imageCache", "value": {"localEnabled": true}}]`
+	ImageCache                     = `[{"op": "add", "path": "/machine/features/imageCache", "value": {"localEnabled": true}}]` // nolint:lll
 	ImageCacheVolumeConfig         = `
 ---
 apiVersion: v1alpha1
