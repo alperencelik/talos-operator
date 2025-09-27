@@ -478,6 +478,12 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 		patches = append(patches, imageCachePatch)
 	}
 
+	var allowSchedulingPatch string
+	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.AllowSchedulingOnControlPlanes {
+		allowSchedulingPatch = talos.AllowSchedulingOnControlPlanes
+		patches = append(patches, allowSchedulingPatch)
+	}
+
 	return &patches, nil
 }
 
