@@ -116,6 +116,11 @@ spec:
                     description: AirGap indicates whether the machine is in an air-gapped
                       environment.
                     type: boolean
+                  allowSchedulingOnControlPlanes:
+                    default: false
+                    description: AllowSchedulingOnControlPlanes indicates whether
+                      to allow scheduling workloads on control plane nodes.
+                    type: boolean
                   image:
                     description: Image is the Talos image to use for this machine.
                     type: string

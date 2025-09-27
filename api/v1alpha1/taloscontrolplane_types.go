@@ -121,6 +121,10 @@ type MachineSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	ImageCache bool `json:"imageCache,omitempty"`
+	// AllowSchedulingOnControlPlanes indicates whether to allow scheduling workloads on control plane nodes.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	AllowSchedulingOnControlPlanes bool `json:"allowSchedulingOnControlPlanes,omitempty"`
 }
 
 // META is network metadata for Talos machines
