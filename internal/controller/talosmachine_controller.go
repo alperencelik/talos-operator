@@ -23,6 +23,9 @@ import (
 	"strings"
 	"time"
 
+	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
+	"github.com/alperencelik/talos-operator/pkg/talos"
+	"github.com/alperencelik/talos-operator/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,10 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
-	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
-	"github.com/alperencelik/talos-operator/pkg/talos"
-	"github.com/alperencelik/talos-operator/pkg/utils"
+	"sigs.k8s.io/yaml"
 )
 
 // TalosMachineReconciler reconciles a TalosMachine object
@@ -482,6 +482,16 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.AllowSchedulingOnControlPlanes {
 		allowSchedulingPatch = talos.AllowSchedulingOnControlPlanes
 		patches = append(patches, allowSchedulingPatch)
+	}
+
+	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.Registries != nil {
+		jsonBytes, err := yaml.YAMLToJSON(tm.Spec.MachineSpec.Registries.Raw)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert registries to json: %w", err)
+		}
+		path := "/machine/registries"
+		patch := fmt.Sprintf(`[{"op": "add", "path": "%s", "value": %s}]`, path, string(jsonBytes))
+		patches = append(patches, patch)
 	}
 
 	return &patches, nil

@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -125,6 +126,9 @@ type MachineSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	AllowSchedulingOnControlPlanes bool `json:"allowSchedulingOnControlPlanes,omitempty"`
+	// Registries is the path to a custom registries configuration file.
+	// +kubebuilder:validation:Optional
+	Registries *runtime.RawExtension `json:"registries,omitempty"`
 }
 
 // META is network metadata for Talos machines

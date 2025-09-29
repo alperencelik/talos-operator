@@ -134,6 +134,11 @@ spec:
                             description: Subnet is the subnet for the Talos machines.
                             type: integer
                         type: object
+                      registries:
+                        description: Registries is the path to a custom registries
+                          configuration file.
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       wipe:
                         default: false
                         description: Wipe indicates whether to wipe the disk before
