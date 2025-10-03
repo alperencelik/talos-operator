@@ -182,18 +182,11 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 	// If the TalosMachine has a configRef, get the config from there. Else generate the config from the bundleConfig
 	if tm.Spec.ConfigRef != nil {
 		// Get the config from the ConfigMap
-		cm := &corev1.ConfigMap{}
-		if err := r.Get(ctx, client.ObjectKey{
-			Name:      tm.Spec.ConfigRef.Name,
-			Namespace: tm.Namespace,
-		}, cm); err != nil {
-			return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
+		data, err := r.GetConfigMapData(ctx, tm)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to get configRef for TalosMachine %s: %w", tm.Name, err)
 		}
-		data, ok := cm.Data[tm.Spec.ConfigRef.Key]
-		if !ok {
-			return ctrl.Result{}, fmt.Errorf("key %s not found in ConfigMap %s for TalosMachine %s", tm.Spec.ConfigRef.Key, tm.Spec.ConfigRef.Name, tm.Name)
-		}
-		cpConfig = utils.StringToBytePtr(strings.TrimSpace(data))
+		cpConfig = utils.StringToBytePtr(strings.TrimSpace(*data))
 	} else {
 		// Apply patches to config before applying it
 		patches, err := r.metalConfigPatches(ctx, tm, bc)
@@ -208,6 +201,12 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 		}
 		if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.ImageCache {
 			*cpConfig = append(*cpConfig, []byte(talos.ImageCacheVolumeConfig)...)
+		}
+		// If there is additionalConfig, merge it with the generated config
+		if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.AdditionalConfig != nil {
+			// Add --- delimeter and then the additional config
+			*cpConfig = append(*cpConfig, []byte("\n---\n")...)
+			*cpConfig = append(*cpConfig, tm.Spec.MachineSpec.AdditionalConfig.Raw...)
 		}
 	}
 	// Check if the current config is the same as the one in status

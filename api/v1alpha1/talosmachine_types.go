@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -49,6 +50,41 @@ type TalosMachineSpec struct {
 	// +kubebuilder:validation:Optional
 	// Reference to a ConfigMap containing the Talos cluster configuration
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
+}
+
+type MachineSpec struct {
+	// InstallDisk is the disk to use for installing Talos on the control plane machines.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/dev/(sd[a-z][0-9]*|vd[a-z][0-9]*|nvme[0-9]+n[0-9]+(p[0-9]+)?)$`
+	InstallDisk *string `json:"installDisk,omitempty"`
+	// Wipe indicates whether to wipe the disk before installation.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	Wipe bool `json:"wipe,omitempty"`
+	// Image is the Talos image to use for this machine.
+	// +kubebuilder:validation:Optional
+	Image *string `json:"image,omitempty"`
+	// Meta is the meta partition that used by Talos.
+	// +kubebuilder:validation:Optional
+	Meta *META `json:"meta,omitempty"`
+	// AirGap indicates whether the machine is in an air-gapped environment.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	AirGap bool `json:"airGap,omitempty"`
+	// ImageCache indicates whether to enable local image caching on the machine.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	ImageCache bool `json:"imageCache,omitempty"`
+	// AllowSchedulingOnControlPlanes indicates whether to allow scheduling workloads on control plane nodes.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	AllowSchedulingOnControlPlanes bool `json:"allowSchedulingOnControlPlanes,omitempty"`
+	// Registries is the path to a custom registries configuration file.
+	// +kubebuilder:validation:Optional
+	Registries *runtime.RawExtension `json:"registries,omitempty"`
+	// AdditionalConfig is additional Talos configuration to append to the generated config.
+	// +kubebuilder:validation:Optional
+	AdditionalConfig *runtime.RawExtension `json:"additionalConfig,omitempty"`
 }
 
 // TalosMachineStatus defines the observed state of TalosMachine.
