@@ -93,6 +93,11 @@ spec:
                     description: MachineSpec defines the specifications for each Talos
                       control plane machine.
                     properties:
+                      additionalConfig:
+                        description: AdditionalConfig is additional Talos configuration
+                          to append to the generated config.
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       airGap:
                         default: false
                         description: AirGap indicates whether the machine is in an
