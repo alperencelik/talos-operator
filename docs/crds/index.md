@@ -6,6 +6,7 @@ Here you will find information on the following CRDs:
 
 *   [TalosCluster](./taloscluster.md)
 *   [TalosControlPlane](./taloscontrolplane.md)
+*   [TalosEtcdBackup](./talosetcdbackup.md)
 *   [TalosMachine](./talosmachine.md)
 *   [TalosWorker](./talosworker.md)
 

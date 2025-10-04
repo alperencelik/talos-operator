@@ -6,6 +6,7 @@ resources:
 - bases/talos.alperen.cloud_taloscontrolplanes.yaml
 - bases/talos.alperen.cloud_talosworkers.yaml
 - bases/talos.alperen.cloud_talosmachines.yaml
+- bases/talos.alperen.cloud_talosetcdbackups.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:
