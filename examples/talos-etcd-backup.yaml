@@ -1,18 +1,48 @@
+---
+# Create a secret with S3 credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-s3-credentials
+  namespace: default
+type: Opaque
+stringData:
+  accessKeyID: "YOUR_ACCESS_KEY_ID"
+  secretAccessKey: "YOUR_SECRET_ACCESS_KEY"
+---
+# Example TalosEtcdBackup resource
+# This will stream an etcd snapshot from Talos to S3 without storing it locally
 apiVersion: talos.alperen.cloud/v1alpha1
 kind: TalosEtcdBackup
 metadata:
   name: talosetcdbackup-sample
 spec:
+  # Reference to the TalosControlPlane to backup
   talosControlPlaneRef:
     name: taloscontrolplane-sample
+  
+  # S3 storage configuration
   backupStorage:
     s3:
+      # S3 bucket name
       bucket: my-etcd-backups
+      
+      # AWS region
       region: us-west-2
+      
+      # Reference to secret containing AWS access key ID
       accessKeyID:
         name: my-s3-credentials
         key: accessKeyID
+      
+      # Reference to secret containing AWS secret access key
       secretAccessKey:
         name: my-s3-credentials
         key: secretAccessKey
-      endpoint: s3.us-west-2.amazonaws.com
+      
+      # Optional: Custom S3 endpoint (for S3-compatible storage like MinIO)
+      # Comment out or remove this line for AWS S3
+      endpoint: https://s3.us-west-2.amazonaws.com
+      
+      # Optional: Skip TLS verification (useful for self-signed certificates)
+      # insecureSkipTLSVerify: false
