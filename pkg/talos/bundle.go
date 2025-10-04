@@ -14,6 +14,10 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
 )
 
+const (
+	DefaultTalosImage = "ghcr.io/siderolabs/installer"
+)
+
 var (
 	removeAdmissionControl         = `[{"op": "remove", "path": "/cluster/apiServer/admissionControl"}]`
 	podSubnets                     = `[{"op":"replace","path":"/cluster/network/podSubnets","value":%s}]`
