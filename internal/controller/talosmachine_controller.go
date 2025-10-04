@@ -448,6 +448,10 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	diskPatch := fmt.Sprintf(talos.InstallDisk, diskName)
 	// Install Image Patch
 	var imagePatch string
+	// If the .machineSpec.image is not set, use the default image from the version
+	defaultImageWithVersion := fmt.Sprintf("%s:%s", talos.DefaultTalosImage, config.Version)
+	imagePatch = fmt.Sprintf(talos.InstallImage, defaultImageWithVersion)
+	// If the .machineSpec.image is set, use it
 	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.Image != nil && *tm.Spec.MachineSpec.Image != "" {
 		// if the .machineSpec.image has version suffix, directly use it if not append the version to the image
 		var imageWithVersion string
@@ -462,9 +466,8 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	var patches []string
 	patches = append(patches, diskPatch)
 	patches = append(patches, talos.WipeDisk)
-	if imagePatch != "" {
-		patches = append(patches, imagePatch)
-	}
+	patches = append(patches, imagePatch)
+	// Air gapped patch
 	var airGappedPatch string
 	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.AirGap {
 		airGappedPatch = talos.AirGapp
