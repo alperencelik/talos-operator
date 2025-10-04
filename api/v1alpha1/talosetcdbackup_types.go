@@ -69,6 +69,7 @@ type TalosEtcdBackupStatus struct {
 
 	// For Kubernetes API conventions, see:
 	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+	FilePath string `json:"filename,omitempty"`
 
 	// conditions represent the current state of the TalosEtcdBackup resource.
 	// Each condition has a unique type and reflects the status of a specific aspect of the resource.

@@ -22,6 +22,7 @@ import (
 
 	"github.com/alperencelik/talos-operator/pkg/storage"
 	"github.com/alperencelik/talos-operator/pkg/talos"
+	"github.com/alperencelik/talos-operator/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 )
@@ -89,6 +91,12 @@ func (r *TalosEtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 	logger.Info("Reconciling TalosEtcdBackup", "TalosEtcdBackup", req.NamespacedName)
 
+	// Check if the backup is already completed
+	if meta.IsStatusConditionTrue(teb.Status.Conditions, talosv1alpha1.ConditionReady) {
+		logger.Info("Backup is already completed. Skipping reconciliation.")
+		return ctrl.Result{}, nil
+	}
+
 	// Set progressing condition
 	meta.SetStatusCondition(&teb.Status.Conditions, metav1.Condition{
 		Type:    talosv1alpha1.ConditionProgressing,
@@ -111,13 +119,6 @@ func (r *TalosEtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			Reason:  "BackupFailed",
 			Message: fmt.Sprintf("Failed to backup etcd: %v", err),
 		})
-		meta.SetStatusCondition(&teb.Status.Conditions, metav1.Condition{
-			Type:    talosv1alpha1.ConditionProgressing,
-			Status:  metav1.ConditionFalse,
-			Reason:  "BackupFailed",
-			Message: "Backup failed",
-		})
-
 		if statusErr := r.Status().Update(ctx, &teb); statusErr != nil {
 			logger.Error(statusErr, "Failed to update status after backup failure")
 		}
@@ -132,12 +133,7 @@ func (r *TalosEtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		Reason:  "BackupSucceeded",
 		Message: "Etcd backup completed successfully",
 	})
-	meta.SetStatusCondition(&teb.Status.Conditions, metav1.Condition{
-		Type:    talosv1alpha1.ConditionProgressing,
-		Status:  metav1.ConditionFalse,
-		Reason:  "BackupCompleted",
-		Message: "Backup completed",
-	})
+	// Update status to remove progressing and failed conditions
 	if err := r.Status().Update(ctx, &teb); err != nil {
 		logger.Error(err, "Failed to update status to ready")
 		return ctrl.Result{}, err
@@ -151,6 +147,7 @@ func (r *TalosEtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 func (r *TalosEtcdBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&talosv1alpha1.TalosEtcdBackup{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Named("talosetcdbackup").
 		Complete(r)
 }
@@ -166,7 +163,27 @@ func (r *TalosEtcdBackupReconciler) handleFinalizer(ctx context.Context, teb *ta
 }
 
 func (r *TalosEtcdBackupReconciler) handleDelete(ctx context.Context, teb *talosv1alpha1.TalosEtcdBackup) (ctrl.Result, error) {
-	// TODO: Remove backup from external storage if needed
+	logger := logf.FromContext(ctx)
+	logger.Info("Deleting TalosEtcdBackup from external storage if exists", "TalosEtcdBackup", teb.Name)
+	// Try to get the key from status
+	if teb.Status.FilePath == "" {
+		// Nothing to delete
+		return ctrl.Result{}, nil
+	}
+	s3Config, err := r.getS3Config(ctx, teb)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get S3 configuration: %w", err)
+	}
+	// Create S3 client
+	s3Client, err := storage.NewS3Client(ctx, s3Config)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create S3 client: %w", err)
+	}
+	// Delete the backup from S3
+	if err := s3Client.Delete(ctx, teb.Status.FilePath); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to delete backup from S3: %w", err)
+	}
+	// Successfully deleted
 	return ctrl.Result{}, nil
 }
 
@@ -194,6 +211,13 @@ func (r *TalosEtcdBackupReconciler) performBackup(ctx context.Context, teb *talo
 	if err != nil {
 		return fmt.Errorf("failed to parse bundle config: %w", err)
 	}
+	// Get the secretBundle
+	sb, err := utils.SecretBundleDecoder(tcp.Status.SecretBundle)
+	if err != nil {
+		return fmt.Errorf("failed to decode secret bundle: %w", err)
+	}
+	sb.Clock = talos.NewClock()
+	bc.SecretsBundle = sb
 
 	// Create Talos client
 	talosClient, err := talos.NewClient(bc, false)
@@ -224,7 +248,12 @@ func (r *TalosEtcdBackupReconciler) performBackup(ctx context.Context, teb *talo
 	// Generate backup key
 	backupKey := storage.GenerateBackupKey(tcp.Name)
 	logger.Info("Uploading etcd snapshot to S3", "bucket", s3Config.Bucket, "key", backupKey)
-
+	// Write that key to status so I can refer it later
+	teb.Status.FilePath = backupKey
+	// Update status with the file path
+	if err := r.Status().Update(ctx, teb); err != nil {
+		logger.Error(err, "Failed to update status with file path")
+	}
 	// Stream directly to S3
 	if err := s3Client.Upload(ctx, backupKey, snapshotReader); err != nil {
 		return fmt.Errorf("failed to upload snapshot to S3: %w", err)

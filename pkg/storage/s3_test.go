@@ -74,8 +74,8 @@ func TestGenerateBackupKey(t *testing.T) {
 		t.Fatal("Expected non-empty key")
 	}
 
-	// Key should start with the etcd-backups prefix
-	expectedPrefix := "etcd-backups/test-cluster/etcd-snapshot-"
+	// Key should start with the talos-operator-etcd-backups prefix
+	expectedPrefix := "talos-operator-etcd-backups/test-cluster/etcd-snapshot-"
 	if len(key) < len(expectedPrefix) {
 		t.Fatalf("Key too short: %s", key)
 	}

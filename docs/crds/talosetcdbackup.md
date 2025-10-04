@@ -109,12 +109,12 @@ spec:
 Backups are stored in S3 with the following key pattern:
 
 ```
-etcd-backups/<controlplane-name>/etcd-snapshot-<timestamp>.db
+talos-operator-etcd-backups/<controlplane-name>/etcd-snapshot-<timestamp>.db
 ```
 
 Example:
 ```
-etcd-backups/my-controlplane/etcd-snapshot-2025-10-04T11-30-00Z.db
+talos-operator-etcd-backups/my-controlplane/etcd-snapshot-2025-10-04T11-30-00Z.db
 ```
 
 ## Status Conditions

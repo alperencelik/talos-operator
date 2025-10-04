@@ -11,13 +11,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // S3Client wraps the AWS S3 client for etcd backup operations
 type S3Client struct {
-	client *s3.Client
-	bucket string
+	uploader *manager.Uploader
+	client   *s3.Client
+	bucket   string
 }
 
 // S3Config contains configuration for S3 client
@@ -87,9 +89,13 @@ func NewS3Client(ctx context.Context, cfg *S3Config) (*S3Client, error) {
 	// Create S3 client
 	s3Client := s3.NewFromConfig(awsCfg, s3Opts...)
 
+	// Create an uploader from the S3 client
+	uploader := manager.NewUploader(s3Client)
+
 	return &S3Client{
-		client: s3Client,
-		bucket: cfg.Bucket,
+		uploader: uploader,
+		client:   s3Client,
+		bucket:   cfg.Bucket,
 	}, nil
 }
 
@@ -100,8 +106,8 @@ func (s *S3Client) Upload(ctx context.Context, key string, reader io.Reader) err
 		return fmt.Errorf("key is required")
 	}
 
-	// Use PutObject for streaming upload
-	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+	// Use Uploader for streaming upload
+	_, err := s.uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
 		Body:   reader,
@@ -113,8 +119,22 @@ func (s *S3Client) Upload(ctx context.Context, key string, reader io.Reader) err
 	return nil
 }
 
+func (s *S3Client) Delete(ctx context.Context, key string) error {
+	if key == "" {
+		return fmt.Errorf("key is required")
+	}
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete object from S3: %w", err)
+	}
+	return nil
+}
+
 // GenerateBackupKey generates a standardized key for etcd backups
 func GenerateBackupKey(clusterName string) string {
 	timestamp := time.Now().UTC().Format("2006-01-02T15-04-05Z")
-	return fmt.Sprintf("etcd-backups/%s/etcd-snapshot-%s.db", clusterName, timestamp)
+	return fmt.Sprintf("talos-operator-etcd-backups/%s/etcd-snapshot-%s.db", clusterName, timestamp)
 }
