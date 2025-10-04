@@ -66,7 +66,7 @@ func (r *TalosEtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	// Finalizer logic
-	if teb.ObjectMeta.DeletionTimestamp.IsZero() {
+	if teb.DeletionTimestamp.IsZero() {
 		// Add finalizer for this CR
 		err := r.handleFinalizer(ctx, &teb)
 		if err != nil {
@@ -76,9 +76,9 @@ func (r *TalosEtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	} else {
 		// The object is being deleted
 		if controllerutil.ContainsFinalizer(&teb, talosv1alpha1.TalosEtcdBackupFinalizer) {
-			res, err := r.handleDelete(ctx, &teb)
+			err := r.handleDelete(ctx, &teb)
 			if err != nil {
-				return res, fmt.Errorf("failed to handle delete: %w", err)
+				return ctrl.Result{}, fmt.Errorf("failed to handle delete: %w", err)
 			}
 			// Remove finalizer
 			controllerutil.RemoveFinalizer(&teb, talosv1alpha1.TalosEtcdBackupFinalizer)
@@ -162,29 +162,29 @@ func (r *TalosEtcdBackupReconciler) handleFinalizer(ctx context.Context, teb *ta
 	return nil
 }
 
-func (r *TalosEtcdBackupReconciler) handleDelete(ctx context.Context, teb *talosv1alpha1.TalosEtcdBackup) (ctrl.Result, error) {
+func (r *TalosEtcdBackupReconciler) handleDelete(ctx context.Context, teb *talosv1alpha1.TalosEtcdBackup) error {
 	logger := logf.FromContext(ctx)
 	logger.Info("Deleting TalosEtcdBackup from external storage if exists", "TalosEtcdBackup", teb.Name)
 	// Try to get the key from status
 	if teb.Status.FilePath == "" {
 		// Nothing to delete
-		return ctrl.Result{}, nil
+		return nil
 	}
 	s3Config, err := r.getS3Config(ctx, teb)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to get S3 configuration: %w", err)
+		return fmt.Errorf("failed to get S3 configuration: %w", err)
 	}
 	// Create S3 client
 	s3Client, err := storage.NewS3Client(ctx, s3Config)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to create S3 client: %w", err)
+		return fmt.Errorf("failed to create S3 client: %w", err)
 	}
 	// Delete the backup from S3
 	if err := s3Client.Delete(ctx, teb.Status.FilePath); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to delete backup from S3: %w", err)
+		return fmt.Errorf("failed to delete backup from S3: %w", err)
 	}
 	// Successfully deleted
-	return ctrl.Result{}, nil
+	return nil
 }
 
 // performBackup executes the etcd backup by streaming from Talos to S3
@@ -243,7 +243,7 @@ func (r *TalosEtcdBackupReconciler) performBackup(ctx context.Context, teb *talo
 	if err != nil {
 		return fmt.Errorf("failed to get etcd snapshot reader: %w", err)
 	}
-	defer snapshotReader.Close()
+	defer snapshotReader.Close() // nolint:errcheck
 
 	// Generate backup key
 	backupKey := storage.GenerateBackupKey(tcp.Name)

@@ -27,7 +27,7 @@ func (tc *TalosClient) TakeSnapshot(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer reader.Close() // nolint:errcheck
 
 	// For backwards compatibility, discard the data
 	_, err = io.Copy(io.Discard, reader)
