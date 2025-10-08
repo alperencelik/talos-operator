@@ -24,7 +24,7 @@ var (
 	serviceSubnets                 = `[{"op":"replace","path":"/cluster/network/serviceSubnets","value":%s}]`
 	InstallDisk                    = `[{"op": "replace", "path": "/machine/install/disk", "value": "%s"}]`
 	InstallImage                   = `[{"op": "replace", "path": "/machine/install/image", "value": "%s"}]`
-	WipeDisk                       = `[{"op": "replace", "path": "/machine/install/wipe", "value": true}]`
+	WipeDisk                       = `[{"op": "replace", "path": "/machine/install/wipe", "value": "%t"}]`
 	AirGapp                        = `[{"op": "add", "path": "/machine/time", "value": {"disabled": true}}, {"op": "replace", "path": "/cluster/discovery/enabled", "value": false}]` // nolint:lll
 	AllowSchedulingOnControlPlanes = `[{"op": "add", "path": "/cluster/allowSchedulingOnControlPlanes", "value": true}]`
 	ImageCache                     = `[{"op": "add", "path": "/machine/features/imageCache", "value": {"localEnabled": true}}]` // nolint:lll
