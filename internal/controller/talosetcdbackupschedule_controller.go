@@ -105,9 +105,24 @@ func (r *TalosEtcdBackupScheduleReconciler) Reconcile(ctx context.Context, req c
 	now := time.Now()
 	nextSchedule := cronSchedule.Next(now)
 
-	// Check if we need to create a new backup
+	// Determine if we should create a backup
+	shouldCreateBackup := false
 	lastScheduleTime := schedule.Status.LastScheduleTime
-	if lastScheduleTime == nil || lastScheduleTime.Time.Before(now) {
+
+	if lastScheduleTime == nil {
+		// First time running, create a backup
+		shouldCreateBackup = true
+	} else {
+		// Calculate when the next backup should have been created after the last one
+		lastScheduledNext := cronSchedule.Next(lastScheduleTime.Time)
+		// If we're past the next scheduled time, create a backup
+		if now.After(lastScheduledNext) || now.Equal(lastScheduledNext) {
+			shouldCreateBackup = true
+		}
+	}
+
+	// Check if we need to create a new backup
+	if shouldCreateBackup {
 		// Time to create a new backup
 		if err := r.createBackup(ctx, &schedule); err != nil {
 			logger.Error(err, "Failed to create backup")
