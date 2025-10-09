@@ -56,6 +56,7 @@ func (r *TalosEtcdBackupScheduleReconciler) Reconcile(ctx context.Context, req c
 	}
 
 	// Finalizer logic
+	var err error
 	if schedule.DeletionTimestamp.IsZero() {
 		// Add finalizer for this CR
 		if err := r.handleFinalizer(ctx, &schedule); err != nil {
@@ -65,7 +66,7 @@ func (r *TalosEtcdBackupScheduleReconciler) Reconcile(ctx context.Context, req c
 	} else {
 		// The object is being deleted
 		if controllerutil.ContainsFinalizer(&schedule, talosv1alpha1.TalosEtcdBackupScheduleFinalizer) {
-			if err := r.handleDelete(ctx, &schedule); err != nil {
+			if err = r.handleDelete(ctx, &schedule); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to handle delete: %w", err)
 			}
 			// Remove finalizer
@@ -74,7 +75,7 @@ func (r *TalosEtcdBackupScheduleReconciler) Reconcile(ctx context.Context, req c
 				return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
 			}
 		}
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	logger.Info("Reconciling TalosEtcdBackupSchedule", "schedule", req.NamespacedName)
@@ -87,6 +88,7 @@ func (r *TalosEtcdBackupScheduleReconciler) Reconcile(ctx context.Context, req c
 
 	// Validate cron schedule
 	cronSchedule, err := cron.ParseStandard(schedule.Spec.Schedule)
+	var statusErr error
 	if err != nil {
 		logger.Error(err, "Invalid cron schedule", "schedule", schedule.Spec.Schedule)
 		meta.SetStatusCondition(&schedule.Status.Conditions, metav1.Condition{
@@ -95,10 +97,10 @@ func (r *TalosEtcdBackupScheduleReconciler) Reconcile(ctx context.Context, req c
 			Reason:  "InvalidSchedule",
 			Message: fmt.Sprintf("Invalid cron schedule: %v", err),
 		})
-		if statusErr := r.Status().Update(ctx, &schedule); statusErr != nil {
+		if statusErr = r.Status().Update(ctx, &schedule); statusErr != nil {
 			logger.Error(statusErr, "Failed to update status")
 		}
-		return ctrl.Result{}, err
+		return ctrl.Result{}, statusErr
 	}
 
 	// Get the next scheduled time
@@ -227,7 +229,7 @@ func (r *TalosEtcdBackupScheduleReconciler) createBackup(ctx context.Context, sc
 			Name:      backupName,
 			Namespace: schedule.Namespace,
 			Labels: map[string]string{
-				"talos.alperen.cloud/backup-schedule": schedule.Name,
+				talosv1alpha1.TalosEtcdBackupScheduleLabelKey: schedule.Name,
 			},
 		},
 		Spec: schedule.Spec.BackupTemplate.Spec,

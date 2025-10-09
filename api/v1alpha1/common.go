@@ -37,4 +37,7 @@ const (
 	GroupKindControlPlane = "TalosControlPlane"
 	GroupKindWorker       = "TalosWorker"
 	GroupKindMachine      = "TalosMachine"
+
+	//
+	TalosEtcdBackupScheduleLabelKey = "talos.alperen.cloud/etcd-backup-schedule"
 )
