@@ -24,11 +24,12 @@ const (
 	StateOrphaned = "Orphaned" // Machine is not managed by any TalosCluster or TalosControlPlane
 
 	// Finalizers
-	TalosClusterFinalizer      = "taloscluster.talos.alperen.cloud/finalizer"
-	TalosControlPlaneFinalizer = "taloscontrolplane.talos.alperen.cloud/finalizer"
-	TalosWorkerFinalizer       = "talosworker.talos.alperen.cloud/finalizer"
-	TalosMachineFinalizer      = "talosmachine.talos.alperen.cloud/finalizer"
-	TalosEtcdBackupFinalizer   = "talosetcdbackup.talos.alperen.cloud/finalizer"
+	TalosClusterFinalizer            = "taloscluster.talos.alperen.cloud/finalizer"
+	TalosControlPlaneFinalizer       = "taloscontrolplane.talos.alperen.cloud/finalizer"
+	TalosWorkerFinalizer             = "talosworker.talos.alperen.cloud/finalizer"
+	TalosMachineFinalizer            = "talosmachine.talos.alperen.cloud/finalizer"
+	TalosEtcdBackupFinalizer         = "talosetcdbackup.talos.alperen.cloud/finalizer"
+	TalosEtcdBackupScheduleFinalizer = "talosetcdbackupschedule.talos.alperen.cloud/finalizer"
 
 	// GVK for the API group
 	GroupName             = "talos.alperen.cloud"
@@ -36,4 +37,7 @@ const (
 	GroupKindControlPlane = "TalosControlPlane"
 	GroupKindWorker       = "TalosWorker"
 	GroupKindMachine      = "TalosMachine"
+
+	//
+	TalosEtcdBackupScheduleLabelKey = "talos.alperen.cloud/etcd-backup-schedule"
 )

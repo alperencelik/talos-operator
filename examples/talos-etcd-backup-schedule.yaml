@@ -1,0 +1,109 @@
+---
+# Create a secret with S3 credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-s3-credentials
+  namespace: default
+type: Opaque
+stringData:
+  accessKeyID: "YOUR_ACCESS_KEY_ID"
+  secretAccessKey: "YOUR_SECRET_ACCESS_KEY"
+---
+# Example 1: Daily backups at 2 AM with 7-day retention
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosEtcdBackupSchedule
+metadata:
+  name: daily-backup
+spec:
+  # Daily backups at 2 AM
+  schedule: "0 2 * * *"
+  
+  # Keep 7 daily backups
+  retention: 7
+  
+  # Set to true to pause the backup schedule
+  paused: false
+  
+  # Template for creating TalosEtcdBackup resources
+  backupTemplate:
+    spec:
+      # Reference to the TalosControlPlane to backup
+      talosControlPlaneRef:
+        name: taloscontrolplane-sample
+      
+      # S3 storage configuration
+      backupStorage:
+        s3:
+          # S3 bucket name
+          bucket: my-etcd-backups
+          
+          # AWS region
+          region: us-west-2
+          
+          # Reference to secret containing AWS access key ID
+          accessKeyID:
+            name: my-s3-credentials
+            key: accessKeyID
+          
+          # Reference to secret containing AWS secret access key
+          secretAccessKey:
+            name: my-s3-credentials
+            key: secretAccessKey
+---
+# Example 2: Hourly backups with 24-hour retention
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosEtcdBackupSchedule
+metadata:
+  name: hourly-backup
+spec:
+  # Every hour at minute 0
+  schedule: "0 * * * *"
+  
+  # Keep 24 hourly backups (1 day)
+  retention: 24
+  
+  backupTemplate:
+    spec:
+      talosControlPlaneRef:
+        name: taloscontrolplane-sample
+      backupStorage:
+        s3:
+          bucket: my-etcd-backups
+          region: us-west-2
+          accessKeyID:
+            name: my-s3-credentials
+            key: accessKeyID
+          secretAccessKey:
+            name: my-s3-credentials
+            key: secretAccessKey
+---
+# Example 3: Weekly backups on Sundays with 4-week retention
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosEtcdBackupSchedule
+metadata:
+  name: weekly-backup
+spec:
+  # Every Sunday at midnight
+  schedule: "0 0 * * 0"
+  
+  # Keep 4 weekly backups
+  retention: 4
+  
+  backupTemplate:
+    spec:
+      talosControlPlaneRef:
+        name: taloscontrolplane-sample
+      backupStorage:
+        s3:
+          bucket: my-etcd-backups
+          region: us-west-2
+          accessKeyID:
+            name: my-s3-credentials
+            key: accessKeyID
+          secretAccessKey:
+            name: my-s3-credentials
+            key: secretAccessKey
+          # Using MinIO
+          endpoint: https://minio.example.com
+          insecureSkipTLSVerify: false

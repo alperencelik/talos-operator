@@ -1,0 +1,23 @@
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosEtcdBackupSchedule
+metadata:
+  name: talosetcdbackupschedule-sample
+  namespace: default
+spec:
+  schedule: "0 2 * * *"
+  retention: 5
+  paused: false
+  backupTemplate:
+    spec:
+      talosControlPlaneRef:
+        name: taloscontrolplane-sample
+      backupStorage:
+        s3:
+          bucket: my-etcd-backups
+          region: us-west-2
+          accessKeyID:
+            name: my-s3-credentials
+            key: accessKeyID
+          secretAccessKey:
+            name: my-s3-credentials
+            key: secretAccessKey

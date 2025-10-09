@@ -12,6 +12,7 @@ require (
 	github.com/magefile/mage v1.15.0
 	github.com/onsi/ginkgo/v2 v2.21.0
 	github.com/onsi/gomega v1.35.1
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/siderolabs/go-kubernetes v0.2.23
 	github.com/siderolabs/talos v1.10.4
 	github.com/siderolabs/talos/pkg/machinery v1.10.4
