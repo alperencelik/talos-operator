@@ -5,6 +5,7 @@ import ClusterVisualizer from './ClusterVisualizer';
 import 'reactflow/dist/style.css';
 import YAML from 'js-yaml';
 import axios from 'axios';
+import '../TalosUI.css';
 
 // --- Main App Component ---
 function TalosResourceForm() {
@@ -279,79 +280,79 @@ function TalosResourceForm() {
       case 'TalosCluster':
         return (
           <>
-            <Form.Group className="mb-3">
-              <Form.Label>Definition Mode</Form.Label>
-              <Form.Select value={talosClusterDefinitionMode} onChange={e => setTalosClusterDefinitionMode(e.target.value)}>
+            <Form.Group className="talos-form-group">
+              <Form.Label className="talos-form-label">Definition Mode</Form.Label>
+              <Form.Select className="talos-form-select" value={talosClusterDefinitionMode} onChange={e => setTalosClusterDefinitionMode(e.target.value)}>
                 <option value="inline">Define Inline</option>
                 <option value="reference">Reference Existing</option>
               </Form.Select>
             </Form.Group>
             {talosClusterDefinitionMode === 'reference' ? (
               <>
-                <Form.Group className="mb-3">
-                  <Form.Label>Control Plane Reference Name</Form.Label>
-                  <Form.Control type="text" value={controlPlaneRef} onChange={e => setControlPlaneRef(e.target.value)} />
+                <Form.Group className="talos-form-group">
+                  <Form.Label className="talos-form-label">Control Plane Reference Name</Form.Label>
+                  <Form.Control className="talos-form-control" type="text" value={controlPlaneRef} onChange={e => setControlPlaneRef(e.target.value)} />
                 </Form.Group>
-                <Form.Group className="mb-3">
-                  <Form.Label>Worker Reference Name</Form.Label>
-                  <Form.Control type="text" value={workerRef} onChange={e => setWorkerRef(e.target.value)} />
+                <Form.Group className="talos-form-group">
+                  <Form.Label className="talos-form-label">Worker Reference Name</Form.Label>
+                  <Form.Control className="talos-form-control" type="text" value={workerRef} onChange={e => setWorkerRef(e.target.value)} />
                 </Form.Group>
               </>
             ) : (
               <>
-                <Form.Group className="mb-3">
-                  <Form.Label>Deployment Mode</Form.Label>
-                  <Form.Select value={mode} onChange={e => setMode(e.target.value)}>
+                <Form.Group className="talos-form-group">
+                  <Form.Label className="talos-form-label">Deployment Mode</Form.Label>
+                  <Form.Select className="talos-form-select" value={mode} onChange={e => setMode(e.target.value)}>
                     <option value="metal">Metal</option>
                     <option value="container">Container</option>
                   </Form.Select>
                 </Form.Group>
-                <hr />
-                <h5>Control Plane (Inline)</h5>
-                <Form.Group className="mb-3">
-                  <Form.Label>Talos Version</Form.Label>
-                  <Form.Control type="text" value={inlineCPTalosVersion} onChange={e => setInlineCPTalosVersion(e.target.value)} />
+                <hr className="talos-divider" />
+                <h5 className="talos-section-title">Control Plane (Inline)</h5>
+                <Form.Group className="talos-form-group">
+                  <Form.Label className="talos-form-label">Talos Version</Form.Label>
+                  <Form.Control className="talos-form-control" type="text" value={inlineCPTalosVersion} onChange={e => setInlineCPTalosVersion(e.target.value)} />
                 </Form.Group>
-                <Form.Group className="mb-3">
-                  <Form.Label>Kubernetes Version</Form.Label>
-                  <Form.Control type="text" value={inlineCPKubernetesVersion} onChange={e => setInlineCPKubernetesVersion(e.target.value)} />
+                <Form.Group className="talos-form-group">
+                  <Form.Label className="talos-form-label">Kubernetes Version</Form.Label>
+                  <Form.Control className="talos-form-control" type="text" value={inlineCPKubernetesVersion} onChange={e => setInlineCPKubernetesVersion(e.target.value)} />
                 </Form.Group>
                 {mode === 'metal' ? (
                   <>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Control Plane Endpoint</Form.Label>
-                      <Form.Control type="text" value={inlineCPEndpoint} onChange={e => setInlineCPEndpoint(e.target.value)} />
+                    <Form.Group className="talos-form-group">
+                      <Form.Label className="talos-form-label">Control Plane Endpoint</Form.Label>
+                      <Form.Control className="talos-form-control" type="text" value={inlineCPEndpoint} onChange={e => setInlineCPEndpoint(e.target.value)} />
                     </Form.Group>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Control Plane Machines (one IP per line)</Form.Label>
-                      <Form.Control as="textarea" rows={3} value={inlineCPMachines} onChange={e => setInlineCPMachines(e.target.value)} />
+                    <Form.Group className="talos-form-group">
+                      <Form.Label className="talos-form-label">Control Plane Machines (one IP per line)</Form.Label>
+                      <Form.Control className="talos-form-control" as="textarea" rows={3} value={inlineCPMachines} onChange={e => setInlineCPMachines(e.target.value)} />
                     </Form.Group>
                   </>
                 ) : (
-                  <Form.Group className="mb-3">
-                    <Form.Label>Replicas</Form.Label>
-                    <Form.Control type="number" value={inlineCPReplicas} onChange={e => setInlineCPReplicas(parseInt(e.target.value, 10))} />
+                  <Form.Group className="talos-form-group">
+                    <Form.Label className="talos-form-label">Replicas</Form.Label>
+                    <Form.Control className="talos-form-control" type="number" value={inlineCPReplicas} onChange={e => setInlineCPReplicas(parseInt(e.target.value, 10))} />
                   </Form.Group>
                 )}
-                <hr />
-                <h5>Worker (Inline)</h5>
-                <Form.Group className="mb-3">
-                  <Form.Label>Talos Version</Form.Label>
-                  <Form.Control type="text" value={inlineWKTalosVersion} onChange={e => setInlineWKTalosVersion(e.target.value)} />
+                <hr className="talos-divider" />
+                <h5 className="talos-section-title">Worker (Inline)</h5>
+                <Form.Group className="talos-form-group">
+                  <Form.Label className="talos-form-label">Talos Version</Form.Label>
+                  <Form.Control className="talos-form-control" type="text" value={inlineWKTalosVersion} onChange={e => setInlineWKTalosVersion(e.target.value)} />
                 </Form.Group>
-                <Form.Group className="mb-3">
-                  <Form.Label>Kubernetes Version</Form.Label>
-                  <Form.Control type="text" value={inlineWKKubernetesVersion} onChange={e => setInlineWKKubernetesVersion(e.target.value)} />
+                <Form.Group className="talos-form-group">
+                  <Form.Label className="talos-form-label">Kubernetes Version</Form.Label>
+                  <Form.Control className="talos-form-control" type="text" value={inlineWKKubernetesVersion} onChange={e => setInlineWKKubernetesVersion(e.target.value)} />
                 </Form.Group>
                 {mode === 'metal' ? (
-                  <Form.Group className="mb-3">
-                    <Form.Label>Worker Machines (one IP per line)</Form.Label>
-                    <Form.Control as="textarea" rows={3} value={inlineWKMachines} onChange={e => setInlineWKMachines(e.target.value)} />
+                  <Form.Group className="talos-form-group">
+                    <Form.Label className="talos-form-label">Worker Machines (one IP per line)</Form.Label>
+                    <Form.Control className="talos-form-control" as="textarea" rows={3} value={inlineWKMachines} onChange={e => setInlineWKMachines(e.target.value)} />
                   </Form.Group>
                 ) : (
-                  <Form.Group className="mb-3">
-                    <Form.Label>Replicas</Form.Label>
-                    <Form.Control type="number" value={inlineWKReplicas} onChange={e => setInlineWKReplicas(parseInt(e.target.value, 10))} />
+                  <Form.Group className="talos-form-group">
+                    <Form.Label className="talos-form-label">Replicas</Form.Label>
+                    <Form.Control className="talos-form-control" type="number" value={inlineWKReplicas} onChange={e => setInlineWKReplicas(parseInt(e.target.value, 10))} />
                   </Form.Group>
                 )}
               </>
@@ -362,44 +363,44 @@ function TalosResourceForm() {
       case 'TalosWorker':
         return (
           <>
-            <Form.Group className="mb-3">
-              <Form.Label>Deployment Mode</Form.Label>
-              <Form.Select value={mode} onChange={e => setMode(e.target.value)}>
+            <Form.Group className="talos-form-group">
+              <Form.Label className="talos-form-label">Deployment Mode</Form.Label>
+              <Form.Select className="talos-form-select" value={mode} onChange={e => setMode(e.target.value)}>
                 <option value="metal">Metal</option>
                 <option value="container">Container</option>
               </Form.Select>
             </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Talos Version</Form.Label>
-              <Form.Control type="text" value={talosVersion} onChange={e => setTalosVersion(e.target.value)} />
+            <Form.Group className="talos-form-group">
+              <Form.Label className="talos-form-label">Talos Version</Form.Label>
+              <Form.Control className="talos-form-control" type="text" value={talosVersion} onChange={e => setTalosVersion(e.target.value)} />
             </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Kubernetes Version</Form.Label>
-              <Form.Control type="text" value={kubernetesVersion} onChange={e => setKubernetesVersion(e.target.value)} />
+            <Form.Group className="talos-form-group">
+              <Form.Label className="talos-form-label">Kubernetes Version</Form.Label>
+              <Form.Control className="talos-form-control" type="text" value={kubernetesVersion} onChange={e => setKubernetesVersion(e.target.value)} />
             </Form.Group>
             {resourceType === 'TalosWorker' && (
-                 <Form.Group className="mb-3">
-                    <Form.Label>Control Plane Reference Name</Form.Label>
-                    <Form.Control type="text" value={workerControlPlaneRef} onChange={e => setWorkerControlPlaneRef(e.target.value)} />
+                 <Form.Group className="talos-form-group">
+                    <Form.Label className="talos-form-label">Control Plane Reference Name</Form.Label>
+                    <Form.Control className="talos-form-control" type="text" value={workerControlPlaneRef} onChange={e => setWorkerControlPlaneRef(e.target.value)} />
                  </Form.Group>
             )}
             {mode === 'metal' ? (
               <>
                 {resourceType === 'TalosControlPlane' && (
-                  <Form.Group className="mb-3">
-                    <Form.Label>Control Plane Endpoint</Form.Label>
-                    <Form.Control type="text" value={controlPlaneEndpoint} onChange={e => setControlPlaneEndpoint(e.target.value)} />
+                  <Form.Group className="talos-form-group">
+                    <Form.Label className="talos-form-label">Control Plane Endpoint</Form.Label>
+                    <Form.Control className="talos-form-control" type="text" value={controlPlaneEndpoint} onChange={e => setControlPlaneEndpoint(e.target.value)} />
                   </Form.Group>
                 )}
-                <Form.Group className="mb-3">
-                  <Form.Label>Machines (one IP per line)</Form.Label>
-                  <Form.Control as="textarea" rows={3} value={machines} onChange={e => setMachines(e.target.value)} />
+                <Form.Group className="talos-form-group">
+                  <Form.Label className="talos-form-label">Machines (one IP per line)</Form.Label>
+                  <Form.Control className="talos-form-control" as="textarea" rows={3} value={machines} onChange={e => setMachines(e.target.value)} />
                 </Form.Group>
               </>
             ) : (
-              <Form.Group className="mb-3">
-                <Form.Label>Replicas</Form.Label>
-                <Form.Control type="number" value={replicas} onChange={e => setReplicas(parseInt(e.target.value, 10))} />
+              <Form.Group className="talos-form-group">
+                <Form.Label className="talos-form-label">Replicas</Form.Label>
+                <Form.Control className="talos-form-control" type="number" value={replicas} onChange={e => setReplicas(parseInt(e.target.value, 10))} />
               </Form.Group>
             )}
           </>
@@ -425,12 +426,11 @@ function TalosResourceForm() {
   );
 
   return (
-    <Container fluid className="p-4">
-      <Row>
-        <Col>
-          <h1 className="mb-4">Talos Operator UI</h1>
-        </Col>
-      </Row>
+    <Container fluid className="talos-container talos-animate">
+      <div className="talos-header">
+        <h1>Talos Operator UI</h1>
+        <div className="talos-header-subtitle">Simplified Kubernetes Cluster Management</div>
+      </div>
       <ToastContainer position="bottom-end" className="p-3">
         {notice && (
           <Toast
@@ -439,7 +439,7 @@ function TalosResourceForm() {
             delay={5000}
             autohide
             bg={notice.variant === 'warning' || notice.variant === 'info' ? 'light' : notice.variant}
-            className={notice.variant === 'warning' || notice.variant === 'info' ? '' : 'text-white'}
+            className={`talos-toast ${notice.variant === 'warning' || notice.variant === 'info' ? '' : 'text-white'}`}
           >
             <Toast.Header closeButton={false}>
               <strong className="me-auto">
@@ -464,40 +464,40 @@ function TalosResourceForm() {
       >
         <Row>
           <Col sm={3}>
-            <Nav variant="pills" className="flex-column">
+            <Nav variant="pills" className="flex-column talos-nav">
               <Nav.Item>
-                <Nav.Link eventKey="generator">Resource Generator</Nav.Link>
+                <Nav.Link eventKey="generator">📝 Resource Generator</Nav.Link>
               </Nav.Item>
               <Nav.Item>
-                <Nav.Link eventKey="visualizer">Resource Visualizer</Nav.Link>
+                <Nav.Link eventKey="visualizer">🔍 Resource Visualizer</Nav.Link>
               </Nav.Item>
             </Nav>
           </Col>
           <Col sm={9}>
-            <Tab.Content>
+            <Tab.Content className="talos-tab-content">
               <Tab.Pane eventKey="generator">
                 <Row>
                   <Col md={6}>
-                    <Card>
+                    <Card className="talos-card">
                       <Card.Body>
                         <Card.Title>Resource Configuration</Card.Title>
                         <Form>
-                          <Form.Group className="mb-3">
-                            <Form.Label>Resource Type</Form.Label>
-                            <Form.Select value={resourceType} onChange={e => setResourceType(e.target.value)}>
+                          <Form.Group className="talos-form-group">
+                            <Form.Label className="talos-form-label">Resource Type</Form.Label>
+                            <Form.Select className="talos-form-select" value={resourceType} onChange={e => setResourceType(e.target.value)}>
                               <option value="TalosCluster">TalosCluster</option>
                               <option value="TalosControlPlane">TalosControlPlane</option>
                               <option value="TalosWorker">TalosWorker</option>
                             </Form.Select>
                           </Form.Group>
-                          <hr/>
-                          <Form.Group className="mb-3">
-                            <Form.Label>Name</Form.Label>
-                            <Form.Control type="text" value={name} onChange={e => setName(e.target.value)} />
+                          <hr className="talos-divider"/>
+                          <Form.Group className="talos-form-group">
+                            <Form.Label className="talos-form-label">Name</Form.Label>
+                            <Form.Control className="talos-form-control" type="text" value={name} onChange={e => setName(e.target.value)} />
                           </Form.Group>
-                          <Form.Group className="mb-3">
-                            <Form.Label>Namespace</Form.Label>
-                            <Form.Control type="text" value={namespace} onChange={e => setNamespace(e.target.value)} />
+                          <Form.Group className="talos-form-group">
+                            <Form.Label className="talos-form-label">Namespace</Form.Label>
+                            <Form.Control className="talos-form-control" type="text" value={namespace} onChange={e => setNamespace(e.target.value)} />
                           </Form.Group>
                           {renderForm()}
                         </Form>
@@ -505,15 +505,19 @@ function TalosResourceForm() {
                     </Card>
                   </Col>
                   <Col md={6}>
-                    <Card>
+                    <Card className="talos-card">
                       <Card.Body>
                         <Card.Title>Generated YAML</Card.Title>
-                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', backgroundColor: '#f8f9fa', padding: '1rem', borderRadius: '0.25rem' }}>
-                          <code>{generatedYaml}</code>
-                        </pre>
-                        <Button variant="success" onClick={handleApply}>{applySuccess || 'Apply'}</Button>
-                        <Button variant="secondary" onClick={handleCopy} className="ms-2">{copySuccess || 'Copy YAML'}</Button>
-                        <Button variant="primary" onClick={handleDownload} className="ms-2">Download YAML</Button>
+                        <div className="talos-yaml-display">
+                          <pre>
+                            <code>{generatedYaml}</code>
+                          </pre>
+                        </div>
+                        <div className="talos-button-group">
+                          <Button className="talos-btn talos-btn-success" onClick={handleApply}>{applySuccess || 'Apply'}</Button>
+                          <Button className="talos-btn talos-btn-secondary" onClick={handleCopy}>{copySuccess || 'Copy YAML'}</Button>
+                          <Button className="talos-btn talos-btn-primary" onClick={handleDownload}>Download YAML</Button>
+                        </div>
                       </Card.Body>
                     </Card>
                   </Col>
