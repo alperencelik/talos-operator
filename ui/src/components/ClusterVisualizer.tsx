@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import ReactFlow, { isNode, Node, Edge, useNodesState, useEdgesState, Controls, Background, BackgroundVariant } from 'reactflow';
+import ReactFlow, { Node, Edge, useNodesState, useEdgesState, Controls, Background, BackgroundVariant } from 'reactflow';
 import 'reactflow/dist/style.css';
 import axios from 'axios';
 import { Card, Modal } from 'react-bootstrap';
@@ -229,6 +229,7 @@ const ClusterVisualizer = () => {
       .catch(error => {
         console.error("Error fetching resources:", error);
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

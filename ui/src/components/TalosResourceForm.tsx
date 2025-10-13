@@ -410,21 +410,6 @@ function TalosResourceForm() {
     }
   };
 
-  const renderResources = (title: string, resources: any[]) => (
-    <Card className="mb-3">
-      <Card.Body>
-        <Card.Title>{title}</Card.Title>
-        {resources && resources.length > 0 ? (
-          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-            <code>{YAML.dump(resources)}</code>
-          </pre>
-        ) : (
-          <p>No resources found.</p>
-        )}
-      </Card.Body>
-    </Card>
-  );
-
   return (
     <Container fluid className="talos-container talos-animate">
       <div className="talos-header">
