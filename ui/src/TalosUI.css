@@ -20,22 +20,51 @@
   --talos-code-bg: #2C3E50;
   --talos-shadow: rgba(0, 0, 0, 0.1);
   --talos-shadow-lg: rgba(0, 0, 0, 0.15);
+  
+  /* Light Mode Colors */
+  --bg-body: linear-gradient(135deg, #F8F9FA 0%, #E9ECEF 100%);
+  --bg-container: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --text-primary: #1A1A2E;
+  --text-secondary: #6C757D;
+  --border-color: #E9ECEF;
+  --input-bg: #FFFFFF;
+  --input-border: #E9ECEF;
+}
+
+/* Dark Mode Colors */
+body.dark-mode {
+  --bg-body: linear-gradient(135deg, #0D1117 0%, #161B22 100%);
+  --bg-container: #161B22;
+  --bg-card: #1C2128;
+  --text-primary: #E6EDF3;
+  --text-secondary: #8B949E;
+  --border-color: #30363D;
+  --input-bg: #0D1117;
+  --input-border: #30363D;
+  --talos-shadow: rgba(0, 0, 0, 0.3);
+  --talos-shadow-lg: rgba(0, 0, 0, 0.5);
+  --talos-gray-light: #30363D;
+  --talos-code-bg: #0D1117;
 }
 
 /* Body and General Styles */
 body {
-  background: linear-gradient(135deg, #F8F9FA 0%, #E9ECEF 100%);
+  background: var(--bg-body);
   min-height: 100vh;
+  color: var(--text-primary);
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 /* Main Container */
 .talos-container {
-  background: var(--talos-white);
+  background: var(--bg-container);
   border-radius: 12px;
   box-shadow: 0 4px 20px var(--talos-shadow-lg);
   margin: 2rem auto;
   max-width: 1600px;
   padding: 2rem;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 
 /* Header Styling */
@@ -46,6 +75,14 @@ body {
   border-radius: 12px 12px 0 0;
   margin: -2rem -2rem 2rem -2rem;
   box-shadow: 0 4px 12px var(--talos-shadow);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.talos-header-content {
+  flex: 1;
 }
 
 .talos-header h1 {
@@ -63,12 +100,39 @@ body {
   font-weight: 300;
 }
 
+/* Dark Mode Toggle */
+.talos-dark-mode-toggle {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--talos-white);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.talos-dark-mode-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.talos-dark-mode-toggle:active {
+  transform: scale(0.98);
+}
+
 /* Navigation Tabs */
 .talos-nav {
-  background: var(--talos-white);
+  background: var(--bg-card);
   border-radius: 10px;
   box-shadow: 0 2px 8px var(--talos-shadow);
   padding: 0.5rem;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 
 .talos-nav .nav-link {
@@ -76,7 +140,7 @@ body {
   font-weight: 600;
   padding: 1rem 1.5rem;
   transition: all 0.3s ease;
-  color: var(--talos-gray);
+  color: var(--text-secondary);
   border: 2px solid transparent;
 }
 
@@ -98,7 +162,7 @@ body {
   border-radius: 12px;
   box-shadow: 0 2px 12px var(--talos-shadow);
   transition: all 0.3s ease;
-  background: var(--talos-white);
+  background: var(--bg-card);
   height: 100%;
 }
 
@@ -108,7 +172,7 @@ body {
 }
 
 .talos-card .card-title {
-  color: var(--talos-secondary);
+  color: var(--text-primary);
   font-weight: 700;
   font-size: 1.4rem;
   margin-bottom: 1.5rem;
@@ -128,7 +192,7 @@ body {
 
 .talos-form-label {
   font-weight: 600;
-  color: var(--talos-dark);
+  color: var(--text-primary);
   margin-bottom: 0.5rem;
   font-size: 0.95rem;
   text-transform: uppercase;
@@ -136,32 +200,39 @@ body {
 }
 
 .talos-form-control {
-  border: 2px solid var(--talos-gray-light);
+  border: 2px solid var(--border-color);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   transition: all 0.3s ease;
   font-size: 1rem;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .talos-form-control:focus {
   border-color: var(--talos-primary);
   box-shadow: 0 0 0 0.2rem rgba(255, 107, 53, 0.25);
   outline: none;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .talos-form-select {
-  border: 2px solid var(--talos-gray-light);
+  border: 2px solid var(--border-color);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   transition: all 0.3s ease;
   cursor: pointer;
-  background-color: var(--talos-white);
+  background-color: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .talos-form-select:focus {
   border-color: var(--talos-primary);
   box-shadow: 0 0 0 0.2rem rgba(255, 107, 53, 0.25);
   outline: none;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
 }
 
 /* Button Styling */
@@ -221,7 +292,12 @@ body {
   overflow-y: auto;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
-  border: 2px solid #34495E;
+  border: 2px solid var(--border-color);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+body.dark-mode .talos-yaml-display {
+  border-color: #21262D;
 }
 
 .talos-yaml-display pre {
@@ -240,12 +316,13 @@ body {
 /* Section Dividers */
 .talos-divider {
   border: none;
-  border-top: 2px solid var(--talos-gray-light);
+  border-top: 2px solid var(--border-color);
   margin: 2rem 0;
+  transition: border-color 0.3s ease;
 }
 
 .talos-section-title {
-  color: var(--talos-secondary);
+  color: var(--text-primary);
   font-weight: 700;
   font-size: 1.2rem;
   margin: 1.5rem 0 1rem 0;

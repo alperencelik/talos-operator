@@ -12,6 +12,16 @@ function TalosResourceForm() {
   // --- State ---
   const [resourceType, setResourceType] = useState('TalosCluster');
 
+  // Dark mode state - default to true (dark mode enabled by default)
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? window.localStorage.getItem('darkMode') : null;
+      return saved !== null ? saved === 'true' : true; // Default to dark mode
+    } catch {
+      return true; // Default to dark mode
+    }
+  });
+
   // Common
   const [name, setName] = useState('sample');
   const [namespace, setNamespace] = useState('default');
@@ -141,6 +151,23 @@ function TalosResourceForm() {
   };
 
   // --- Effects ---
+
+  // Dark mode effect
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+    try {
+      window.localStorage.setItem('darkMode', String(darkMode));
+    } catch {}
+  }, [darkMode]);
+
+  // Toggle dark mode handler
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+  };
 
   // (Effect to clear errors for fields that are not currently visible removed)
 
@@ -413,8 +440,17 @@ function TalosResourceForm() {
   return (
     <Container fluid className="talos-container talos-animate">
       <div className="talos-header">
-        <h1>Talos Operator UI</h1>
-        <div className="talos-header-subtitle">Simplified Kubernetes Cluster Management</div>
+        <div className="talos-header-content">
+          <h1>Talos Operator UI</h1>
+          <div className="talos-header-subtitle">Simplified Kubernetes Cluster Management</div>
+        </div>
+        <button 
+          className="talos-dark-mode-toggle" 
+          onClick={toggleDarkMode}
+          aria-label="Toggle dark mode"
+        >
+          {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
+        </button>
       </div>
       <ToastContainer position="bottom-end" className="p-3">
         {notice && (
