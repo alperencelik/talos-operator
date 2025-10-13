@@ -602,7 +602,21 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		}
 	} else {
 		// If the version is different, we need to upgrade
-		image := fmt.Sprintf("ghcr.io/siderolabs/installer:%s", tm.Spec.Version)
+		// If the metalspec.image is set, we should use that image for upgrade
+		var image string
+		if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.Image != nil && *tm.Spec.MachineSpec.Image != "" {
+			// if the .machineSpec.image has version suffix, directly use it if not append the version to the image
+			if utils.HasVersionSuffix(*tm.Spec.MachineSpec.Image) {
+				image = *tm.Spec.MachineSpec.Image
+			} else {
+				image = fmt.Sprintf("%s:%s", *tm.Spec.MachineSpec.Image, tm.Spec.Version)
+			}
+		} else {
+			// If the .machineSpec.image is not set, use the default image from the version
+			image = fmt.Sprintf("%s:%s", talos.DefaultTalosImage, tm.Spec.Version)
+		}
+		// Add an event
+		r.Recorder.Event(tm, corev1.EventTypeNormal, "Upgrading", fmt.Sprintf("Upgrading Talos version to %s using image %s", tm.Spec.Version, image))
 		if err := tc.UpgradeTalosVersion(ctx, image); err != nil {
 			return fmt.Errorf("failed to upgrade Talos version for TalosMachine %s: %w", tm.Name, err)
 		}
