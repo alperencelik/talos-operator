@@ -1,0 +1,494 @@
+/* Talos Operator UI Custom Styles */
+
+/* Color Palette - Talos branding inspired */
+:root {
+  --talos-primary: #FF6B35;
+  --talos-primary-dark: #E5501B;
+  --talos-primary-light: #FF8C66;
+  --talos-secondary: #004E89;
+  --talos-secondary-dark: #003A66;
+  --talos-secondary-light: #1A6FA8;
+  --talos-accent: #00A5CF;
+  --talos-success: #2ECC71;
+  --talos-warning: #F39C12;
+  --talos-danger: #E74C3C;
+  --talos-dark: #1A1A2E;
+  --talos-light: #F8F9FA;
+  --talos-gray: #6C757D;
+  --talos-gray-light: #E9ECEF;
+  --talos-white: #FFFFFF;
+  --talos-code-bg: #2C3E50;
+  --talos-shadow: rgba(0, 0, 0, 0.1);
+  --talos-shadow-lg: rgba(0, 0, 0, 0.15);
+  
+  /* Light Mode Colors */
+  --bg-body: linear-gradient(135deg, #F8F9FA 0%, #E9ECEF 100%);
+  --bg-container: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --text-primary: #1A1A2E;
+  --text-secondary: #6C757D;
+  --border-color: #E9ECEF;
+  --input-bg: #FFFFFF;
+  --input-border: #E9ECEF;
+}
+
+/* Dark Mode Colors */
+body.dark-mode {
+  --bg-body: linear-gradient(135deg, #0D1117 0%, #161B22 100%);
+  --bg-container: #161B22;
+  --bg-card: #1C2128;
+  --text-primary: #E6EDF3;
+  --text-secondary: #8B949E;
+  --border-color: #30363D;
+  --input-bg: #0D1117;
+  --input-border: #30363D;
+  --talos-shadow: rgba(0, 0, 0, 0.3);
+  --talos-shadow-lg: rgba(0, 0, 0, 0.5);
+  --talos-gray-light: #30363D;
+  --talos-code-bg: #0D1117;
+}
+
+/* Body and General Styles */
+body {
+  background: var(--bg-body);
+  min-height: 100vh;
+  color: var(--text-primary);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Main Container */
+.talos-container {
+  background: var(--bg-container);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px var(--talos-shadow-lg);
+  margin: 2rem auto;
+  max-width: 1600px;
+  padding: 2rem;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Header Styling */
+.talos-header {
+  background: linear-gradient(135deg, var(--talos-secondary) 0%, var(--talos-secondary-light) 100%);
+  color: var(--talos-white);
+  padding: 2.5rem 2rem;
+  border-radius: 12px 12px 0 0;
+  margin: -2rem -2rem 2rem -2rem;
+  box-shadow: 0 4px 12px var(--talos-shadow);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.talos-header-content {
+  flex: 1;
+}
+
+.talos-header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+  letter-spacing: -0.5px;
+}
+
+.talos-header-subtitle {
+  font-size: 1.1rem;
+  margin-top: 0.5rem;
+  opacity: 0.95;
+  font-weight: 300;
+}
+
+/* Dark Mode Toggle */
+.talos-dark-mode-toggle {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--talos-white);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.talos-dark-mode-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.talos-dark-mode-toggle:active {
+  transform: scale(0.98);
+}
+
+/* Navigation Tabs */
+.talos-nav {
+  background: var(--bg-card);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px var(--talos-shadow);
+  padding: 0.5rem;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.talos-nav .nav-link {
+  border-radius: 8px;
+  font-weight: 600;
+  padding: 1rem 1.5rem;
+  transition: all 0.3s ease;
+  color: var(--text-secondary);
+  border: 2px solid transparent;
+}
+
+.talos-nav .nav-link:hover {
+  background: var(--talos-gray-light);
+  color: var(--talos-secondary);
+  transform: translateY(-2px);
+}
+
+.talos-nav .nav-link.active {
+  background: linear-gradient(135deg, var(--talos-primary) 0%, var(--talos-primary-dark) 100%);
+  color: var(--talos-white);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+}
+
+/* Card Styling */
+.talos-card {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px var(--talos-shadow);
+  transition: all 0.3s ease;
+  background: var(--bg-card);
+  height: 100%;
+}
+
+.talos-card:hover {
+  box-shadow: 0 4px 20px var(--talos-shadow-lg);
+  transform: translateY(-2px);
+}
+
+.talos-card .card-title {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 1.4rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 3px solid var(--talos-primary);
+  display: inline-block;
+}
+
+.talos-card .card-body {
+  padding: 2rem;
+}
+
+/* Form Styling */
+.talos-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.talos-form-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.talos-form-control {
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.talos-form-control:focus {
+  border-color: var(--talos-primary);
+  box-shadow: 0 0 0 0.2rem rgba(255, 107, 53, 0.25);
+  outline: none;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.talos-form-select {
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.talos-form-select:focus {
+  border-color: var(--talos-primary);
+  box-shadow: 0 0 0 0.2rem rgba(255, 107, 53, 0.25);
+  outline: none;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+}
+
+/* Button Styling */
+.talos-btn {
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  border: none;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.9rem;
+}
+
+.talos-btn-primary {
+  background: linear-gradient(135deg, var(--talos-primary) 0%, var(--talos-primary-dark) 100%);
+  color: var(--talos-white);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+}
+
+.talos-btn-primary:hover {
+  background: linear-gradient(135deg, var(--talos-primary-dark) 0%, var(--talos-primary) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 107, 53, 0.4);
+}
+
+.talos-btn-success {
+  background: linear-gradient(135deg, var(--talos-success) 0%, #27AE60 100%);
+  color: var(--talos-white);
+  box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+}
+
+.talos-btn-success:hover {
+  background: linear-gradient(135deg, #27AE60 0%, var(--talos-success) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(46, 204, 113, 0.4);
+}
+
+.talos-btn-secondary {
+  background: linear-gradient(135deg, var(--talos-secondary) 0%, var(--talos-secondary-light) 100%);
+  color: var(--talos-white);
+  box-shadow: 0 4px 12px rgba(0, 78, 137, 0.3);
+}
+
+.talos-btn-secondary:hover {
+  background: linear-gradient(135deg, var(--talos-secondary-light) 0%, var(--talos-secondary) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 78, 137, 0.4);
+}
+
+/* Code/YAML Display */
+.talos-yaml-display {
+  background: var(--talos-code-bg);
+  border-radius: 8px;
+  padding: 1.5rem;
+  max-height: 500px;
+  overflow-y: auto;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
+  border: 2px solid var(--border-color);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+body.dark-mode .talos-yaml-display {
+  border-color: #21262D;
+}
+
+.talos-yaml-display pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #ECF0F1;
+  line-height: 1.6;
+}
+
+.talos-yaml-display code {
+  color: #ECF0F1;
+  font-size: 0.9rem;
+}
+
+/* Section Dividers */
+.talos-divider {
+  border: none;
+  border-top: 2px solid var(--border-color);
+  margin: 2rem 0;
+  transition: border-color 0.3s ease;
+}
+
+.talos-section-title {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 1.2rem;
+  margin: 1.5rem 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--talos-primary);
+  display: inline-block;
+}
+
+/* Toast/Notification Styling */
+.talos-toast {
+  border-radius: 8px;
+  box-shadow: 0 4px 16px var(--talos-shadow-lg);
+  border: none;
+}
+
+.talos-toast .toast-header {
+  background: var(--talos-primary);
+  color: var(--talos-white);
+  font-weight: 600;
+  border-radius: 8px 8px 0 0;
+}
+
+/* Cluster Visualizer Enhancements */
+.talos-visualizer {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.talos-visualizer .react-flow__node {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--talos-shadow);
+  border: 2px solid var(--talos-primary);
+}
+
+.talos-visualizer .react-flow__edge-path {
+  stroke: var(--talos-primary);
+  stroke-width: 2;
+}
+
+.talos-visualizer .react-flow__controls {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--talos-shadow);
+}
+
+/* Modal Styling */
+.talos-modal .modal-content {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 8px 32px var(--talos-shadow-lg);
+}
+
+.talos-modal .modal-header {
+  background: linear-gradient(135deg, var(--talos-secondary) 0%, var(--talos-secondary-light) 100%);
+  color: var(--talos-white);
+  border-radius: 12px 12px 0 0;
+  border-bottom: none;
+  padding: 1.5rem 2rem;
+}
+
+.talos-modal .modal-title {
+  font-weight: 700;
+  font-size: 1.4rem;
+}
+
+.talos-modal .modal-body {
+  padding: 2rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .talos-header h1 {
+    font-size: 2rem;
+  }
+  
+  .talos-container {
+    margin: 1rem;
+    padding: 1rem;
+  }
+  
+  .talos-card .card-body {
+    padding: 1.5rem;
+  }
+  
+  .talos-btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* Scrollbar Styling */
+.talos-yaml-display::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.talos-yaml-display::-webkit-scrollbar-track {
+  background: #34495E;
+  border-radius: 4px;
+}
+
+.talos-yaml-display::-webkit-scrollbar-thumb {
+  background: var(--talos-primary);
+  border-radius: 4px;
+}
+
+.talos-yaml-display::-webkit-scrollbar-thumb:hover {
+  background: var(--talos-primary-dark);
+}
+
+/* Animation for page load */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.talos-animate {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Button group styling */
+.talos-button-group {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .talos-button-group {
+    flex-direction: column;
+  }
+  
+  .talos-button-group .talos-btn {
+    width: 100%;
+  }
+}
+
+/* Tab content styling */
+.talos-tab-content {
+  padding: 2rem 0;
+}
+
+/* Loading state */
+.talos-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.talos-spinner {
+  border: 4px solid var(--talos-gray-light);
+  border-top: 4px solid var(--talos-primary);
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import ReactFlow, { isNode, Node, Edge, useNodesState, useEdgesState, Controls, Background, BackgroundVariant } from 'reactflow';
+import ReactFlow, { Node, Edge, useNodesState, useEdgesState, Controls, Background, BackgroundVariant } from 'reactflow';
 import 'reactflow/dist/style.css';
 import axios from 'axios';
 import { Card, Modal } from 'react-bootstrap';
 import YAML from 'js-yaml';
 import dagre from 'dagre';
+import '../TalosUI.css';
 
 // Dagre graph for layouting
 const g = new dagre.graphlib.Graph();
@@ -228,33 +229,36 @@ const ClusterVisualizer = () => {
       .catch(error => {
         console.error("Error fetching resources:", error);
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <Card>
+    <Card className="talos-card talos-visualizer">
       <Card.Body>
-        <div style={{ height: '500px', width: '100%' }}>
+        <div style={{ height: '600px', width: '100%', borderRadius: '8px', overflow: 'hidden' }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
-            onNodeDrag={onNodeDrag} // Added this line
+            onNodeDrag={onNodeDrag}
             fitView
           >
             <Controls />
             <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
           </ReactFlow>
         </div>
-        <Modal show={showModal} onHide={handleClose}>
+        <Modal show={showModal} onHide={handleClose} className="talos-modal">
           <Modal.Header closeButton>
             <Modal.Title>{selectedNode?.metadata.name}</Modal.Title>
           </Modal.Header>
           <Modal.Body style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            <pre>
-              <code>{YAML.dump(selectedNode)}</code>
-            </pre>
+            <div className="talos-yaml-display">
+              <pre>
+                <code>{YAML.dump(selectedNode)}</code>
+              </pre>
+            </div>
           </Modal.Body>
         </Modal>
       </Card.Body>
