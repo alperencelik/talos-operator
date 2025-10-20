@@ -22,13 +22,20 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+	operatortrace "github.com/Azure/operatortrace/operatortrace-go/pkg/client"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -56,6 +63,41 @@ func init() {
 
 	utilruntime.Must(talosv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
+}
+
+func initTracer(ctx context.Context) func() {
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		endpoint = "localhost:4317"
+	}
+	exporter, err := otlptracehttp.New(ctx,
+		otlptracehttp.WithEndpoint(endpoint),
+		otlptracehttp.WithInsecure(),
+	)
+	if err != nil {
+		setupLog.Error(err, "failed to create trace exporter")
+		os.Exit(1)
+	}
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String("talos-operator"),
+		)),
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.AlwaysSample())),
+	)
+
+	otel.SetTracerProvider(tp)
+
+	// Return a function to shutdown the tracer provider on application exit.
+	return func() {
+		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+		defer cancel()
+		if err := tp.Shutdown(ctx); err != nil {
+			setupLog.Error(err, "failed to shutdown TracerProvider")
+		}
+	}
+
 }
 
 func main() {
@@ -86,9 +128,19 @@ func main() {
 			os.Exit(1)
 		}
 
+		var tracingClient operatortrace.TracingClient
+
+		tracingClient = operatortrace.NewTracingClient(
+			kubeClient,
+			kubeClient,
+			otel.Tracer("operatortrace"),
+			ctrl.Log.WithName("tracing-client"),
+			scheme,
+		)
+
 		// Create a new Talos client
 		config, err := (&controller.TalosControlPlaneReconciler{
-			Client: kubeClient, Scheme: scheme}).SetConfig(context.Background(), &tcp)
+			Client: tracingClient, Scheme: scheme}).SetConfig(context.Background(), &tcp)
 		if err != nil {
 			setupLog.Error(err, "unable to set config")
 			os.Exit(1)
@@ -151,7 +203,13 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	// OPERATOR TRACE
+	logger := zap.New(zap.UseFlagOptions(&opts))
+	ctx := context.Background()
+	shutdown := initTracer(ctx)
+	defer shutdown()
+	// END
+	ctrl.SetLogger(logger)
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -218,6 +276,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	// OPERATOR TRACE
+
+	tracingClient := operatortrace.NewTracingClient(
+		mgr.GetClient(),
+		mgr.GetAPIReader(),
+		otel.Tracer("operatortrace"),
+		logger,
+		mgr.GetScheme(),
+	)
+
 	if err = (&controller.TalosClusterReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
@@ -226,14 +294,18 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosCluster")
 		os.Exit(1)
 	}
-	if err = (&controller.TalosControlPlaneReconciler{
-		Client:   mgr.GetClient(),
+
+	talosControlPlaneReconciler := &controller.TalosControlPlaneReconciler{
+		Client:   tracingClient,
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("taloscontrolplane-controller"),
-	}).SetupWithManager(mgr); err != nil {
+	}
+
+	if err = talosControlPlaneReconciler.SetupWithManager(mgr, tracingClient); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosControlPlane")
 		os.Exit(1)
 	}
+
 	if err = (&controller.TalosWorkerReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
@@ -243,10 +315,10 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controller.TalosMachineReconciler{
-		Client:   mgr.GetClient(),
+		Client:   tracingClient,
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("talosmachine-controller"),
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(mgr, tracingClient); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosMachine")
 		os.Exit(1)
 	}

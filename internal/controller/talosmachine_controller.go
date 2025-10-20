@@ -23,6 +23,11 @@ import (
 	"strings"
 	"time"
 
+	operatortrace "github.com/Azure/operatortrace/operatortrace-go/pkg/client"
+	tracinghandler "github.com/Azure/operatortrace/operatortrace-go/pkg/handler"
+	tracingpredicates "github.com/Azure/operatortrace/operatortrace-go/pkg/predicates"
+	tracingreconcile "github.com/Azure/operatortrace/operatortrace-go/pkg/reconcile"
+	tracingtypes "github.com/Azure/operatortrace/operatortrace-go/pkg/types"
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/pkg/talos"
 	"github.com/alperencelik/talos-operator/pkg/utils"
@@ -31,9 +36,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/yaml"
@@ -41,7 +46,7 @@ import (
 
 // TalosMachineReconciler reconciles a TalosMachine object
 type TalosMachineReconciler struct {
-	client.Client
+	Client   operatortrace.TracingClient
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 }
@@ -58,12 +63,12 @@ type TalosMachineReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
-func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *TalosMachineReconciler) Reconcile(ctx context.Context, obj *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// Get the machine object and decide whether it's a control plane or worker machine
 	var talosMachine talosv1alpha1.TalosMachine
-	if err := r.Get(ctx, req.NamespacedName, &talosMachine); err != nil {
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(obj), &talosMachine); err != nil {
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	logger.Info("Reconciling TalosMachine", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
@@ -87,7 +92,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			}
 			// Remove the finalizer
 			controllerutil.RemoveFinalizer(&talosMachine, talosv1alpha1.TalosMachineFinalizer)
-			if err := r.Update(ctx, &talosMachine); err != nil {
+			if err := r.Client.Update(ctx, &talosMachine); err != nil {
 				logger.Error(err, "Failed to remove finalizer for TalosMachine", "name", talosMachine.Name)
 				r.Recorder.Event(&talosMachine, corev1.EventTypeWarning, "FinalizerRemoveFailed", "Failed to remove finalizer for TalosMachine")
 				return ctrl.Result{}, err
@@ -123,7 +128,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 	// Re-get the machine object to ensure we have the latest state
-	if err := r.Get(ctx, req.NamespacedName, &talosMachine); err != nil {
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(obj), &talosMachine); err != nil {
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 
@@ -230,7 +235,7 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 	r.Recorder.Event(tm, corev1.EventTypeNormal, "Reconciling", "Handling worker machine")
 	// Get config from WorkerRef
 	tw := &talosv1alpha1.TalosWorker{}
-	if err := r.Get(ctx, client.ObjectKey{
+	if err := r.Client.Get(ctx, client.ObjectKey{
 		Name:      tm.Spec.WorkerRef.Name,
 		Namespace: tm.Namespace,
 	}, tw); err != nil {
@@ -305,7 +310,7 @@ func (r *TalosMachineReconciler) updateState(ctx context.Context, tm *talosv1alp
 		return nil
 	}
 	tm.Status.State = state
-	if err := r.Status().Update(ctx, tm); err != nil {
+	if err := r.Client.Status().Update(ctx, tm); err != nil {
 		return fmt.Errorf("failed to update TalosControlPlane %s status to %s: %w", tm.Name, state, err)
 
 	}
@@ -318,7 +323,7 @@ func (r *TalosMachineReconciler) GetControlPlaneRef(ctx context.Context, tm *tal
 	// Check if it's a worker machine
 	if tm.Spec.ControlPlaneRef == nil {
 		tw := &talosv1alpha1.TalosWorker{}
-		if err := r.Get(ctx, client.ObjectKey{
+		if err := r.Client.Get(ctx, client.ObjectKey{
 			Name:      tm.Spec.WorkerRef.Name,
 			Namespace: tm.Namespace,
 		}, tw); err != nil {
@@ -330,14 +335,14 @@ func (r *TalosMachineReconciler) GetControlPlaneRef(ctx context.Context, tm *tal
 			return nil, fmt.Errorf("TalosWorker %s does not have a Control Plane reference", tw.Name)
 		}
 		// Get the TalosControlPlane reference from the TalosWorker
-		if err := r.Get(ctx, client.ObjectKey{
+		if err := r.Client.Get(ctx, client.ObjectKey{
 			Name:      name,
 			Namespace: tm.Namespace,
 		}, tcp); err != nil {
 			return nil, r.handleResourceNotFound(ctx, err)
 		}
 	} else {
-		if err := r.Get(ctx, client.ObjectKey{
+		if err := r.Client.Get(ctx, client.ObjectKey{
 			Name:      tm.Spec.ControlPlaneRef.Name,
 			Namespace: tm.Namespace,
 		}, tcp); err != nil {
@@ -385,7 +390,7 @@ func (r *TalosMachineReconciler) GetBundleConfig(ctx context.Context, tm *talosv
 	if tm.Spec.WorkerRef != nil {
 		// Get the TalosWorker reference
 		tw := &talosv1alpha1.TalosWorker{}
-		if err := r.Get(ctx, client.ObjectKey{
+		if err := r.Client.Get(ctx, client.ObjectKey{
 			Name:      tm.Spec.WorkerRef.Name,
 			Namespace: tm.Namespace,
 		}, tw); err != nil {
@@ -399,7 +404,7 @@ func (r *TalosMachineReconciler) GetBundleConfig(ctx context.Context, tm *talosv
 func (r *TalosMachineReconciler) handleFinalizer(ctx context.Context, tm *talosv1alpha1.TalosMachine) error {
 	if !controllerutil.ContainsFinalizer(tm, talosv1alpha1.TalosMachineFinalizer) {
 		controllerutil.AddFinalizer(tm, talosv1alpha1.TalosMachineFinalizer)
-		if err := r.Update(ctx, tm); err != nil {
+		if err := r.Client.Update(ctx, tm); err != nil {
 			return err
 		}
 	}
@@ -508,17 +513,20 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *TalosMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&talosv1alpha1.TalosMachine{}).
-		Named("talosmachine").
-		WithEventFilter(predicate.Funcs{
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				// Only reconcile if the generation of the object has changed
-				return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
-			},
-		}).
-		Complete(r)
+func (r *TalosMachineReconciler) SetupWithManager(mgr ctrl.Manager, tracingClient operatortrace.TracingClient) error {
+	return builder.TypedControllerManagedBy[tracingtypes.RequestWithTraceID](mgr).
+		Named("talosmachine-controller").
+		WithOptions(tracingreconcile.TracingOptions()).
+		Watches(
+			&talosv1alpha1.TalosMachine{},
+			&tracinghandler.TypedEnqueueRequestForObject[client.Object]{},
+			builder.WithPredicates(
+				tracingpredicates.IgnoreTraceAnnotationUpdatePredicate{},
+				predicate.ResourceVersionChangedPredicate{},
+			),
+		).
+		Complete(tracingreconcile.AsTracingReconciler(tracingClient, r))
+
 }
 
 func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
@@ -573,7 +581,7 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		if tm.Status.State != talosv1alpha1.StateInstalling {
 			tm.Status.State = talosv1alpha1.StateInstalling
 		}
-		if err := r.Status().Patch(ctx, tm, client.MergeFrom(orig)); err != nil {
+		if err := r.Client.Status().Patch(ctx, tm, client.MergeFrom(orig)); err != nil {
 			return fmt.Errorf("failed to patch TalosMachine %s status with config: %w", tm.Name, err)
 		}
 		return nil
@@ -626,7 +634,7 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		if tm.Status.State != talosv1alpha1.StateUpgrading {
 			tm.Status.State = talosv1alpha1.StateUpgrading
 		}
-		if err := r.Status().Patch(ctx, tm, client.MergeFrom(orig)); err != nil {
+		if err := r.Client.Status().Patch(ctx, tm, client.MergeFrom(orig)); err != nil {
 			return fmt.Errorf("failed to patch TalosMachine %s status with config: %w", tm.Name, err)
 		}
 	}
@@ -686,7 +694,7 @@ func (r *TalosMachineReconciler) handleMetaKey(ctx context.Context, tm *talosv1a
 func (r *TalosMachineReconciler) GetConfigMapData(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*string, error) {
 	if tm.Spec.ConfigRef == nil {
 		cm := &corev1.ConfigMap{}
-		if err := r.Get(ctx, client.ObjectKey{
+		if err := r.Client.Get(ctx, client.ObjectKey{
 			Name:      tm.Spec.ConfigRef.Name,
 			Namespace: tm.Namespace,
 		}, cm); err != nil {

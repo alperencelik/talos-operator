@@ -39,10 +39,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	operatortrace "github.com/Azure/operatortrace/operatortrace-go/pkg/client"
+	tracinghandler "github.com/Azure/operatortrace/operatortrace-go/pkg/handler"
+	tracingpredicates "github.com/Azure/operatortrace/operatortrace-go/pkg/predicates"
+	tracingreconcile "github.com/Azure/operatortrace/operatortrace-go/pkg/reconcile"
+	tracingtypes "github.com/Azure/operatortrace/operatortrace-go/pkg/types"
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/pkg/talos"
 	"github.com/alperencelik/talos-operator/pkg/utils"
@@ -50,7 +54,7 @@ import (
 
 // TalosControlPlaneReconciler reconciles a TalosControlPlane object
 type TalosControlPlaneReconciler struct {
-	client.Client
+	Client   operatortrace.TracingClient
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 }
@@ -75,18 +79,18 @@ const (
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
-func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, obj *talosv1alpha1.TalosControlPlane) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	var tcp talosv1alpha1.TalosControlPlane
-	if err := r.Get(ctx, req.NamespacedName, &tcp); err != nil {
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(obj), &tcp); err != nil {
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 
 	// Initialize ObservedKubeVersion if it's empty
 	if tcp.Status.ObservedKubeVersion == "" && tcp.Spec.KubeVersion != "" {
 		tcp.Status.ObservedKubeVersion = tcp.Spec.KubeVersion
-		if err := r.Status().Update(ctx, &tcp); err != nil {
+		if err := r.Client.Status().Update(ctx, &tcp); err != nil {
 			logger.Error(err, "failed to initialize ObservedKubeVersion")
 			r.Recorder.Event(&tcp, corev1.EventTypeWarning, "StatusUpdateFailed", "Failed to initialize ObservedKubeVersion")
 			return ctrl.Result{Requeue: true}, err
@@ -185,7 +189,7 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 	}
 	jobName := fmt.Sprintf("%s-upgrade-%s", jobNamePrefix, tcp.Spec.KubeVersion)
 	job := &batchv1.Job{}
-	err := r.Get(ctx, client.ObjectKey{Name: jobName, Namespace: tcp.Namespace}, job)
+	err := r.Client.Get(ctx, client.ObjectKey{Name: jobName, Namespace: tcp.Namespace}, job)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			// Job does not exist, create it.
@@ -209,7 +213,7 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 				return ctrl.Result{Requeue: true}, err
 			}
 			tcp.Status.State = talosv1alpha1.StateUpgradingKubernetes
-			if err := r.Status().Update(ctx, tcp); err != nil {
+			if err := r.Client.Status().Update(ctx, tcp); err != nil {
 				logger.Error(err, "failed to update TalosControlPlane status after creating upgrade job")
 			}
 			return ctrl.Result{}, nil
@@ -221,7 +225,7 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 		logger.Error(nil, "upgrade job failed")
 		r.Recorder.Event(tcp, corev1.EventTypeWarning, "UpgradeJobFailed", "Upgrade job failed")
 		tcp.Status.State = talosv1alpha1.StateKubernetesUpgradeFailed
-		if err := r.Status().Update(ctx, tcp); err != nil {
+		if err := r.Client.Status().Update(ctx, tcp); err != nil {
 			logger.Error(err, "failed to update TalosControlPlane status after upgrade job failed")
 			return ctrl.Result{}, err
 		}
@@ -236,7 +240,7 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager, tracingClient operatortrace.TracingClient) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&talosv1alpha1.TalosMachine{},
@@ -252,33 +256,45 @@ func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	); err != nil {
 		return fmt.Errorf("failed to index TalosMachine by controlPlaneRef.name: %w", err)
 	}
-
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&talosv1alpha1.TalosControlPlane{}).
-		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(stsPredicate)).
-		Owns(&corev1.Service{}, builder.WithPredicates(svcPredicate)).
-		Owns(&talosv1alpha1.TalosMachine{}, builder.WithPredicates(talosMachinePredicate)).
-		// TODO: Look into this, for some reason it doesn't trigger reconciliation when the job is updated
-		// Owns(&batchv1.Job{}, builder.WithPredicates(jobPredicate)).
-		Owns(&batchv1.Job{}, builder.WithPredicates(jobPredicate)).
-		WithEventFilter(predicate.Funcs{
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				// Only reconcile if the generation of the object has changed
-				oldTcp, ok1 := e.ObjectOld.(*talosv1alpha1.TalosControlPlane)
-				newTcp, ok2 := e.ObjectNew.(*talosv1alpha1.TalosControlPlane)
-				if !ok1 || !ok2 {
-					return false
-				}
-				// Check if the generation has changed
-				condition1 := oldTcp.GetGeneration() != newTcp.GetGeneration()
-				// Check if the observed kubeVersion has changed
-				condition2 := oldTcp.Status.ObservedKubeVersion != newTcp.Status.ObservedKubeVersion
-				return condition1 || condition2
-			},
-		}).
+	return builder.TypedControllerManagedBy[tracingtypes.RequestWithTraceID](mgr).
 		Named("taloscontrolplane").
-		Complete(r)
+		WithOptions(tracingreconcile.TracingOptions()).
+		Watches(
+			&talosv1alpha1.TalosControlPlane{},
+			&tracinghandler.TypedEnqueueRequestForObject[client.Object]{},
+			builder.WithPredicates(
+				tracingpredicates.IgnoreTraceAnnotationUpdatePredicate{},
+				predicate.ResourceVersionChangedPredicate{},
+			),
+		).
+		Complete(tracingreconcile.AsTracingReconciler(tracingClient, r))
 }
+
+// return ctrl.NewControllerManagedBy(mgr).
+// For(&talosv1alpha1.TalosControlPlane{}).
+// Owns(&appsv1.StatefulSet{}, builder.WithPredicates(stsPredicate)).
+// Owns(&corev1.Service{}, builder.WithPredicates(svcPredicate)).
+// Owns(&talosv1alpha1.TalosMachine{}, builder.WithPredicates(talosMachinePredicate)).
+// // TODO: Look into this, for some reason it doesn't trigger reconciliation when the job is updated
+// // Owns(&batchv1.Job{}, builder.WithPredicates(jobPredicate)).
+// Owns(&batchv1.Job{}, builder.WithPredicates(jobPredicate)).
+// WithEventFilter(predicate.Funcs{
+// UpdateFunc: func(e event.UpdateEvent) bool {
+// // Only reconcile if the generation of the object has changed
+// oldTcp, ok1 := e.ObjectOld.(*talosv1alpha1.TalosControlPlane)
+// newTcp, ok2 := e.ObjectNew.(*talosv1alpha1.TalosControlPlane)
+// if !ok1 || !ok2 {
+// return false
+// }
+// // Check if the generation has changed
+// condition1 := oldTcp.GetGeneration() != newTcp.GetGeneration()
+// // Check if the observed kubeVersion has changed
+// condition2 := oldTcp.Status.ObservedKubeVersion != newTcp.Status.ObservedKubeVersion
+// return condition1 || condition2
+// },
+// }).
+// Named("taloscontrolplane").
+// Complete(r)
 
 func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -289,7 +305,7 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 		return ctrl.Result{}, fmt.Errorf("failed to generate Talos ControlPlane config for %s: %w", tcp.Name, err)
 	}
 	// Get the object again since the status might have been updated
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
 		logger.Error(err, "Failed to get TalosControlPlane after generating config", "name", tcp.Name)
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
@@ -299,7 +315,7 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 		return ctrl.Result{Requeue: true}, nil
 	}
 	// Get the object again since the status might have been updated
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
 		logger.Error(err, "Failed to get TalosControlPlane after reconciling Service", "name", tcp.Name)
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
@@ -380,7 +396,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 	logger := log.FromContext(ctx)
 	// List existing ones
 	existing := &talosv1alpha1.TalosMachineList{}
-	if err := r.List(ctx, existing, client.InNamespace(tcp.Namespace),
+	if err := r.Client.List(ctx, existing, client.InNamespace(tcp.Namespace),
 		client.MatchingFields{"spec.controlPlaneRef.name": tcp.Name},
 	); err != nil {
 		return fmt.Errorf("failed to list TalosMachines: %w", err)
@@ -394,7 +410,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 	for _, m := range existing.Items {
 		if m.Spec.ControlPlaneRef != nil && m.Spec.ControlPlaneRef.Name == tcp.Name {
 			if !desired[m.Name] {
-				if err := r.Delete(ctx, &m); err != nil && !kerrors.IsNotFound(err) {
+				if err := r.Client.Delete(ctx, &m); err != nil && !kerrors.IsNotFound(err) {
 					logger.Error(err, "Failed to delete orphaned TalosMachine", "name", m.Name)
 					return fmt.Errorf("failed to delete orphaned TalosMachine %s: %w", m.Name, err)
 				}
@@ -457,7 +473,7 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 	for i := 0; i < maxRetries; i++ {
 		// Need to re-list machines everytime because the update is not reflected in the cache immediately
 		// Get the machines associated with the TalosControlPlane
-		err := r.List(ctx, machines, opts...)
+		err := r.Client.List(ctx, machines, opts...)
 		if err != nil {
 			return false, fmt.Errorf("error: %w", err)
 		}
@@ -486,7 +502,7 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 			// If it's not ready or available, update the status to Available
 			if tcp.Status.State != talosv1alpha1.StateReady {
 				// Get the object once again before update it
-				if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+				if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
 					return allAvailable, fmt.Errorf("failed to get TalosControlPlane %s after checking machines: %w", tcp.Name, err)
 				}
 				// Update the status to Available
@@ -515,7 +531,7 @@ func (r *TalosControlPlaneReconciler) checkContainerModeReady(ctx context.Contex
 	retryInterval := 10 * time.Second
 	for i := 0; i < maxRetries; i++ {
 		// Get the StatefulSet to check its status
-		if err := r.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
+		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
 			return false, fmt.Errorf("failed to get StatefulSet %s: %w", sts.Name, err)
 		}
 		// Check if the number of ready replicas matches the desired replicas
@@ -526,7 +542,7 @@ func (r *TalosControlPlaneReconciler) checkContainerModeReady(ctx context.Contex
 		}
 	}
 	// When all replicas are ready, update the TalosControlPlane status to ready
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
 		return false, fmt.Errorf("failed to get TalosControlPlane %s after reconciling StatefulSet: %w", tcp.Name, err)
 	}
 	if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
@@ -643,7 +659,7 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 	// store it in the status
 	tcp.Status.BundleConfig = string(bcBytes)
 	// Update the TalosControlPlane status with the config
-	if err := r.Status().Update(ctx, tcp); err != nil {
+	if err := r.Client.Status().Update(ctx, tcp); err != nil {
 		return fmt.Errorf("failed to update TalosControlPlane %s status with config: %w", tcp.Name, err)
 	}
 	// Write the Talos ControlPlane config to a ConfigMap
@@ -777,7 +793,7 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 		return fmt.Errorf("failed to bootstrap Talos node for ControlPlane %s: %w", tcp.Name, err)
 	}
 	// Get the object again since the status might have been updated
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
 		logger.Error(err, "Failed to get TalosControlPlane after generating config", "name", tcp.Name)
 		return fmt.Errorf("failed to get TalosControlPlane %s after bootstrapping: %w", tcp.Name, err)
 	}
@@ -830,7 +846,7 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 		return fmt.Errorf("failed to create or update Kubeconfig Secret %s: %w", kubeconfigSecret.Name, err)
 	}
 	// Get the TalosControlPlane object again to update the status
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
 		return fmt.Errorf("failed to get TalosControlPlane %s after writing kubeconfig: %w", tcp.Name, err)
 	}
 	if err := r.updateState(ctx, tcp, talosv1alpha1.StateReady); err != nil {
@@ -848,7 +864,7 @@ func (r *TalosControlPlaneReconciler) SetConfig(ctx context.Context, tcp *talosv
 		sans = utils.GenSans(tcp.Name, &replicas)
 	}
 	// Get the latest TalosControlPlane object
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
 		if kerrors.IsNotFound(err) {
 			return nil, fmt.Errorf("TalosControlPlane %s not found: %w", tcp.Name, err)
 		}
@@ -917,13 +933,13 @@ func (r *TalosControlPlaneReconciler) SecretBundle(ctx context.Context, tcp *tal
 			return nil, fmt.Errorf("failed to marshal SecretBundle for TalosControlPlane %s: %w", tcp.Name, err)
 		}
 		// Get the object again since the status might have been updated
-		if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
 			return nil, fmt.Errorf("failed to get TalosControlPlane %s after generating SecretBundle: %w", tcp.Name, err)
 		}
 
 		// Converts bytes to a string and sets it in the status
 		tcp.Status.SecretBundle = string(secretBundleBytes)
-		if err := r.Status().Update(ctx, tcp); err != nil {
+		if err := r.Client.Status().Update(ctx, tcp); err != nil {
 			return nil, fmt.Errorf("failed to update TalosControlPlane %s status with SecretBundle: %w", tcp.Name, err)
 		}
 	} else {
@@ -943,7 +959,7 @@ func (r *TalosControlPlaneReconciler) SecretBundle(ctx context.Context, tcp *tal
 func (r *TalosControlPlaneReconciler) handleFinalizer(ctx context.Context, tcp talosv1alpha1.TalosControlPlane) error {
 	if !controllerutil.ContainsFinalizer(&tcp, talosv1alpha1.TalosControlPlaneFinalizer) {
 		controllerutil.AddFinalizer(&tcp, talosv1alpha1.TalosControlPlaneFinalizer)
-		if err := r.Update(ctx, &tcp); err != nil {
+		if err := r.Client.Update(ctx, &tcp); err != nil {
 			return fmt.Errorf("failed to add finalizer to TalosControlPlane %s: %w", tcp.Name, err)
 		}
 	}
@@ -962,7 +978,7 @@ func (r *TalosControlPlaneReconciler) handleDelete(ctx context.Context, tcp *tal
 			Reason:  "Deleting",
 			Message: "Deleting TalosControlPlane",
 		})
-		if err := r.Status().Update(ctx, tcp); err != nil {
+		if err := r.Client.Status().Update(ctx, tcp); err != nil {
 			logger.Error(err, "Error updating VirtualMachine status")
 			return ctrl.Result{Requeue: true}, client.IgnoreNotFound(err)
 		}
@@ -983,20 +999,20 @@ func (r *TalosControlPlaneReconciler) handleDelete(ctx context.Context, tcp *tal
 			client.InNamespace(tcp.Namespace),
 			client.MatchingFields{"spec.controlPlaneRef.name": tcp.Name},
 		}
-		if err := r.List(ctx, machines, opts...); err != nil {
+		if err := r.Client.List(ctx, machines, opts...); err != nil {
 			logger.Error(err, "Failed to list TalosMachines for TalosControlPlane", "name", tcp.Name)
 			return ctrl.Result{}, fmt.Errorf("failed to list TalosMachines for TalosControlPlane %s: %w", tcp.Name, err)
 		}
 		// Delete each TalosMachine associated with the TalosControlPlane
 		for _, machine := range machines.Items {
-			if err := r.Delete(ctx, &machine); err != nil && !kerrors.IsNotFound(err) {
+			if err := r.Client.Delete(ctx, &machine); err != nil && !kerrors.IsNotFound(err) {
 				logger.Error(err, "Failed to delete TalosMachine", "name", machine.Name)
 				return ctrl.Result{}, fmt.Errorf("failed to delete TalosMachine %s for TalosControlPlane %s: %w", machine.Name, tcp.Name, err)
 			}
 		}
 		// Wait for the TalosMachines to be deleted
 		remaining := &talosv1alpha1.TalosMachineList{}
-		if err := r.List(ctx, remaining, opts...); err != nil {
+		if err := r.Client.List(ctx, remaining, opts...); err != nil {
 			logger.Error(err, "Failed to list remaining TalosMachines for TalosControlPlane", "name", tcp.Name)
 			return ctrl.Result{}, fmt.Errorf("failed to list remaining TalosMachines for TalosControlPlane %s: %w", tcp.Name, err)
 		}
@@ -1008,7 +1024,7 @@ func (r *TalosControlPlaneReconciler) handleDelete(ctx context.Context, tcp *tal
 	}
 	// Remove the finalizer from the TalosControlPlane
 	controllerutil.RemoveFinalizer(tcp, talosv1alpha1.TalosControlPlaneFinalizer)
-	if err := r.Update(ctx, tcp); err != nil {
+	if err := r.Client.Update(ctx, tcp); err != nil {
 		logger.Error(err, "Failed to remove finalizer from TalosControlPlane", "name", tcp.Name)
 		return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from TalosControlPlane %s: %w", tcp.Name, err)
 	}
@@ -1023,7 +1039,7 @@ func (r *TalosControlPlaneReconciler) handleContainerModeDelete(ctx context.Cont
 	// Namespace: tcp.Namespace,
 	// },
 	// }
-	// if err := r.Delete(ctx, sts); err != nil && !kerrors.IsNotFound(err) {
+	// if err := r.Client.Delete(ctx, sts); err != nil && !kerrors.IsNotFound(err) {
 	// logger.Error(err, "Failed to delete StatefulSet for TalosControlPlane", "name", tcp.Name)
 	// return ctrl.Result{}, fmt.Errorf("failed to delete StatefulSet for TalosControlPlane %s: %w", tcp.Name, err)
 	// }
@@ -1036,7 +1052,7 @@ func (r *TalosControlPlaneReconciler) handleContainerModeDelete(ctx context.Cont
 	// Namespace: tcp.Namespace,
 	// },
 	// }
-	// if err := r.Delete(ctx, svc); err != nil && !kerrors.IsNotFound(err) {
+	// if err := r.Client.Delete(ctx, svc); err != nil && !kerrors.IsNotFound(err) {
 	// logger.Error(err, "Failed to delete Service for TalosControlPlane", "name", svcName)
 	// return ctrl.Result{}, fmt.Errorf("failed to delete Service %s for TalosControlPlane %s: %w", svcName, tcp.Name, err)
 	// }
@@ -1048,7 +1064,7 @@ func (r *TalosControlPlaneReconciler) handleContainerModeDelete(ctx context.Cont
 	// Namespace: tcp.Namespace,
 	// },
 	// }
-	// if err := r.Delete(ctx, controlPlaneSvc); err != nil && !kerrors.IsNotFound(err) {
+	// if err := r.Client.Delete(ctx, controlPlaneSvc); err != nil && !kerrors.IsNotFound(err) {
 	// logger.Error(err, "Failed to delete control plane Service for TalosControlPlane", "name", tcp.Name)
 	// return ctrl.Result{}, fmt.Errorf("failed to delete control plane Service for TalosControlPlane %s: %w", tcp.Name, err)
 	// }
@@ -1060,7 +1076,7 @@ func (r *TalosControlPlaneReconciler) updateState(ctx context.Context, tcp *talo
 		return nil
 	}
 	tcp.Status.State = state
-	if err := r.Status().Update(ctx, tcp); err != nil {
+	if err := r.Client.Status().Update(ctx, tcp); err != nil {
 		return fmt.Errorf("failed to update TalosControlPlane %s status to %s: %w", tcp.Name, state, err)
 
 	}
@@ -1092,7 +1108,7 @@ func (r *TalosControlPlaneReconciler) getReconciliationMode(ctx context.Context,
 
 func (r *TalosControlPlaneReconciler) GetConfigMapData(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (*string, error) {
 	cm := &corev1.ConfigMap{}
-	if err := r.Get(ctx, client.ObjectKey{
+	if err := r.Client.Get(ctx, client.ObjectKey{
 		Name:      tcp.Spec.ConfigRef.Name,
 		Namespace: tcp.Namespace,
 	}, cm); err != nil {
