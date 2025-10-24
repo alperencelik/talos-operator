@@ -789,6 +789,10 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 }
 
 func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
+	// If it's installing skip writing the kubeconfig
+	if tcp.Status.State == talosv1alpha1.StateInstalling {
+		return nil
+	}
 	config, err := r.SetConfig(ctx, tcp)
 	if err != nil {
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
