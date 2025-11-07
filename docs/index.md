@@ -6,7 +6,7 @@
 
 ## Why use talos-operator?
 
-Talos Linux is great choice for running Kubernetes clusters due to it's minimalistic design and being an API-driven OS. However, creating and managing the lifecycle of Talos clusters can be challenging because it's only available to Talos CLI. Maintaiing the artifacts, secrets and configuration files for Talos clusters can be cumbersome. talos-operator aims to solve these problems by providing a Kubernetes-native way to manage Talos clusters. For further information, please refer to the [motivation](##motivation) section of the documentation.
+Talos Linux is great choice for running Kubernetes clusters due to it's minimalistic design and being an API-driven OS. However, creating and managing the lifecycle of Talos clusters can be challenging because it's only available to Talos CLI. Maintaiing the artifacts, secrets and configuration files for Talos clusters can be cumbersome. talos-operator aims to solve these problems by providing a Kubernetes-native way to manage Talos clusters. For further information, please refer to the [motivation](#motivation) section of the documentation.
 
 ## Motivation
 
