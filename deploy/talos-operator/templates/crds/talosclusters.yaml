@@ -47,7 +47,7 @@ spec:
                     pattern: ^([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+[a-z]{2,}$
                     type: string
                   configRef:
-                    description: Reference to a ConfigMap containing the Talos cluster
+                    description: Reference to a ConfigMap containing the Talos controlplane
                       configuration
                     properties:
                       key:

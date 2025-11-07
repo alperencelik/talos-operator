@@ -86,7 +86,7 @@ type TalosControlPlaneSpec struct {
 	ServiceCIDR []string `json:"serviceCIDR,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// Reference to a ConfigMap containing the Talos cluster configuration
+	// Reference to a ConfigMap containing the Talos controlplane configuration
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
 }
 
@@ -122,6 +122,8 @@ type TalosControlPlaneStatus struct {
 	Config       string             `json:"config,omitempty"`       // Reference to the Talos configuration used for the control plane
 	SecretBundle string             `json:"secretBundle,omitempty"` // Reference to the secrets bundle used for the control plane
 	BundleConfig string             `json:"bundleConfig,omitempty"` // Reference to the bundle configuration used for the control plane
+	// Imported is only valid when ReconcileMode is 'import' and indicates whether the Talos control plane has been imported
+	Imported *bool `json:"imported,omitempty"`
 	// ObservedKubeVersion is the observed version of Kubernetes.
 	// +kubebuilder:validation:Optional
 	ObservedKubeVersion string `json:"observedKubeVersion,omitempty"`

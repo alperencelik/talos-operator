@@ -81,6 +81,8 @@ type TalosWorkerStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	Config     string             `json:"config,omitempty"` // Serialized Talos configuration for the worker
+	// Imported is only valid when ReconcileMode is 'import' and indicates whether the Talos control plane has been imported
+	Imported *bool `json:"imported,omitempty"`
 	// State represents the current state of the Talos worker
 	State string `json:"state,omitempty"` // e.g., "Ready", "Provisioning", "Failed"
 }

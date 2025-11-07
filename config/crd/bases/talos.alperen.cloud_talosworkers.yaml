@@ -264,6 +264,10 @@ spec:
                 type: array
               config:
                 type: string
+              imported:
+                description: Imported is only valid when ReconcileMode is 'import'
+                  and indicates whether the Talos control plane has been imported
+                type: boolean
               state:
                 description: State represents the current state of the Talos worker
                 type: string

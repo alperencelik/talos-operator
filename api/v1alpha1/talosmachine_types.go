@@ -93,6 +93,8 @@ type TalosMachineStatus struct {
 	ObservedVersion string `json:"observedVersion,omitempty"` // The version of Talos running on this machine
 	// Important: Run "make" to regenerate code after modifying this file
 	Config string `json:"config,omitempty"` // Base64 encoded Talos configuration
+	// Imported is only valid when ReconcileMode is 'import' and indicates whether the Talos machine has been imported
+	Imported *bool `json:"imported,omitempty"`
 
 	State string `json:"state,omitempty"` // e.g., "Ready", "Provisioning", "Failed"
 	// Conditions represent the latest available observations of a TalosMachine's current state.

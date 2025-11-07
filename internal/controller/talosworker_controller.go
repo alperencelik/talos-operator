@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -121,6 +122,12 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	case ReconcileModeDryRun:
 		logger.Info("Dry run mode is not implemented yet, skipping reconciliation", "name", tw.Name, "namespace", tw.Namespace)
 		return ctrl.Result{}, nil
+	case ReconcileModeImport:
+		// If user would like to import existing TalosWorker run specific logic
+		if tw.Status.Imported == nil || !*tw.Status.Imported {
+			// Update the imported condition with True status
+			return r.ImportExistingTalosWorker(ctx, &tw)
+		}
 	case ReconcileModeNormal:
 		// Do nothing, proceed with reconciliation
 	}
@@ -232,8 +239,17 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 	// Create or update machines
 	for _, machine := range tw.Spec.MetalSpec.Machines {
 		name := fmt.Sprintf("%s-%s", tw.Name, machine)
+		// If the talosWorker is imported, then add an annotation to the TalosMachine
+		var annotations map[string]string
+		if tw.Status.Imported != nil && *tw.Status.Imported {
+			annotations = map[string]string{
+				ReconcileModeAnnotation: ReconcileModeImport,
+			}
+		} else {
+			annotations = nil
+		}
 		tm := &talosv1alpha1.TalosMachine{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: tw.Namespace},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: tw.Namespace, Annotations: annotations},
 		}
 		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, tm, func() error {
 			if err := controllerutil.SetControllerReference(tw, tm, r.Scheme); err != nil {
@@ -624,8 +640,42 @@ func (r *TalosWorkerReconciler) getReconciliationMode(ctx context.Context, tw *t
 	case ReconcileModeDryRun:
 		logger.Info("Reconciliation mode is set to DryRun")
 		return ReconcileModeDryRun
+	case ReconcileModeImport:
+		logger.Info("Reconciliation mode is set to Import")
+		return ReconcileModeImport
 	default:
 		logger.Info("Unknown reconciliation mode, defaulting to Normal")
 		return ReconcileModeNormal
 	}
+}
+
+func (r *TalosWorkerReconciler) ImportExistingTalosWorker(ctx context.Context, tw *talosv1alpha1.TalosWorker) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Importing existing TalosWorker", "name", tw.Name)
+	// The container mode does not support import yet
+	if tw.Spec.Mode == TalosModeContainer {
+		return ctrl.Result{}, fmt.Errorf("importing existing TalosWorker in container mode is not supported yet")
+	}
+	// ConfigRef must be set for import
+	if tw.Spec.ConfigRef == nil {
+		return ctrl.Result{}, fmt.Errorf("ConfigRef must be set for importing existing TalosWorker %s", tw.Name)
+	}
+	if err := r.GenerateConfig(ctx, tw); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to generate config for TalosWorker %s during import: %w", tw.Name, err)
+	}
+	// Update the imported condition with True status
+	if err := r.updateState(ctx, tw, talosv1alpha1.StateReady); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosWorker %s state to ready during import: %w", tw.Name, err)
+	}
+	// Update the imported status
+	tw.Status.Imported = ptr.To(true)
+	if err := r.Status().Update(ctx, tw); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosWorker %s status during import: %w", tw.Name, err)
+	}
+	logger.Info("Successfully imported existing TalosWorker", "name", tw.Name)
+	// Fire an event to indicate successful import
+	r.Recorder.Eventf(tw, corev1.EventTypeNormal, "Imported", "Successfully imported existing TalosWorker %s", tw.Name)
+	// Requeue so that the normal reconciliation can proceed after import
+	return ctrl.Result{Requeue: true}, nil
+
 }
