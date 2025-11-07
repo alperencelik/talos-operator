@@ -43,7 +43,7 @@ spec:
                 pattern: ^([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+[a-z]{2,}$
                 type: string
               configRef:
-                description: Reference to a ConfigMap containing the Talos cluster
+                description: Reference to a ConfigMap containing the Talos controlplane
                   configuration
                 properties:
                   key:
@@ -263,6 +263,10 @@ spec:
                 type: array
               config:
                 type: string
+              imported:
+                description: Imported is only valid when ReconcileMode is 'import'
+                  and indicates whether the Talos control plane has been imported
+                type: boolean
               observedKubeVersion:
                 description: ObservedKubeVersion is the observed version of Kubernetes.
                 type: string

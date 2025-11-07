@@ -30,6 +30,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -105,6 +106,11 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	case ReconcileModeDryRun:
 		logger.Info("Dry run mode is not implemented yet, skipping reconciliation", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
 		return ctrl.Result{}, nil
+	case ReconcileModeImport:
+		// Handle import logic here
+		if talosMachine.Status.Imported == nil || !*talosMachine.Status.Imported {
+			return r.ImportExistingMachine(ctx, &talosMachine)
+		}
 	case ReconcileModeNormal:
 		// Do nothing, proceed with reconciliation
 	}
@@ -650,6 +656,9 @@ func (r *TalosMachineReconciler) getReconciliationMode(ctx context.Context, tm *
 	case ReconcileModeDryRun:
 		logger.Info("Reconciliation mode is set to DryRun")
 		return ReconcileModeDryRun
+	case ReconcileModeImport:
+		logger.Info("Reconciliation mode is set to Import")
+		return ReconcileModeImport
 	default:
 		logger.Info("Unknown reconciliation mode, defaulting to Normal")
 		return ReconcileModeNormal
@@ -684,7 +693,7 @@ func (r *TalosMachineReconciler) handleMetaKey(ctx context.Context, tm *talosv1a
 }
 
 func (r *TalosMachineReconciler) GetConfigMapData(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*string, error) {
-	if tm.Spec.ConfigRef == nil {
+	if tm.Spec.ConfigRef != nil {
 		cm := &corev1.ConfigMap{}
 		if err := r.Get(ctx, client.ObjectKey{
 			Name:      tm.Spec.ConfigRef.Name,
@@ -699,4 +708,26 @@ func (r *TalosMachineReconciler) GetConfigMapData(ctx context.Context, tm *talos
 		return &data, nil
 	}
 	return nil, nil
+}
+
+func (r *TalosMachineReconciler) ImportExistingMachine(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	data, err := r.GetConfigMapData(ctx, tm)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get configRef for TalosMachine %s: %w", tm.Name, err)
+	}
+	config := utils.StringToBytePtr(strings.TrimSpace(*data))
+	// Update the status fields with the imported config
+	tm.Status.Config = string(*config)
+	tm.Status.ObservedVersion = tm.Spec.Version
+	tm.Status.Imported = ptr.To(true)
+	tm.Status.State = talosv1alpha1.StateAvailable
+	if err := r.Status().Update(ctx, tm); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status after import: %w", tm.Name, err)
+	}
+	logger.Info("Successfully imported existing TalosMachine", "name", tm.Name)
+	// Fire an event
+	r.Recorder.Event(tm, corev1.EventTypeNormal, "Imported", "Successfully imported existing TalosMachine")
+	// Requeue so that the machine can be reconciled further after import
+	return ctrl.Result{Requeue: true}, nil
 }

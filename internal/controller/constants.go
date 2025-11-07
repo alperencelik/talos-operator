@@ -19,4 +19,7 @@ const (
 	ReconcileModeNormal  = "reconcile"
 	ReconcileModeDisable = "disable"
 	ReconcileModeDryRun  = "dryrun" // TODO: Implement DryRun mode
+
+	// ReconcileModeImport is the mode for importing existing Talos resources
+	ReconcileModeImport = "import"
 )

@@ -1,0 +1,21 @@
+---
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosWorker
+metadata:
+  name: talosworker-sample
+  # This annotation indicates that the existing TalosWorker should be imported
+  annotations:
+    talos.alperen.cloud/reconcile-mode: import
+spec:
+  version: v1.11.3 # Talos version
+  mode: metal # Deployment mode -- can be 'metal' or 'container'
+  kubeVersion: v1.34.1 # Kubernetes version
+  configRef:
+    name: talos-test-cluster-worker
+    key: worker.yaml
+  controlPlaneRef:
+    name: talos-controlplane-import 
+  metalSpec:
+    # List of Talos machines(IP Addresses) in the control plane 
+    machines:
+    - "10.0.153.243"

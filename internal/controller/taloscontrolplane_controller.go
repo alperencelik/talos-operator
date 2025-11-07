@@ -35,6 +35,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -127,6 +128,11 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	case ReconcileModeDryRun:
 		logger.Info("Dry run mode is not implemented yet, skipping reconciliation", "name", tcp.Name, "namespace", tcp.Namespace)
 		return ctrl.Result{}, nil
+	case ReconcileModeImport:
+		// If user would like to import existing TalosControlPlane run special logic and then continue normal reconciliation by setting Imported to true
+		if tcp.Status.Imported == nil || !*tcp.Status.Imported {
+			return r.ImportExistingTalosControlPlane(ctx, &tcp)
+		}
 	case ReconcileModeNormal:
 		// Do nothing, proceed with reconciliation
 	}
@@ -403,8 +409,17 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 	}
 	for _, machine := range tcp.Spec.MetalSpec.Machines {
 		name := fmt.Sprintf("%s-%s", tcp.Name, machine)
+		// If the talosContolPlane is imported then add an annotation to the TalosMachine to indicate that it's imported
+		var annotations map[string]string
+		if tcp.Status.Imported != nil && *tcp.Status.Imported {
+			annotations = map[string]string{
+				ReconcileModeAnnotation: ReconcileModeImport,
+			}
+		} else {
+			annotations = nil
+		}
 		tm := &talosv1alpha1.TalosMachine{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: tcp.Namespace},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: tcp.Namespace, Annotations: annotations},
 		}
 		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, tm, func() error {
 			if err := controllerutil.SetControllerReference(tcp, tm, r.Scheme); err != nil {
@@ -1088,6 +1103,9 @@ func (r *TalosControlPlaneReconciler) getReconciliationMode(ctx context.Context,
 	case ReconcileModeDryRun:
 		logger.Info("Reconciliation mode is set to DryRun")
 		return ReconcileModeDryRun
+	case ReconcileModeImport:
+		logger.Info("Reconciliation mode is set to Import")
+		return ReconcileModeImport
 	default:
 		logger.Info("Unknown reconciliation mode, defaulting to Normal")
 		return ReconcileModeNormal
@@ -1107,4 +1125,35 @@ func (r *TalosControlPlaneReconciler) GetConfigMapData(ctx context.Context, tcp 
 		return nil, fmt.Errorf("key %s not found in ConfigMap %s for TalosMachine %s", tcp.Spec.ConfigRef.Key, tcp.Spec.ConfigRef.Name, tcp.Name)
 	}
 	return &data, nil
+}
+
+func (r *TalosControlPlaneReconciler) ImportExistingTalosControlPlane(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Importing existing TalosControlPlane", "name", tcp.Name)
+	// The container mode is not supported for import
+	if tcp.Spec.Mode == TalosModeContainer {
+		return ctrl.Result{}, fmt.Errorf("importing existing TalosControlPlane in container mode is not supported")
+	}
+	// ConfigRef must be set for import
+	if tcp.Spec.ConfigRef == nil {
+		return ctrl.Result{}, fmt.Errorf("configRef must be set to import existing TalosControlPlane %s", tcp.Name)
+	}
+	// Generate the Talos ControlPlane config
+	if err := r.GenerateConfig(ctx, tcp); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to generate config for TalosControlPlane %s: %w", tcp.Name, err)
+	}
+	// Set bootstrapped state since it's an existing cluster
+	if err := r.updateState(ctx, tcp, talosv1alpha1.StateBootstrapped); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosControlPlane %s status to Bootstrapped: %w", tcp.Name, err)
+	}
+	// Update the imported condition with True status
+	tcp.Status.Imported = ptr.To(true)
+	if err := r.Status().Update(ctx, tcp); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update TalosControlPlane %s status to Imported: %w", tcp.Name, err)
+	}
+	logger.Info("Successfully imported existing TalosControlPlane", "name", tcp.Name)
+	// Fire an event
+	r.Recorder.Eventf(tcp, corev1.EventTypeNormal, "Imported", "Imported existing TalosControlPlane %s", tcp.Name)
+	// Requeue so that the normal reconciliation can proceed after import
+	return ctrl.Result{Requeue: true}, nil
 }

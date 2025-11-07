@@ -289,6 +289,10 @@ spec:
                 description: 'Important: Run "make" to regenerate code after modifying
                   this file'
                 type: string
+              imported:
+                description: Imported is only valid when ReconcileMode is 'import'
+                  and indicates whether the Talos machine has been imported
+                type: boolean
               observedVersion:
                 description: INSERT ADDITIONAL STATUS FIELD - define observed state
                   of cluster
