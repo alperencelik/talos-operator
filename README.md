@@ -26,6 +26,8 @@ Talos Linux is a great choice for running Kubernetes clusters due to its securit
 
 - **Integratibility**: The operator is designed to be easily integratable with other Kubernetes operators and tools. Since the operator generates a Kubeconfig for the created Talos clusters, you can use that data to feed into other tools or operators such as ArgoCD, FluxCD or any other custom Kubernetes invocation. This allows you to use the operator in your existing Kubernetes workflows and tools.
 
+- **Observability & Metrics**: The operator exposes comprehensive Prometheus metrics for monitoring reconciliation operations, cluster health, etcd backups, and Talos API calls. Pre-built Grafana dashboards are included for easy visualization. See [metrics documentation](docs/metrics.md) for details.
+
 ## Getting Started
 
 You can install the `talos-operator` in your Kubernetes cluster using the helm chart under `deploy/talos-operator` directory.
