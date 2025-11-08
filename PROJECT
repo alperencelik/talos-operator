@@ -5,6 +5,8 @@
 domain: alperen.cloud
 layout:
 - go.kubebuilder.io/v4
+plugins:
+  grafana.kubebuilder.io/v1-alpha: {}
 projectName: talos-operator
 repo: github.com/alperencelik/talos-operator
 resources:
