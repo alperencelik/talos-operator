@@ -57,20 +57,9 @@ type TalosClusterReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
 func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	timer := operatormetrics.NewTimer()
-	reconcileResult := "success"
-
-	defer func() {
-		timer.ObserveReconciliation("taloscluster", reconcileResult)
-	}()
 
 	var tc talosv1alpha1.TalosCluster
 	if err := r.Get(ctx, req.NamespacedName, &tc); err != nil {
-		if kerrors.IsNotFound(err) {
-			reconcileResult = "not_found"
-		} else {
-			reconcileResult = "error"
-		}
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	// Finalizer logic
@@ -118,17 +107,14 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	res, err := r.reconcileControlPlane(ctx, &tc)
 	if err != nil {
 		logger.Error(err, "failed to reconcile control plane", "name", tc.Name, "namespace", tc.Namespace)
-		reconcileResult = "error"
 	}
 	if res.Requeue {
-		reconcileResult = "requeue"
 		return res, nil
 	}
 	// Worker reconciliation
 	res, err = r.reconcileWorker(ctx, &tc)
 	if err != nil {
 		logger.Error(err, "failed to reconcile worker", "name", tc.Name, "namespace", tc.Namespace)
-		reconcileResult = "error"
 	}
 
 	// Update cluster health metric based on status
@@ -142,9 +128,6 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 	operatormetrics.SetResourceStatus("taloscluster", tc.Namespace, tc.Name, status, 1.0)
 
-	if res.Requeue {
-		reconcileResult = "requeue"
-	}
 	return res, nil
 
 }

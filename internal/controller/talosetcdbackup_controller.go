@@ -35,7 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
-	operatormetrics "github.com/alperencelik/talos-operator/internal/metrics"
 )
 
 // TalosEtcdBackupReconciler reconciles a TalosEtcdBackup object
@@ -61,21 +60,9 @@ type TalosEtcdBackupReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.1/pkg/reconcile
 func (r *TalosEtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx)
-	timer := operatormetrics.NewTimer()
-	backupStatus := "success"
-
-	defer func() {
-		if backupStatus != "not_found" {
-			duration := timer.ObserveDuration()
-			operatormetrics.RecordEtcdBackup(req.Namespace, req.Name, backupStatus, duration, 0)
-		}
-	}()
 
 	var teb talosv1alpha1.TalosEtcdBackup
 	if err := r.Get(ctx, req.NamespacedName, &teb); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			backupStatus = "not_found"
-		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	// Finalizer logic
@@ -124,7 +111,6 @@ func (r *TalosEtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	// Perform the backup
 	if err := r.performBackup(ctx, &teb); err != nil {
 		logger.Error(err, "Failed to perform backup")
-		backupStatus = "failed"
 
 		// Set failed condition
 		meta.SetStatusCondition(&teb.Status.Conditions, metav1.Condition{

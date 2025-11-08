@@ -50,18 +50,9 @@ type TalosEtcdBackupScheduleReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop
 func (r *TalosEtcdBackupScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx)
-	timer := operatormetrics.NewTimer()
-	reconcileResult := "success"
-
-	defer func() {
-		timer.ObserveReconciliation("talosetcdbackupschedule", reconcileResult)
-	}()
 
 	var schedule talosv1alpha1.TalosEtcdBackupSchedule
 	if err := r.Get(ctx, req.NamespacedName, &schedule); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			reconcileResult = "not_found"
-		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -173,7 +164,6 @@ func (r *TalosEtcdBackupScheduleReconciler) Reconcile(ctx context.Context, req c
 
 	if err := r.Status().Update(ctx, &schedule); err != nil {
 		logger.Error(err, "Failed to update status")
-		reconcileResult = "error"
 		return ctrl.Result{}, err
 	}
 
@@ -184,7 +174,6 @@ func (r *TalosEtcdBackupScheduleReconciler) Reconcile(ctx context.Context, req c
 	}
 
 	logger.Info("Next backup scheduled", "time", nextSchedule, "requeueAfter", requeueAfter)
-	reconcileResult = "requeue"
 
 	// Update resource status metric
 	ready := meta.IsStatusConditionTrue(schedule.Status.Conditions, talosv1alpha1.ConditionReady)

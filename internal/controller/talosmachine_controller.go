@@ -62,21 +62,10 @@ type TalosMachineReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
 func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	timer := operatormetrics.NewTimer()
-	reconcileResult := "success"
-
-	defer func() {
-		timer.ObserveReconciliation("talosmachine", reconcileResult)
-	}()
 
 	// Get the machine object and decide whether it's a control plane or worker machine
 	var talosMachine talosv1alpha1.TalosMachine
 	if err := r.Get(ctx, req.NamespacedName, &talosMachine); err != nil {
-		if kerrors.IsNotFound(err) {
-			reconcileResult = "not_found"
-		} else {
-			reconcileResult = "error"
-		}
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	logger.Info("Reconciling TalosMachine", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
@@ -171,11 +160,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		res, err := r.handleWorkerMachine(ctx, &talosMachine)
 		if err != nil {
 			logger.Error(err, "Error handling Worker machine", "name", talosMachine.Name)
-			reconcileResult = "error"
 			return ctrl.Result{}, err
-		}
-		if res.Requeue {
-			reconcileResult = "requeue"
 		}
 
 		// Update resource status metric

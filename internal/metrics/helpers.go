@@ -17,21 +17,12 @@ limitations under the License.
 package metrics
 
 import (
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// RecordReconciliation records a reconciliation operation
-func RecordReconciliation(controller string, result string, duration time.Duration) {
-	ReconciliationTotal.WithLabelValues(controller, result).Inc()
-	ReconciliationDuration.WithLabelValues(controller).Observe(duration.Seconds())
-}
-
 // RecordTalosAPICall records a Talos API call
-func RecordTalosAPICall(operation string, result string, duration time.Duration) {
-	TalosAPICallsTotal.WithLabelValues(operation, result).Inc()
-	TalosAPICallDuration.WithLabelValues(operation).Observe(duration.Seconds())
+func RecordTalosAPICall(operation string) {
+	TalosAPICallsTotal.WithLabelValues(operation).Inc()
 }
 
 // SetResourceStatus sets the status of a resource
@@ -45,9 +36,8 @@ func SetResourceTotal(resourceType, namespace string, count float64) {
 }
 
 // RecordEtcdBackup records an etcd backup operation
-func RecordEtcdBackup(namespace, name, status string, duration time.Duration, size float64) {
-	EtcdBackupTotal.WithLabelValues(namespace, name, status).Inc()
-	EtcdBackupDuration.WithLabelValues(namespace, name).Observe(duration.Seconds())
+func RecordEtcdBackup(namespace, name string, size float64) {
+	EtcdBackupTotal.WithLabelValues(namespace, name).Inc()
 	if size > 0 {
 		EtcdBackupSize.WithLabelValues(namespace, name).Set(size)
 	}
@@ -65,31 +55,6 @@ func SetClusterHealth(namespace, name string, healthy bool) {
 		value = 1.0
 	}
 	ClusterHealthGauge.WithLabelValues(namespace, name).Set(value)
-}
-
-// Timer is a helper for timing operations
-type Timer struct {
-	start time.Time
-}
-
-// NewTimer creates a new timer
-func NewTimer() *Timer {
-	return &Timer{start: time.Now()}
-}
-
-// ObserveDuration observes the duration since timer creation
-func (t *Timer) ObserveDuration() time.Duration {
-	return time.Since(t.start)
-}
-
-// ObserveReconciliation observes and records a reconciliation duration
-func (t *Timer) ObserveReconciliation(controller, result string) {
-	RecordReconciliation(controller, result, t.ObserveDuration())
-}
-
-// ObserveTalosAPICall observes and records a Talos API call duration
-func (t *Timer) ObserveTalosAPICall(operation, result string) {
-	RecordTalosAPICall(operation, result, t.ObserveDuration())
 }
 
 // DeleteResourceMetrics deletes metrics for a specific resource

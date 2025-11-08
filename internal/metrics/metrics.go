@@ -22,25 +22,6 @@ import (
 )
 
 var (
-	// ReconciliationTotal tracks the total number of reconciliations per controller
-	ReconciliationTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "talos_operator_reconciliation_total",
-			Help: "Total number of reconciliations per controller",
-		},
-		[]string{"controller", "result"},
-	)
-
-	// ReconciliationDuration tracks the duration of reconciliation operations
-	ReconciliationDuration = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "talos_operator_reconciliation_duration_seconds",
-			Help:    "Duration of reconciliation operations in seconds",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"controller"},
-	)
-
 	// ResourceStatus tracks the current status of resources
 	ResourceStatus = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -65,16 +46,6 @@ var (
 			Name: "talos_operator_talos_api_calls_total",
 			Help: "Total number of Talos API calls",
 		},
-		[]string{"operation", "result"},
-	)
-
-	// TalosAPICallDuration tracks the duration of Talos API calls
-	TalosAPICallDuration = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "talos_operator_talos_api_call_duration_seconds",
-			Help:    "Duration of Talos API calls in seconds",
-			Buckets: prometheus.DefBuckets,
-		},
 		[]string{"operation"},
 	)
 
@@ -83,16 +54,6 @@ var (
 		prometheus.CounterOpts{
 			Name: "talos_operator_etcd_backup_total",
 			Help: "Total number of etcd backup operations",
-		},
-		[]string{"namespace", "name", "status"},
-	)
-
-	// EtcdBackupDuration tracks the duration of etcd backup operations
-	EtcdBackupDuration = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "talos_operator_etcd_backup_duration_seconds",
-			Help:    "Duration of etcd backup operations in seconds",
-			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"namespace", "name"},
 	)
@@ -128,14 +89,10 @@ var (
 // init registers all custom metrics with the controller-runtime metrics registry
 func init() {
 	metrics.Registry.MustRegister(
-		ReconciliationTotal,
-		ReconciliationDuration,
 		ResourceStatus,
 		ResourceTotal,
 		TalosAPICallsTotal,
-		TalosAPICallDuration,
 		EtcdBackupTotal,
-		EtcdBackupDuration,
 		EtcdBackupSize,
 		MachineReadyGauge,
 		ClusterHealthGauge,

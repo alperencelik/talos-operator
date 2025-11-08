@@ -4,20 +4,6 @@ The Talos Operator exposes custom Prometheus metrics to provide observability in
 
 ## Metrics Overview
 
-### Reconciliation Metrics
-
-These metrics track controller reconciliation operations:
-
-- **`talos_operator_reconciliation_total`** (Counter)
-  - Labels: `controller`, `result`
-  - Total number of reconciliation operations per controller
-  - Result values: `success`, `error`, `requeue`, `not_found`
-
-- **`talos_operator_reconciliation_duration_seconds`** (Histogram)
-  - Labels: `controller`
-  - Duration of reconciliation operations in seconds
-  - Controllers: `taloscluster`, `taloscontrolplane`, `talosworker`, `talosmachine`, `talosetcdbackup`, `talosetcdbackupschedule`
-
 ### Resource Status Metrics
 
 These metrics track the state of Talos resources:
@@ -46,26 +32,16 @@ These metrics track the state of Talos resources:
 These metrics track interactions with the Talos API:
 
 - **`talos_operator_talos_api_calls_total`** (Counter)
-  - Labels: `operation`, `result`
-  - Total number of Talos API calls
-  - Result values: `success`, `error`
-
-- **`talos_operator_talos_api_call_duration_seconds`** (Histogram)
   - Labels: `operation`
-  - Duration of Talos API calls in seconds
+  - Total number of Talos API calls
 
 ### Etcd Backup Metrics
 
 These metrics track etcd backup operations:
 
 - **`talos_operator_etcd_backup_total`** (Counter)
-  - Labels: `namespace`, `name`, `status`
-  - Total number of etcd backup operations
-  - Status values: `success`, `failed`
-
-- **`talos_operator_etcd_backup_duration_seconds`** (Histogram)
   - Labels: `namespace`, `name`
-  - Duration of etcd backup operations in seconds
+  - Total number of etcd backup operations
 
 - **`talos_operator_etcd_backup_size_bytes`** (Gauge)
   - Labels: `namespace`, `name`
@@ -108,38 +84,29 @@ A ServiceMonitor resource is available in `config/prometheus/monitor.yaml` for a
 
 ### Example PromQL Queries
 
-**Reconciliation success rate:**
-```promql
-rate(talos_operator_reconciliation_total{result="success"}[5m]) / 
-rate(talos_operator_reconciliation_total[5m])
-```
-
-**95th percentile reconciliation duration:**
-```promql
-histogram_quantile(0.95, 
-  sum by(controller, le) (
-    rate(talos_operator_reconciliation_duration_seconds_bucket[5m])
-  )
-)
-```
-
 **Total number of ready clusters:**
 ```promql
 sum(talos_operator_cluster_health == 1)
 ```
 
-**Etcd backup failure rate:**
+**Total number of resources by type:**
 ```promql
-rate(talos_operator_etcd_backup_total{status="failed"}[5m])
+sum by(resource_type) (talos_operator_resource_total)
 ```
 
-**Talos API call latency:**
+**Total Talos API calls:**
 ```promql
-histogram_quantile(0.95,
-  sum by(operation, le) (
-    rate(talos_operator_talos_api_call_duration_seconds_bucket[5m])
-  )
-)
+rate(talos_operator_talos_api_calls_total[5m])
+```
+
+**Etcd backup operations:**
+```promql
+rate(talos_operator_etcd_backup_total[5m])
+```
+
+**Etcd backup size:**
+```promql
+talos_operator_etcd_backup_size_bytes
 ```
 
 ## Alerting Rules
@@ -150,26 +117,6 @@ Here are some recommended Prometheus alerting rules:
 groups:
   - name: talos-operator
     rules:
-      - alert: TalosOperatorHighReconciliationFailures
-        expr: |
-          rate(talos_operator_reconciliation_total{result="error"}[5m]) > 0.1
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High reconciliation failure rate for {{ $labels.controller }}"
-          description: "Controller {{ $labels.controller }} is experiencing a high failure rate"
-
-      - alert: TalosOperatorEtcdBackupFailed
-        expr: |
-          increase(talos_operator_etcd_backup_total{status="failed"}[5m]) > 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Etcd backup failed for {{ $labels.namespace }}/{{ $labels.name }}"
-          description: "Etcd backup operation has failed"
-
       - alert: TalosOperatorClusterUnhealthy
         expr: |
           talos_operator_cluster_health == 0
@@ -179,6 +126,16 @@ groups:
         annotations:
           summary: "Talos cluster {{ $labels.namespace }}/{{ $labels.name }} is unhealthy"
           description: "Cluster has been unhealthy for more than 10 minutes"
+      
+      - alert: TalosOperatorNoReadyMachines
+        expr: |
+          talos_operator_machine_ready == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No ready machines in cluster {{ $labels.namespace }}/{{ $labels.cluster }}"
+          description: "Cluster has no ready machines"
 ```
 
 ## Development

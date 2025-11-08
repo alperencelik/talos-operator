@@ -79,20 +79,9 @@ const (
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
 func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	timer := operatormetrics.NewTimer()
-	reconcileResult := "success"
-
-	defer func() {
-		timer.ObserveReconciliation("taloscontrolplane", reconcileResult)
-	}()
 
 	var tcp talosv1alpha1.TalosControlPlane
 	if err := r.Get(ctx, req.NamespacedName, &tcp); err != nil {
-		if kerrors.IsNotFound(err) {
-			reconcileResult = "not_found"
-		} else {
-			reconcileResult = "error"
-		}
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 
@@ -175,11 +164,9 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if err != nil {
 		logger.Error(err, "failed to reconcile kube version", "name", tcp.Name, "namespace", tcp.Namespace)
 		r.Recorder.Event(&tcp, corev1.EventTypeWarning, "KubeVersionReconciliationFailed", "Failed to reconcile kube version")
-		reconcileResult = "error"
 		return result, err
 	}
 	if result.Requeue {
-		reconcileResult = "requeue"
 		return result, nil
 	}
 
