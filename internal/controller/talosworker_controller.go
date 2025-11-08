@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
+	operatormetrics "github.com/alperencelik/talos-operator/internal/metrics"
 	"github.com/alperencelik/talos-operator/pkg/talos"
 	"github.com/alperencelik/talos-operator/pkg/utils"
 )
@@ -66,10 +67,21 @@ type TalosWorkerReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
 func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	timer := operatormetrics.NewTimer()
+	reconcileResult := "success"
+
+	defer func() {
+		timer.ObserveReconciliation("talosworker", reconcileResult)
+	}()
 
 	var tw talosv1alpha1.TalosWorker
 	if err := r.Get(ctx, req.NamespacedName, &tw); err != nil {
 		// If the resource is not found, we simply return and do not requeue.
+		if kerrors.IsNotFound(err) {
+			reconcileResult = "not_found"
+		} else {
+			reconcileResult = "error"
+		}
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	// Finalizer
@@ -146,7 +158,20 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		result, err = r.reconcileMetalMode(ctx, &tw)
 		if err != nil {
 			logger.Error(err, "failed to reconcile TalosWorker in metal mode", "name", tw.Name)
+			reconcileResult = "error"
 		}
+		if result.Requeue {
+			reconcileResult = "requeue"
+		}
+
+		// Update resource status metric
+		ready := meta.IsStatusConditionTrue(tw.Status.Conditions, talosv1alpha1.ConditionReady)
+		status := "not_ready"
+		if ready {
+			status = "ready"
+		}
+		operatormetrics.SetResourceStatus("talosworker", tw.Namespace, tw.Name, status, 1.0)
+
 		return result, nil
 	default:
 		logger.Error(nil, "unsupported TalosWorker mode", "mode", tw.Spec.Mode)
