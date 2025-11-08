@@ -1,0 +1,47 @@
+---
+customMetrics:
+  # Reconciliation metrics
+  - metric: talos_operator_reconciliation_total
+    type: counter
+    unit: none
+  - metric: talos_operator_reconciliation_duration_seconds
+    type: histogram
+    unit: s
+    expr: histogram_quantile(0.95, sum by(controller, le) (rate(talos_operator_reconciliation_duration_seconds_bucket{job="$job", namespace="$namespace"}[5m])))
+  
+  # Resource status metrics
+  - metric: talos_operator_resource_status
+    type: gauge
+    unit: none
+  - metric: talos_operator_resource_total
+    type: gauge
+    unit: none
+  
+  # Talos API metrics
+  - metric: talos_operator_talos_api_calls_total
+    type: counter
+    unit: none
+  - metric: talos_operator_talos_api_call_duration_seconds
+    type: histogram
+    unit: s
+    expr: histogram_quantile(0.95, sum by(operation, le) (rate(talos_operator_talos_api_call_duration_seconds_bucket{job="$job", namespace="$namespace"}[5m])))
+  
+  # Etcd backup metrics
+  - metric: talos_operator_etcd_backup_total
+    type: counter
+    unit: none
+  - metric: talos_operator_etcd_backup_duration_seconds
+    type: histogram
+    unit: s
+    expr: histogram_quantile(0.95, sum by(namespace, name, le) (rate(talos_operator_etcd_backup_duration_seconds_bucket{job="$job", namespace="$namespace"}[5m])))
+  - metric: talos_operator_etcd_backup_size_bytes
+    type: gauge
+    unit: bytes
+  
+  # Machine and cluster health metrics
+  - metric: talos_operator_machine_ready
+    type: gauge
+    unit: none
+  - metric: talos_operator_cluster_health
+    type: gauge
+    unit: none

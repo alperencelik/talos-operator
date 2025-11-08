@@ -42,6 +42,7 @@ import (
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/internal/controller"
+	_ "github.com/alperencelik/talos-operator/internal/metrics"
 	"github.com/alperencelik/talos-operator/pkg/talos"
 	// +kubebuilder:scaffold:imports
 )
