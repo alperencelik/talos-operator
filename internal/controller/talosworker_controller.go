@@ -213,6 +213,11 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 
 func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
 	logger := log.FromContext(ctx)
+
+	machineIPAddresses, err := getMachinesIPAddresses(ctx, r.Client, &tw.Spec.MetalSpec.Machines)
+	if err != nil {
+		return fmt.Errorf("failed to get machine IP addresses for TalosWorker %s: %w", tw.Name, err)
+	}
 	// List existing ones
 	existing := &talosv1alpha1.TalosMachineList{}
 	if err := r.List(ctx, existing, client.InNamespace(tw.Namespace),
@@ -222,8 +227,8 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 	}
 	// Desired state
 	desired := make(map[string]bool)
-	for _, ep := range tw.Spec.MetalSpec.Machines {
-		desired[fmt.Sprintf("%s-%s", tw.Name, ep)] = true
+	for _, ip := range machineIPAddresses {
+		desired[fmt.Sprintf("%s-%s", tw.Name, ip)] = true
 	}
 	// Delete orphaned machines
 	for _, m := range existing.Items {
@@ -237,8 +242,8 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 		}
 	}
 	// Create or update machines
-	for _, machine := range tw.Spec.MetalSpec.Machines {
-		name := fmt.Sprintf("%s-%s", tw.Name, machine)
+	for _, ip := range machineIPAddresses {
+		name := fmt.Sprintf("%s-%s", tw.Name, ip)
 		// If the talosWorker is imported, then add an annotation to the TalosMachine
 		var annotations map[string]string
 		if tw.Status.Imported != nil && *tw.Status.Imported {
@@ -262,7 +267,7 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 					Namespace:  tw.Namespace,
 					APIVersion: talosv1alpha1.GroupVersion.String(),
 				},
-				Endpoint:    machine,
+				Endpoint:    ip,
 				Version:     tw.Spec.Version,
 				MachineSpec: tw.Spec.MetalSpec.MachineSpec,
 				ConfigRef:   tw.Spec.ConfigRef,
@@ -471,7 +476,11 @@ func (r *TalosWorkerReconciler) SetConfig(ctx context.Context, tw *talosv1alpha1
 	}
 	var ClientEndpoint []string
 	if tw.Spec.Mode == TalosModeMetal {
-		ClientEndpoint = tw.Spec.MetalSpec.Machines
+		ipAddresses, err := getMachinesIPAddresses(ctx, r.Client, &tw.Spec.MetalSpec.Machines)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get machine IP addresses for TalosWorker %s: %w", tw.Name, err)
+		}
+		ClientEndpoint = ipAddresses
 	}
 	var endpoint string
 	// Construct endpoint

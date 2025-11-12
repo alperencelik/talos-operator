@@ -92,10 +92,34 @@ type TalosControlPlaneSpec struct {
 
 type MetalSpec struct {
 	// Machines is a list of machine specifications for the Talos control plane.
-	Machines []string `json:"machines,omitempty"`
+	Machines []Machine `json:"machines,omitempty"`
 	// MachineSpec defines the specifications for each Talos control plane machine.
 	// +kubebuilder:validation:Optional
 	MachineSpec *MachineSpec `json:"machineSpec,omitempty"`
+}
+
+// +kubebuilder:validation:XValidation:rule="has(self.address) != has(self.machineRef)",message="address and machineRef are mutually exclusive"
+type Machine struct {
+	// Address is the IP address of the Talos machine.
+	// +kubebuilder:validation:Pattern=`^(\d{1,3}\.){3}\d{1,3}$`
+	Address *string `json:"address,omitempty"`
+	// MachineRef is a reference to a Kubernetes object from which the machine IP address can be extracted.
+	// +kubebuilder:validation:Optional
+	MachineRef *ObjectRef `json:"machineRef,omitempty"`
+}
+
+// TODO: Think about using the v1.ObjectReference here
+type ObjectRef struct {
+	// APIVersion of the referenced object.
+	APIVersion string `json:"apiVersion,omitempty"`
+	// Kind of the referenced object.
+	Kind string `json:"kind,omitempty"`
+	// Name of the referenced object.
+	Name string `json:"name,omitempty"`
+	// Namespace of the referenced object.
+	Namespace string `json:"namespace,omitempty"`
+	// FieldPath is the field path within the referenced object.
+	FieldPath string `json:"fieldPath,omitempty"`
 }
 
 // META is network metadata for Talos machines

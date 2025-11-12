@@ -13,5 +13,5 @@ spec:
   metalSpec:
     # List of Talos machines(IP Addresses) in the control plane 
     machines:
-    - "10.0.153.58"
-    - "10.0.153.59"
+    - address: "10.0.153.58"
+    - address: "10.0.153.59"
