@@ -88,15 +88,12 @@ func getMachineIPAddress(ctx context.Context, c client.Client, machine *talosv1a
 				"fieldPath", fieldPath,
 				"valueType", reflect.TypeOf(value))
 		}
-
 		// If no results were found
 		logger.Info("IP address not found using JSONPath",
 			"machine", macRef.Name,
 			"referencedObject", obj.GetName(),
 			"fieldPath", fieldPath)
 		return nil, nil
-
-		// --- End of Completed Code ---
 	}
 	return nil, nil
 }
@@ -108,7 +105,10 @@ func getMachinesIPAddresses(ctx context.Context, c client.Client, machines *[]ta
 		if err != nil {
 			return nil, err
 		}
-		if ip != nil {
+		if ip == nil {
+			// Need to return error here because we can't continue without IPs for all machines
+			return nil, fmt.Errorf("could not determine IP address for machine %+v", machine)
+		} else {
 			ips = append(ips, *ip)
 		}
 	}
