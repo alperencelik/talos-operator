@@ -384,6 +384,11 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 
 func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
 	logger := log.FromContext(ctx)
+
+	machineIPAddresses, err := getMachinesIPAddresses(ctx, r.Client, &tcp.Spec.MetalSpec.Machines)
+	if err != nil {
+		return fmt.Errorf("failed to get machine IP addresses for TalosControlPlane %s: %w", tcp.Name, err)
+	}
 	// List existing ones
 	existing := &talosv1alpha1.TalosMachineList{}
 	if err := r.List(ctx, existing, client.InNamespace(tcp.Namespace),
@@ -393,8 +398,8 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 	}
 	// Desired state
 	desired := make(map[string]bool)
-	for _, ep := range tcp.Spec.MetalSpec.Machines {
-		desired[fmt.Sprintf("%s-%s", tcp.Name, ep)] = true
+	for _, ip := range machineIPAddresses {
+		desired[fmt.Sprintf("%s-%s", tcp.Name, ip)] = true
 	}
 	// Delete orphaned machines
 	for _, m := range existing.Items {
@@ -407,8 +412,9 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 			}
 		}
 	}
-	for _, machine := range tcp.Spec.MetalSpec.Machines {
-		name := fmt.Sprintf("%s-%s", tcp.Name, machine)
+	// Create or update TalosMachines
+	for _, ip := range machineIPAddresses {
+		name := fmt.Sprintf("%s-%s", tcp.Name, ip)
 		// If the talosContolPlane is imported then add an annotation to the TalosMachine to indicate that it's imported
 		var annotations map[string]string
 		if tcp.Status.Imported != nil && *tcp.Status.Imported {
@@ -432,7 +438,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 					Namespace:  tcp.Namespace,
 					APIVersion: talosv1alpha1.GroupVersion.String(),
 				},
-				Endpoint:    machine,
+				Endpoint:    ip,
 				Version:     tcp.Spec.Version,
 				MachineSpec: tcp.Spec.MetalSpec.MachineSpec,
 				ConfigRef:   tcp.Spec.ConfigRef,
@@ -777,9 +783,12 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 	// If the mode is metal tweak the config to use the metal-specific endpoint to bootstrap
 	if tcp.Spec.Mode == TalosModeMetal {
 		// Use the first machine's endpoint for bootstrapping
-		newEndpoint := tcp.Spec.MetalSpec.Machines[0]  // Use the first machine's endpoint
-		config.Endpoint = newEndpoint                  // Set the Endpoint to the first machine's endpoint
-		config.ClientEndpoint = &[]string{newEndpoint} // Set the ClientEndpoint to the same as Endpoint
+		ip, err := getMachineIPAddress(ctx, r.Client, &tcp.Spec.MetalSpec.Machines[0])
+		if err != nil {
+			return fmt.Errorf("failed to get machine IP address for bootstrapping TalosControlPlane %s: %w", tcp.Name, err)
+		}
+		config.Endpoint = *ip
+		config.ClientEndpoint = &[]string{*ip}
 	}
 
 	// Create a Talos client
@@ -859,6 +868,7 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 }
 
 func (r *TalosControlPlaneReconciler) SetConfig(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (*talos.BundleConfig, error) {
+	logger := log.FromContext(ctx)
 	// Genenrate the Subject Alternative Names (SANs) for the Talos ControlPlane
 	var replicas int
 	var sans []string
@@ -880,8 +890,12 @@ func (r *TalosControlPlaneReconciler) SetConfig(ctx context.Context, tcp *talosv
 	}
 	var ClientEndpoint []string
 	if tcp.Spec.Mode == "metal" {
-		// TODO: Handle multiple machines in metal mode
-		ClientEndpoint = tcp.Spec.MetalSpec.Machines
+		ipAddresses, err := getMachinesIPAddresses(ctx, r.Client, &tcp.Spec.MetalSpec.Machines)
+		if err != nil {
+			logger.Error(err, "Failed to get machine IP addresses for TalosControlPlane", "name", tcp.Name)
+			return nil, fmt.Errorf("failed to get machine IP addresses for TalosControlPlane %s: %w", tcp.Name, err)
+		}
+		ClientEndpoint = ipAddresses
 	}
 	var endpoint string
 	// Construct endpoint

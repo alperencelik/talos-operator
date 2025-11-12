@@ -397,7 +397,11 @@ func (r *TalosMachineReconciler) GetBundleConfig(ctx context.Context, tm *talosv
 		}, tw); err != nil {
 			return nil, r.handleResourceNotFound(ctx, err)
 		}
-		bc.ClientEndpoint = &tw.Spec.MetalSpec.Machines
+		ipAddresses, err := getMachinesIPAddresses(ctx, r.Client, &tw.Spec.MetalSpec.Machines)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get machine IP addresses for TalosControlPlane %s: %w", tcp.Name, err)
+		}
+		bc.ClientEndpoint = &ipAddresses
 	}
 	return bc, nil
 }

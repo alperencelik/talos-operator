@@ -160,7 +160,37 @@ spec:
                         description: Machines is a list of machine specifications
                           for the Talos control plane.
                         items:
-                          type: string
+                          properties:
+                            address:
+                              description: Address is the IP address of the Talos
+                                machine.
+                              pattern: ^(\d{1,3}\.){3}\d{1,3}$
+                              type: string
+                            machineRef:
+                              description: MachineRef is a reference to a secret containing
+                                the machine credentials.
+                              properties:
+                                apiVersion:
+                                  description: APIVersion of the referenced object.
+                                  type: string
+                                fieldPath:
+                                  description: FieldPath is the field path within
+                                    the referenced object.
+                                  type: string
+                                kind:
+                                  description: Kind of the referenced object.
+                                  type: string
+                                name:
+                                  description: Name of the referenced object.
+                                  type: string
+                                namespace:
+                                  description: Namespace of the referenced object.
+                                  type: string
+                              type: object
+                          type: object
+                          x-kubernetes-validations:
+                          - message: address and machineRef are mutually exclusive
+                            rule: has(self.address) != has(self.machineRef)
                         type: array
                     type: object
                   mode:
@@ -353,7 +383,37 @@ spec:
                         description: Machines is a list of machine specifications
                           for the Talos control plane.
                         items:
-                          type: string
+                          properties:
+                            address:
+                              description: Address is the IP address of the Talos
+                                machine.
+                              pattern: ^(\d{1,3}\.){3}\d{1,3}$
+                              type: string
+                            machineRef:
+                              description: MachineRef is a reference to a secret containing
+                                the machine credentials.
+                              properties:
+                                apiVersion:
+                                  description: APIVersion of the referenced object.
+                                  type: string
+                                fieldPath:
+                                  description: FieldPath is the field path within
+                                    the referenced object.
+                                  type: string
+                                kind:
+                                  description: Kind of the referenced object.
+                                  type: string
+                                name:
+                                  description: Name of the referenced object.
+                                  type: string
+                                namespace:
+                                  description: Namespace of the referenced object.
+                                  type: string
+                              type: object
+                          type: object
+                          x-kubernetes-validations:
+                          - message: address and machineRef are mutually exclusive
+                            rule: has(self.address) != has(self.machineRef)
                         type: array
                     type: object
                   mode:
