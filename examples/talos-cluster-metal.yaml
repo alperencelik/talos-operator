@@ -11,8 +11,8 @@ spec:
     metalSpec:
       # List of Talos machines(IP Addresses) in the control plane 
       machines:
-        - "10.0.153.207"
-        - "10.0.153.232"
+        - address: "10.0.153.207"
+        - address: "10.0.153.232"
     # Kubernetes API server endpoint
     endpoint: "https://10.0.153.207:6443"
   # Worker nodes configuration

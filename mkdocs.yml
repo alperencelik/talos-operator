@@ -23,6 +23,9 @@ nav:
   - Modes: operator_manual/modes.md
   - Upgrading Versions: operator_manual/upgrade_versions.md
   - Importing Existing Resources: operator_manual/import_existing_resources.md
+- Upgrading: 
+  - Overview: upgrading/index.md
+  - v0.3.4: upgrading/v0.3.4.md
   
 - metrics.md
 - contributing.md
