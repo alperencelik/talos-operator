@@ -103,7 +103,7 @@ type Machine struct {
 	// Address is the IP address of the Talos machine.
 	// +kubebuilder:validation:Pattern=`^(\d{1,3}\.){3}\d{1,3}$`
 	Address *string `json:"address,omitempty"`
-	// MachineRef is a reference to a secret containing the machine credentials.
+	// MachineRef is a reference to a Kubernetes object from which the machine IP address can be extracted.
 	// +kubebuilder:validation:Optional
 	MachineRef *ObjectRef `json:"machineRef,omitempty"`
 }
