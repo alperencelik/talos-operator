@@ -11,6 +11,7 @@ You can either apply the `TalosCluster` resource, or both `TalosControlPlane` an
 - `talos-cluster-metal.yaml` - Bare-metal/VM-based Talos cluster
 - `talos-controlplane-container.yaml` - Container-based control plane
 - `talos-controlplane-metal.yaml` - Bare-metal/VM-based control plane
+- `talos-controlplane-with-cni.yaml` - Control plane with CNI configuration examples (flannel, custom, none)
 - `talos-worker-container.yaml` - Container-based worker nodes
 - `talos-worker-metal.yaml` - Bare-metal/VM-based worker nodes
 
