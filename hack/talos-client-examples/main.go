@@ -14,8 +14,6 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/encoder"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"google.golang.org/protobuf/types/known/durationpb"
-
-	authz "github.com/siderolabs/talos/pkg/grpc/middleware/authz"
 )
 
 type tc struct {
@@ -28,29 +26,38 @@ func main() {
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true, // For testing purposes, skip TLS verification
 	}
+	_ = tlsConfig
 	c, err := client.New(ctx, client.WithConfigFromFile("talosconfig"),
-		client.WithTLSConfig(tlsConfig),
+		// client.WithTLSConfig(tlsConfig),
 		client.WithDefaultConfig(),
-		client.WithEndpoints("10.0.153.140"),
+		client.WithEndpoints("10.0.153.137"),
 	)
 	if err != nil {
 		panic(err)
 	}
-
-	// Get Roles
-	fmt.Printf("Getting roles \n")
-	roleset := authz.GetRoles(ctx)
-
-	fmt.Printf("Roles in context: %v\n", roleset)
-
-	//
-	time.Sleep(10 * time.Second)
 
 	resp, err := c.Version(ctx)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("Talos version: %s\n", resp.Messages[0].Version.Tag)
+
+	// Setup a event listener
+
+	stream, err := c.MachineClient.Events(ctx, &machineapi.EventsRequest{})
+	if err != nil {
+		panic(err)
+	}
+
+	for {
+		event, err := stream.Recv()
+		if err != nil {
+			// Print the error but continue listening
+			fmt.Printf("Error receiving event: %v\n", err)
+			continue
+		}
+		fmt.Printf("Event is received: %v\n", event)
+	}
 
 	// Test upgrade Kubernetes
 	//	talosClient := &tc{Client: c}

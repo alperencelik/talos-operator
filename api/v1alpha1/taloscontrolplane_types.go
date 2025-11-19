@@ -64,6 +64,10 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self >= oldSelf",message="KubeVersion can not be decreased"
 	KubeVersion string `json:"kubeVersion,omitempty"`
 
+	// CNI is the Container Network Interface to use for the cluster
+	// +kubebuilder:validation:Optional
+	CNI *CNI `json:"cni,omitempty"`
+
 	// ClusterDomain is the domain for the Kubernetes cluster
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+[a-z]{2,}$`
@@ -88,6 +92,25 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:validation:Optional
 	// Reference to a ConfigMap containing the Talos controlplane configuration
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
+}
+
+type CNI struct {
+	// Name of the CNI to use
+	// +kubebuilder:validation:Enum=flannel;none;custom
+	// +kubebuilder:validation:Required
+	Name *string `json:"name,omitempty"`
+	// URLs is a list of URLs to custom CNI manifests
+	// +kubebuilder:validation:Optional
+	URLs *[]string `json:"urls,omitempty"`
+	// Flannel is represents the flannel CNI configuration
+	// +kubebuilder:validation:Optional
+	Flannel *FlannelCNI `json:"flannel,omitempty"`
+}
+
+type FlannelCNI struct {
+	// ExtraArgs are additional arguments for the flannel CNI
+	// +kubebuilder:validation:Optional
+	ExtraArgs []string `json:"extraArgs,omitempty"`
 }
 
 type MetalSpec struct {

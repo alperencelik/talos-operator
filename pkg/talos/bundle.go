@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alperencelik/talos-operator/api/v1alpha1"
 	utils "github.com/alperencelik/talos-operator/pkg/utils"
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/mgmt/gen"
 	clientconfig "github.com/siderolabs/talos/pkg/machinery/client/config"
@@ -27,6 +28,9 @@ var (
 	WipeDisk                       = `[{"op": "replace", "path": "/machine/install/wipe", "value": "%t"}]`
 	AirGapp                        = `[{"op": "add", "path": "/machine/time", "value": {"disabled": true}}, {"op": "replace", "path": "/cluster/discovery/enabled", "value": false}]` // nolint:lll
 	AllowSchedulingOnControlPlanes = `[{"op": "add", "path": "/cluster/allowSchedulingOnControlPlanes", "value": true}]`
+	Cni                            = `[{"op": "add", "path": "/cluster/network/cni", "value": {"name": "%s"}}]`
+	CniCustomURLs                  = `[{"op": "add", "path": "/cluster/network/cni", "value": {"urls": %s}}]`
+	CniFlannel                     = `[{"op": "add", "path": "/cluster/network/cni", "value": {"flannel": "%s"}}]`
 	ImageCache                     = `[{"op": "add", "path": "/machine/features/imageCache", "value": {"localEnabled": true}}]` // nolint:lll
 	ImageCacheVolumeConfig         = `
 ---
@@ -51,9 +55,10 @@ type BundleConfig struct {
 	SecretsBundle *secrets.Bundle `json:"-"`              // Secrets bundle for the Talos cluster
 	Sans          []string        `json:"sans,omitempty"` // Additional Subject Alternative Names for the API server
 	//nolint:lll // Description is long
-	PodCIDR        *[]string `json:"podCIDR,omitempty"`        // Pod CIDR ranges
-	ServiceCIDR    *[]string `json:"serviceCIDR,omitempty"`    // Service CIDR ranges
-	ClientEndpoint *[]string `json:"clientEndpoint,omitempty"` // Optional client endpoint for Talos API
+	PodCIDR        *[]string     `json:"podCIDR,omitempty"`        // Pod CIDR ranges
+	ServiceCIDR    *[]string     `json:"serviceCIDR,omitempty"`    // Service CIDR ranges
+	ClientEndpoint *[]string     `json:"clientEndpoint,omitempty"` // Optional client endpoint for Talos API
+	Cni            *v1alpha1.CNI `json:"cni,omitempty"`            // CNI configuration
 }
 
 type SecretBundle *secrets.Bundle
@@ -76,6 +81,9 @@ func NewCPBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 	cpPatches := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
 	// Apply the removeAdmissionControl patch
 	cpPatches = append(cpPatches, removeAdmissionControl)
+
+	// Apply CNI patches
+	cpPatches = append(cpPatches, cniPatches(cfg.Cni)...)
 
 	// If patches are provided, append them to the control plane patches
 	if patches != nil && len(*patches) > 0 {
@@ -171,6 +179,29 @@ func cidrPatches(podCIDR, serviceCIDR *[]string) []string {
 		cidrPatches = append(cidrPatches, serviceSubnets)
 	}
 	return cidrPatches
+}
+
+func cniPatches(cni *v1alpha1.CNI) []string {
+	var cniPatches []string
+	if cni != nil && cni.Name != nil {
+		// Apply the CNI name patch
+		cniPatches = append(cniPatches, fmt.Sprintf(Cni, *cni.Name))
+		if *cni.Name == "custom" && len(*cni.URLs) > 0 {
+			// Apply the custom CNI URLs patch
+			urlPatch := fmt.Sprintf(CniCustomURLs, utils.MarshalStringSlice(*cni.URLs))
+			fmt.Printf("Custom CNI URLs patch: %s\n", urlPatch)
+			cniPatches = append(cniPatches, urlPatch)
+			// cniPatches = append(cniPatches, fmt.Sprintf(CniCustomURLs, utils.MarshalStringSlice(*cni.URLs)))
+		}
+		// 		if *cni.Name == "flannel" && len(cni.Flannel.ExtraArgs) > 0 {
+		// // Apply the flannel CNI extra args patch
+		// flannelData, _ := json.Marshal(cni.Flannel)
+		// cniPatches = append(cniPatches, fmt.Sprintf(CniFlannel, string(flannelData)))
+		// }
+	}
+	// DEBUG: Print CNI patches
+	fmt.Printf("CNI patches: %v\n", cniPatches)
+	return cniPatches
 }
 
 func ParseBundleConfig(bc string) (*BundleConfig, error) {
