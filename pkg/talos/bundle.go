@@ -189,7 +189,6 @@ func cidrPatches(podCIDR, serviceCIDR *[]string) []string {
 }
 
 func ParseBundleConfig(bc string) (*BundleConfig, error) {
-
 	// Unmarshal the string into a BundleConfig struct
 	var cfg BundleConfig
 	err := json.Unmarshal([]byte(bc), &cfg)
@@ -207,17 +206,14 @@ func convertCNIConfig(cni *v1alpha1.CNIConfig) *taloscni.CNIConfig {
 	if cni == nil {
 		return nil
 	}
-
 	talosCNI := &taloscni.CNIConfig{
 		CNIName: cni.Name,
 		CNIUrls: cni.URLs,
 	}
-
 	if cni.Flannel != nil {
 		talosCNI.CNIFlannel = &taloscni.FlannelCNIConfig{
 			FlanneldExtraArgs: cni.Flannel.ExtraArgs,
 		}
 	}
-
 	return talosCNI
 }
