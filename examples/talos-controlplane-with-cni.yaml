@@ -1,0 +1,63 @@
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosControlPlane
+metadata:
+  name: taloscontrolplane-with-cni
+spec:
+  version: v1.10.3 # Talos version
+  mode: metal # Deployment mode -- can be 'metal' or 'container'
+  kubeVersion: v1.33.0 # Kubernetes version
+  metalSpec:
+    # List of Talos machines(IP Addresses) in the control plane 
+    machines:
+      - address: "10.0.153.207"
+      - address: "10.0.153.232"
+  # Kubernetes API server endpoint
+  endpoint: "https://10.0.153.207:6443"
+  # Pod and Service CIDRs -- optional, can be omitted if not needed
+  podCIDR: 
+  - 10.100.0.0/16
+  serviceCIDR:
+  - 10.200.0.0/12
+  # CNI configuration (optional)
+  cni:
+    name: flannel # Options: flannel, custom, none
+    # For flannel CNI, you can optionally provide extra arguments
+    flannel:
+      extraArgs:
+        - "--iface-can-reach=192.168.1.1"
+---
+# Example with custom CNI
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosControlPlane
+metadata:
+  name: taloscontrolplane-custom-cni
+spec:
+  version: v1.10.3
+  mode: metal
+  kubeVersion: v1.33.0
+  metalSpec:
+    machines:
+      - address: "10.0.153.207"
+  endpoint: "https://10.0.153.207:6443"
+  # CNI configuration with custom URLs
+  cni:
+    name: custom
+    urls:
+      - "https://raw.githubusercontent.com/projectcalico/calico/v3.26.0/manifests/calico.yaml"
+---
+# Example with no CNI (bring your own)
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosControlPlane
+metadata:
+  name: taloscontrolplane-no-cni
+spec:
+  version: v1.10.3
+  mode: metal
+  kubeVersion: v1.33.0
+  metalSpec:
+    machines:
+      - address: "10.0.153.207"
+  endpoint: "https://10.0.153.207:6443"
+  # No CNI will be installed - you can install your own
+  cni:
+    name: none

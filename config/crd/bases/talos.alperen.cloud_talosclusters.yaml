@@ -48,6 +48,33 @@ spec:
                     description: ClusterDomain is the domain for the Kubernetes cluster
                     pattern: ^([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+[a-z]{2,}$
                     type: string
+                  cni:
+                    description: CNI configuration for the cluster
+                    properties:
+                      flannel:
+                        description: Flannel configuration options
+                        properties:
+                          extraArgs:
+                            description: Extra arguments for 'flanneld'
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      name:
+                        description: Name of CNI to use (flannel, custom, none)
+                        enum:
+                        - flannel
+                        - custom
+                        - none
+                        type: string
+                      urls:
+                        description: |-
+                          URLs containing manifests to apply for the CNI.
+                          Should be present for "custom", must be empty for "flannel" and "none".
+                        items:
+                          type: string
+                        type: array
+                    type: object
                   configRef:
                     description: Reference to a ConfigMap containing the Talos controlplane
                       configuration
