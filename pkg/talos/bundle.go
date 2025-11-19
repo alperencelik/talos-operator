@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	v1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	utils "github.com/alperencelik/talos-operator/pkg/utils"
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/mgmt/gen"
 	clientconfig "github.com/siderolabs/talos/pkg/machinery/client/config"
@@ -12,6 +13,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/bundle"
 	"github.com/siderolabs/talos/pkg/machinery/config/generate"
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
+	taloscni "github.com/siderolabs/talos/pkg/machinery/config/types/v1alpha1"
 )
 
 const (
@@ -51,9 +53,10 @@ type BundleConfig struct {
 	SecretsBundle *secrets.Bundle `json:"-"`              // Secrets bundle for the Talos cluster
 	Sans          []string        `json:"sans,omitempty"` // Additional Subject Alternative Names for the API server
 	//nolint:lll // Description is long
-	PodCIDR        *[]string `json:"podCIDR,omitempty"`        // Pod CIDR ranges
-	ServiceCIDR    *[]string `json:"serviceCIDR,omitempty"`    // Service CIDR ranges
-	ClientEndpoint *[]string `json:"clientEndpoint,omitempty"` // Optional client endpoint for Talos API
+	PodCIDR        *[]string           `json:"podCIDR,omitempty"`        // Pod CIDR ranges
+	ServiceCIDR    *[]string           `json:"serviceCIDR,omitempty"`    // Service CIDR ranges
+	ClientEndpoint *[]string           `json:"clientEndpoint,omitempty"` // Optional client endpoint for Talos API
+	CNI            *v1alpha1.CNIConfig `json:"cni,omitempty"`            // CNI configuration
 }
 
 type SecretBundle *secrets.Bundle
@@ -71,6 +74,12 @@ func NewCPBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 		generate.WithSecretsBundle(cfg.SecretsBundle),
 		generate.WithAdditionalSubjectAltNames(cfg.Sans),
 	)
+
+	// Add CNI configuration if provided
+	if cfg.CNI != nil {
+		cniConfig := convertCNIConfig(cfg.CNI)
+		genOptions = append(genOptions, generate.WithClusterCNIConfig(cniConfig))
+	}
 
 	// Apply the CIDR patches
 	cpPatches := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
@@ -113,6 +122,12 @@ func NewWorkerBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, erro
 		generate.WithSecretsBundle(cfg.SecretsBundle),
 		generate.WithAdditionalSubjectAltNames(cfg.Sans),
 	)
+
+	// Add CNI configuration if provided
+	if cfg.CNI != nil {
+		cniConfig := convertCNIConfig(cfg.CNI)
+		genOptions = append(genOptions, generate.WithClusterCNIConfig(cniConfig))
+	}
 
 	workerPatches := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
 
@@ -185,4 +200,24 @@ func ParseBundleConfig(bc string) (*BundleConfig, error) {
 		return nil, fmt.Errorf("invalid bundle config: missing required fields")
 	}
 	return &cfg, nil
+}
+
+// convertCNIConfig converts our CNI config to Talos CNI config
+func convertCNIConfig(cni *v1alpha1.CNIConfig) *taloscni.CNIConfig {
+	if cni == nil {
+		return nil
+	}
+
+	talosCNI := &taloscni.CNIConfig{
+		CNIName: cni.Name,
+		CNIUrls: cni.URLs,
+	}
+
+	if cni.Flannel != nil {
+		talosCNI.CNIFlannel = &taloscni.FlannelCNIConfig{
+			FlanneldExtraArgs: cni.Flannel.ExtraArgs,
+		}
+	}
+
+	return talosCNI
 }

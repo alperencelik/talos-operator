@@ -501,6 +501,7 @@ func (r *TalosWorkerReconciler) SetConfig(ctx context.Context, tw *talosv1alpha1
 		ServiceCIDR:    &tcp.Spec.ServiceCIDR,
 		PodCIDR:        &tcp.Spec.PodCIDR,
 		ClientEndpoint: &ClientEndpoint,
+		CNI:            tcp.Spec.CNI,
 	}, nil
 
 }

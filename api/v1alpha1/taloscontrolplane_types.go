@@ -88,6 +88,34 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:validation:Optional
 	// Reference to a ConfigMap containing the Talos controlplane configuration
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
+
+	// CNI configuration for the cluster
+	// +kubebuilder:validation:Optional
+	CNI *CNIConfig `json:"cni,omitempty"`
+}
+
+// CNIConfig represents the CNI configuration options.
+type CNIConfig struct {
+	// Name of CNI to use (flannel, custom, none)
+	// +kubebuilder:validation:Enum=flannel;custom;none
+	// +kubebuilder:validation:Optional
+	Name string `json:"name,omitempty"`
+
+	// URLs containing manifests to apply for the CNI.
+	// Should be present for "custom", must be empty for "flannel" and "none".
+	// +kubebuilder:validation:Optional
+	URLs []string `json:"urls,omitempty"`
+
+	// Flannel configuration options
+	// +kubebuilder:validation:Optional
+	Flannel *FlannelCNIConfig `json:"flannel,omitempty"`
+}
+
+// FlannelCNIConfig represents the Flannel CNI configuration options.
+type FlannelCNIConfig struct {
+	// Extra arguments for 'flanneld'
+	// +kubebuilder:validation:Optional
+	ExtraArgs []string `json:"extraArgs,omitempty"`
 }
 
 type MetalSpec struct {

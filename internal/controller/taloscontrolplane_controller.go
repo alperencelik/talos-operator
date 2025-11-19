@@ -917,6 +917,7 @@ func (r *TalosControlPlaneReconciler) SetConfig(ctx context.Context, tcp *talosv
 		ServiceCIDR:    &tcp.Spec.ServiceCIDR,
 		PodCIDR:        &tcp.Spec.PodCIDR,
 		ClientEndpoint: &ClientEndpoint,
+		CNI:            tcp.Spec.CNI,
 	}, nil
 }
 
