@@ -8,6 +8,8 @@ resources:
 - bases/talos.alperen.cloud_talosmachines.yaml
 - bases/talos.alperen.cloud_talosetcdbackups.yaml
 - bases/talos.alperen.cloud_talosetcdbackupschedules.yaml
+- bases/talos.alperen.cloud_talosclusteraddons.yaml
+- bases/talos.alperen.cloud_talosclusteraddonreleases.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

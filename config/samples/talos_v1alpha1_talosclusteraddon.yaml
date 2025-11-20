@@ -1,0 +1,16 @@
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosClusterAddon
+metadata:
+  labels:
+    app.kubernetes.io/name: talos-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: talosclusteraddon-sample
+spec:
+  clusterSelector:
+    matchLabels:
+      zort: hort
+  helmSpec: 
+    chartName: my-chart
+    repoURL: https://example.com/helm-charts
+    version: 1.2.3
+  # TODO(user): Add fields here
