@@ -59,6 +59,7 @@ rules:
 - apiGroups:
   - talos.alperen.cloud
   resources:
+  - talosaddons
   - talosclusters
   - taloscontrolplanes
   - talosetcdbackups
@@ -76,6 +77,7 @@ rules:
 - apiGroups:
   - talos.alperen.cloud
   resources:
+  - talosaddons/finalizers
   - talosclusters/finalizers
   - taloscontrolplanes/finalizers
   - talosetcdbackups/finalizers
@@ -87,6 +89,7 @@ rules:
 - apiGroups:
   - talos.alperen.cloud
   resources:
+  - talosaddons/status
   - talosclusters/status
   - taloscontrolplanes/status
   - talosetcdbackups/status
