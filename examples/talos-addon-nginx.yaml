@@ -1,0 +1,31 @@
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosAddon
+metadata:
+  name: nginx-ingress
+  namespace: default
+spec:
+  # Reference to the TalosCluster this addon should be installed on
+  clusterRef:
+    name: my-talos-cluster
+  
+  # Helm release configuration
+  helmRelease:
+    # Name of the Helm chart
+    chartName: ingress-nginx
+    
+    # URL of the Helm repository
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    
+    # Version of the chart (optional, uses latest if not specified)
+    version: "4.8.0"
+    
+    # Name for the Helm release (optional, uses addon name if not specified)
+    releaseName: nginx-ingress
+    
+    # Target namespace for installation (optional, defaults to "default")
+    targetNamespace: ingress-nginx
+    
+    # Values to pass to the chart (optional)
+    values:
+      controller.service.type: "LoadBalancer"
+      controller.replicaCount: "2"

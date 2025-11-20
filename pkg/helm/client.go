@@ -219,8 +219,6 @@ func (c *Client) locateChart(repoURL, chartName, version string) (string, error)
 		return "", fmt.Errorf("chart has no downloadable URLs")
 	}
 
-	chartURL := chartVersion.URLs[0]
-
 	// Download chart
 	destDir, err := os.MkdirTemp("", "helm-chart-")
 	if err != nil {
