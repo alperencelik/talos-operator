@@ -56,6 +56,7 @@ type HelmSpec struct {
 	// ReleaseNamespace is the namespace the Helm release will be installed on each selected
 	// Cluster. If it is not specified, it will be set to the default namespace.
 	// +optional
+	// +kubebuilder:default:=default
 	ReleaseNamespace string `json:"namespace,omitempty"`
 
 	// Version is the version of the Helm chart. If it is not specified, the chart will use
@@ -72,17 +73,17 @@ type HelmSpec struct {
 	// include options such as wait, skipCRDs, timeout, waitForJobs, etc.
 	// Inherited from Cluster API Addons API.
 	// +optional
-	Options capiaddons.HelmOptions `json:"options,omitempty"`
+	Options *capiaddons.HelmOptions `json:"options,omitempty"`
 
 	// Credentials is a reference to an object containing the OCI credentials. If it is not specified, no credentials will be used.
 	// Inherited from Cluster API Addons API.
 	// +optional
-	Credentials capiaddons.Credentials `json:"credentials,omitempty"`
+	Credentials *capiaddons.Credentials `json:"credentials,omitempty"`
 
 	// TLSConfig contains the TLS configuration for a HelmChartProxy.
 	// Inherited from Cluster API Addons API.
 	// +optional
-	TLSConfig capiaddons.TLSConfig `json:"tlsConfig,omitempty"`
+	TLSConfig *capiaddons.TLSConfig `json:"tlsConfig,omitempty"`
 }
 
 // TalosClusterAddonStatus defines the observed state of TalosClusterAddon.

@@ -104,7 +104,7 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		// Implement the logic to create or update TalosClusterAddonRelease resources
 		// Create the TalosClusterAddonRelease resource
 		if !cluster.DeletionTimestamp.IsZero() {
-			continue // Skip deleted clusters
+			continue // Skip if the cluster is being deleted
 		}
 		// Create or update the TalosClusterAddonRelease resource
 		err := r.createOrUpdateAddonRelease(ctx, tcAddon, cluster)
@@ -121,15 +121,16 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 func (r *TalosClusterAddonReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&talosv1alpha1.TalosClusterAddon{}).
+		Owns(&talosv1alpha1.TalosClusterAddonRelease{}).
 		Named("talosclusteraddon").
 		Complete(r)
 }
 
 func (r *TalosClusterAddonReconciler) handleFinalizer(ctx context.Context, tcAddon talosv1alpha1.TalosClusterAddon) error {
-	if !controllerutil.ContainsFinalizer(&tcAddon, talosv1alpha1.TalosControlPlaneFinalizer) {
-		controllerutil.AddFinalizer(&tcAddon, talosv1alpha1.TalosControlPlaneFinalizer)
+	if !controllerutil.ContainsFinalizer(&tcAddon, talosv1alpha1.TalosClusterAddonFinalizer) {
+		controllerutil.AddFinalizer(&tcAddon, talosv1alpha1.TalosClusterAddonFinalizer)
 		if err := r.Update(ctx, &tcAddon); err != nil {
-			return fmt.Errorf("failed to add finalizer to TalosControlPlane %s: %w", tcAddon.Name, err)
+			return fmt.Errorf("failed to add finalizer to TalosClusterAddon %s: %w", tcAddon.Name, err)
 		}
 	}
 	return nil

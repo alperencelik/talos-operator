@@ -121,6 +121,7 @@ spec:
                     - secret
                     type: object
                   namespace:
+                    default: default
                     description: |-
                       ReleaseNamespace is the namespace the Helm release will be installed on each selected
                       Cluster. If it is not specified, it will be set to the default namespace.
