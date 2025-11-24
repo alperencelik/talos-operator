@@ -21,6 +21,8 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -62,7 +64,7 @@ func (r *TalosClusterAddonReleaseReconciler) Reconcile(ctx context.Context, req 
 	}
 	var delErr error
 	if tcAddonRelease.DeletionTimestamp.IsZero() {
-		err := r.handleFinalizer(ctx, tcAddonRelease)
+		err := r.handleFinalizer(ctx, &tcAddonRelease)
 		if err != nil {
 			logger.Error(err, "failed to handle finalizer for TalosClusterAddonRelease", "name", tcAddonRelease.Name)
 			return ctrl.Result{}, err
@@ -87,42 +89,58 @@ func (r *TalosClusterAddonReleaseReconciler) Reconcile(ctx context.Context, req 
 	// Handle the helm chart installation or update logic here
 
 	// Get the TalosControlPlane referenced by this addon release
-	tcp := &talosv1alpha1.TalosControlPlane{}
-	err := r.Get(ctx, client.ObjectKey{
-		Name:      tcAddonRelease.Spec.ClusterRef.Name,
-		Namespace: tcAddonRelease.Spec.ClusterRef.Namespace,
-	}, tcp)
+	kubeconfigData, err := r.GetKubeConfigData(ctx, tcAddonRelease)
 	if err != nil {
-		logger.Error(err, "failed to get TalosControlPlane for TalosClusterAddonRelease", "name", tcAddonRelease.Name)
-		return ctrl.Result{}, err
-	}
-	// Get the kubeconfig secret for the TalosControlPlane
-	kubeconfigSecretName := fmt.Sprintf("%s-kubeconfig", tcp.Name)
-	kubeconfigSecret := &corev1.Secret{}
-	err = r.Get(ctx, client.ObjectKey{
-		Name:      kubeconfigSecretName,
-		Namespace: tcp.Namespace,
-	}, kubeconfigSecret)
-	if err != nil {
-		logger.Error(err, "failed to get kubeconfig secret for TalosControlPlane", "name", tcp.Name)
-		return ctrl.Result{}, err
-	}
-	// Get the kubeconfig data
-	kubeconfigData, ok := kubeconfigSecret.Data["kubeconfig"]
-	if !ok {
-		err := fmt.Errorf("kubeconfig data not found in secret %s", kubeconfigSecretName)
-		logger.Error(err, "kubeconfig data missing")
+		logger.Error(err, "failed to get kubeconfig data for TalosClusterAddonRelease", "name", tcAddonRelease.Name)
+		meta.SetStatusCondition(&tcAddonRelease.Status.Conditions, metav1.Condition{
+			Type:    talosv1alpha1.ConditionReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  "KubeconfigFailed",
+			Message: err.Error(),
+		})
+		if updateErr := r.Status().Update(ctx, &tcAddonRelease); updateErr != nil {
+			logger.Error(updateErr, "failed to update TalosClusterAddonRelease status")
+		}
 		return ctrl.Result{}, err
 	}
 	// Create a helm client using the kubeconfig data
-	helmClient, err := helm.NewClient(kubeconfigData, tcAddonRelease.Spec.HelmSpec.ReleaseNamespace)
+	helmClient, err := helm.NewClient(*kubeconfigData, tcAddonRelease.Spec.HelmSpec.ReleaseNamespace)
 	if err != nil {
 		logger.Error(err, "failed to create helm client")
+		meta.SetStatusCondition(&tcAddonRelease.Status.Conditions, metav1.Condition{
+			Type:    talosv1alpha1.ConditionReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  "HelmClientFailed",
+			Message: err.Error(),
+		})
+		if updateErr := r.Status().Update(ctx, &tcAddonRelease); updateErr != nil {
+			logger.Error(updateErr, "failed to update TalosClusterAddonRelease status")
+		}
 		return ctrl.Result{}, err
 	}
 	_, err = helmClient.InstallOrUpgradeChart(ctx, tcAddonRelease.Spec.HelmSpec)
 	if err != nil {
 		logger.Error(err, "failed to install or upgrade helm chart")
+		meta.SetStatusCondition(&tcAddonRelease.Status.Conditions, metav1.Condition{
+			Type:    talosv1alpha1.ConditionReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  "HelmInstallFailed",
+			Message: err.Error(),
+		})
+		if updateErr := r.Status().Update(ctx, &tcAddonRelease); updateErr != nil {
+			logger.Error(updateErr, "failed to update TalosClusterAddonRelease status")
+		}
+		return ctrl.Result{}, err
+	}
+
+	meta.SetStatusCondition(&tcAddonRelease.Status.Conditions, metav1.Condition{
+		Type:    talosv1alpha1.ConditionReady,
+		Status:  metav1.ConditionTrue,
+		Reason:  "Installed",
+		Message: "Helm chart installed successfully",
+	})
+	if err := r.Status().Update(ctx, &tcAddonRelease); err != nil {
+		logger.Error(err, "failed to update TalosClusterAddonRelease status")
 		return ctrl.Result{}, err
 	}
 
@@ -137,10 +155,10 @@ func (r *TalosClusterAddonReleaseReconciler) SetupWithManager(mgr ctrl.Manager) 
 		Complete(r)
 }
 
-func (r *TalosClusterAddonReleaseReconciler) handleFinalizer(ctx context.Context, tcAddonRelease talosv1alpha1.TalosClusterAddonRelease) error {
-	if !controllerutil.ContainsFinalizer(&tcAddonRelease, talosv1alpha1.TalosClusterAddonReleaseFinalizer) {
-		controllerutil.AddFinalizer(&tcAddonRelease, talosv1alpha1.TalosClusterAddonReleaseFinalizer)
-		if err := r.Update(ctx, &tcAddonRelease); err != nil {
+func (r *TalosClusterAddonReleaseReconciler) handleFinalizer(ctx context.Context, tcAddonRelease *talosv1alpha1.TalosClusterAddonRelease) error {
+	if !controllerutil.ContainsFinalizer(tcAddonRelease, talosv1alpha1.TalosClusterAddonReleaseFinalizer) {
+		controllerutil.AddFinalizer(tcAddonRelease, talosv1alpha1.TalosClusterAddonReleaseFinalizer)
+		if err := r.Update(ctx, tcAddonRelease); err != nil {
 			return fmt.Errorf("failed to add finalizer to TalosClusterAddonRelease %s: %w", tcAddonRelease.Name, err)
 		}
 	}
@@ -150,5 +168,54 @@ func (r *TalosClusterAddonReleaseReconciler) handleFinalizer(ctx context.Context
 func (r *TalosClusterAddonReleaseReconciler) handleDelete(ctx context.Context, tcAddonRelease talosv1alpha1.TalosClusterAddonRelease) (ctrl.Result, error) {
 	// TODO: Remove helm chart from the cluster
 	_, _ = ctx, tcAddonRelease
+	logger := logf.FromContext(ctx)
+	kubeconfigData, err := r.GetKubeConfigData(ctx, tcAddonRelease)
+	if err != nil {
+		logger.Error(err, "failed to get kubeconfig data for TalosClusterAddonRelease", "name", tcAddonRelease.Name)
+		return ctrl.Result{}, err
+	}
+	// Create a helm client using the kubeconfig data
+	helmClient, err := helm.NewClient(*kubeconfigData, tcAddonRelease.Spec.HelmSpec.ReleaseNamespace)
+	if err != nil {
+		logger.Error(err, "failed to create helm client")
+		return ctrl.Result{}, err
+	}
+	_, err = helmClient.UninstallChart(ctx, tcAddonRelease.Spec.HelmSpec.ReleaseName)
+	if err != nil {
+		logger.Error(err, "failed to uninstall helm chart")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
+}
+
+func (r *TalosClusterAddonReleaseReconciler) GetKubeConfigData(ctx context.Context, tcAddonRelease talosv1alpha1.TalosClusterAddonRelease) (*[]byte, error) {
+	logger := logf.FromContext(ctx)
+	tcp := &talosv1alpha1.TalosControlPlane{}
+	err := r.Get(ctx, client.ObjectKey{
+		Name:      tcAddonRelease.Spec.ClusterRef.Name,
+		Namespace: tcAddonRelease.Spec.ClusterRef.Namespace,
+	}, tcp)
+	if err != nil {
+		logger.Error(err, "failed to get TalosControlPlane for TalosClusterAddonRelease", "name", tcAddonRelease.Name)
+		return nil, err
+	}
+	// Get the kubeconfig secret for the TalosControlPlane
+	kubeconfigSecretName := fmt.Sprintf("%s-kubeconfig", tcp.Name)
+	kubeconfigSecret := &corev1.Secret{}
+	err = r.Get(ctx, client.ObjectKey{
+		Name:      kubeconfigSecretName,
+		Namespace: tcp.Namespace,
+	}, kubeconfigSecret)
+	if err != nil {
+		logger.Error(err, "failed to get kubeconfig secret for TalosControlPlane", "name", tcp.Name)
+		return nil, err
+	}
+	// Get the kubeconfig data
+	kubeconfigData, ok := kubeconfigSecret.Data["kubeconfig"]
+	if !ok {
+		err := fmt.Errorf("kubeconfig data not found in secret %s", kubeconfigSecretName)
+		return nil, err
+	}
+	return &kubeconfigData, nil
 }

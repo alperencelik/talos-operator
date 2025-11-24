@@ -29,6 +29,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -63,7 +64,7 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// Finalizer
 	var delErr error
 	if tcAddon.DeletionTimestamp.IsZero() {
-		delErr = r.handleFinalizer(ctx, tcAddon)
+		delErr = r.handleFinalizer(ctx, &tcAddon)
 		if delErr != nil {
 			logger.Error(delErr, "error while handling finalizer")
 			r.Recorder.Event(&tcAddon, corev1.EventTypeWarning, "FinalizerFailed", delErr.Error())
@@ -90,6 +91,15 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// 1. Find the matching clusters based on the ClusterSelector
 	clusterList, err := r.listMatchingClusters(ctx, tcAddon)
 	if err != nil {
+		meta.SetStatusCondition(&tcAddon.Status.Conditions, metav1.Condition{
+			Type:    talosv1alpha1.ConditionReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  "ListClustersFailed",
+			Message: err.Error(),
+		})
+		if updateErr := r.Status().Update(ctx, &tcAddon); updateErr != nil {
+			logger.Error(updateErr, "failed to update TalosClusterAddon status")
+		}
 		return ctrl.Result{}, fmt.Errorf("failed to list matching clusters: %w", err)
 	}
 	// 2. delete TalosClusterAddonRelease resources for clusters that no longer match
@@ -111,9 +121,31 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if err != nil {
 			logger.Error(err, "failed to create or update TalosClusterAddonRelease", "cluster", cluster.Name)
 			r.Recorder.Event(&tcAddon, corev1.EventTypeWarning, "ReconcileFailed", fmt.Sprintf("Failed to create or update TalosClusterAddonRelease for cluster %s: %v", cluster.Name, err))
+
+			meta.SetStatusCondition(&tcAddon.Status.Conditions, metav1.Condition{
+				Type:    talosv1alpha1.ConditionReady,
+				Status:  metav1.ConditionFalse,
+				Reason:  "CreateOrUpdateReleaseFailed",
+				Message: fmt.Sprintf("Failed to create or update TalosClusterAddonRelease for cluster %s: %v", cluster.Name, err),
+			})
+			if updateErr := r.Status().Update(ctx, &tcAddon); updateErr != nil {
+				logger.Error(updateErr, "failed to update TalosClusterAddon status")
+			}
 			return ctrl.Result{}, fmt.Errorf("failed to create or update TalosClusterAddonRelease for cluster %s: %w", cluster.Name, err)
 		}
 	}
+
+	meta.SetStatusCondition(&tcAddon.Status.Conditions, metav1.Condition{
+		Type:    talosv1alpha1.ConditionReady,
+		Status:  metav1.ConditionTrue,
+		Reason:  "Reconciled",
+		Message: "TalosClusterAddon reconciled successfully",
+	})
+	if err := r.Status().Update(ctx, &tcAddon); err != nil {
+		logger.Error(err, "failed to update TalosClusterAddon status")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -126,10 +158,10 @@ func (r *TalosClusterAddonReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *TalosClusterAddonReconciler) handleFinalizer(ctx context.Context, tcAddon talosv1alpha1.TalosClusterAddon) error {
-	if !controllerutil.ContainsFinalizer(&tcAddon, talosv1alpha1.TalosClusterAddonFinalizer) {
-		controllerutil.AddFinalizer(&tcAddon, talosv1alpha1.TalosClusterAddonFinalizer)
-		if err := r.Update(ctx, &tcAddon); err != nil {
+func (r *TalosClusterAddonReconciler) handleFinalizer(ctx context.Context, tcAddon *talosv1alpha1.TalosClusterAddon) error {
+	if !controllerutil.ContainsFinalizer(tcAddon, talosv1alpha1.TalosClusterAddonFinalizer) {
+		controllerutil.AddFinalizer(tcAddon, talosv1alpha1.TalosClusterAddonFinalizer)
+		if err := r.Update(ctx, tcAddon); err != nil {
 			return fmt.Errorf("failed to add finalizer to TalosClusterAddon %s: %w", tcAddon.Name, err)
 		}
 	}

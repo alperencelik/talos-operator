@@ -68,7 +68,7 @@ func (c *Client) InstallOrUpgradeChart(ctx context.Context, spec talosv1alpha1.H
 
 	logger := log.FromContext(ctx)
 
-	existingRelease, err := c.GetRelease(ctx, spec.ReleaseName)
+	_, err := c.GetRelease(ctx, spec.ReleaseName)
 	if err != nil {
 		if errors.Is(err, helmDriver.ErrReleaseNotFound) {
 			// Install the chart
@@ -78,11 +78,34 @@ func (c *Client) InstallOrUpgradeChart(ctx context.Context, spec talosv1alpha1.H
 		return nil, err
 	}
 	// Upgrade the chart
-	return c.upgradeChart(ctx, spec, existingRelease)
+	return c.upgradeChart(ctx, spec)
 }
 
-func (c *Client) upgradeChart(ctx context.Context, spec talosv1alpha1.HelmSpec, existingRelease *helmRelease.Release) (*helmRelease.Release, error) {
-	return nil, nil
+func (c *Client) upgradeChart(ctx context.Context, spec talosv1alpha1.HelmSpec) (*helmRelease.Release, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Upgrading existing helm chart", "releaseName", spec.ReleaseName)
+
+	upgradeClient := generateHelmUpgradeConfig(c.actionConfig, spec.Options)
+	upgradeClient.RepoURL = spec.RepoURL
+	upgradeClient.Version = spec.Version
+	upgradeClient.Namespace = spec.ReleaseNamespace
+
+	// Locate chart
+	chartPath, err := upgradeClient.LocateChart(spec.ChartName, c.settings)
+	if err != nil {
+		return nil, err
+	}
+	// Load chart
+	chartReq, err := loader.Load(chartPath)
+	if err != nil {
+		return nil, err
+	}
+	vals, err := handleValuesTemplate(spec.ValuesTemplate)
+	if err != nil {
+		return nil, err
+	}
+	// Upgrade chart
+	return upgradeClient.RunWithContext(ctx, spec.ReleaseName, chartReq, vals)
 }
 
 func (c *Client) GetRelease(ctx context.Context, releaseName string) (*helmRelease.Release, error) {
@@ -132,9 +155,16 @@ func (c *Client) installChart(ctx context.Context, spec talosv1alpha1.HelmSpec) 
 	return installConfig.RunWithContext(ctx, chartReq, vals)
 }
 
-func (c *Client) UninstallChart(ctx context.Context, releaseName string) error {
+func (c *Client) UninstallChart(ctx context.Context, releaseName string) (*helmRelease.UninstallReleaseResponse, error) {
 
-	return nil
+	uninstallClient := action.NewUninstall(c.actionConfig)
+	_, err := uninstallClient.Run(releaseName)
+	if err != nil {
+		return nil, err
+	}
+
+	return uninstallClient.Run(releaseName)
+
 }
 
 func handleValuesTemplate(valuesTemplate string) (map[string]interface{}, error) {
@@ -172,4 +202,33 @@ func generateHelmInstallConfig(actionConfig *action.Configuration, helmOptions *
 	installClient.CreateNamespace = helmOptions.Install.CreateNamespace
 
 	return installClient
+}
+
+func generateHelmUpgradeConfig(actionConfig *action.Configuration, helmOptions *capiaddons.HelmOptions) *action.Upgrade {
+	upgradeClient := action.NewUpgrade(actionConfig)
+	if actionConfig.RegistryClient != nil {
+		upgradeClient.SetRegistryClient(actionConfig.RegistryClient)
+	}
+	if helmOptions == nil {
+		return upgradeClient
+	}
+
+	upgradeClient.DisableHooks = helmOptions.DisableHooks
+	upgradeClient.Wait = helmOptions.Wait
+	upgradeClient.WaitForJobs = helmOptions.WaitForJobs
+	if helmOptions.Timeout != nil {
+		upgradeClient.Timeout = helmOptions.Timeout.Duration
+	}
+	upgradeClient.SkipCRDs = helmOptions.SkipCRDs
+	upgradeClient.SubNotes = helmOptions.SubNotes
+	upgradeClient.DisableOpenAPIValidation = helmOptions.DisableOpenAPIValidation
+	upgradeClient.Atomic = helmOptions.Atomic
+	upgradeClient.Force = helmOptions.Upgrade.Force
+	upgradeClient.ResetValues = helmOptions.Upgrade.ResetValues
+	upgradeClient.ReuseValues = helmOptions.Upgrade.ReuseValues
+	upgradeClient.ResetThenReuseValues = helmOptions.Upgrade.ResetThenReuseValues
+	upgradeClient.MaxHistory = helmOptions.Upgrade.MaxHistory
+	upgradeClient.CleanupOnFail = helmOptions.Upgrade.CleanupOnFail
+
+	return upgradeClient
 }
