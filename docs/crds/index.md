@@ -10,6 +10,8 @@ Here you will find information on the following CRDs:
 *   [TalosMachine](./talosmachine.md)
 *   [TalosEtcdBackup](./talosetcdbackup.md)
 *   [TalosEtcdBackupSchedule](./talosetcdbackupschedule.md)
+*   [TalosClusterAddon](./talosclusteraddon.md)
+*   [TalosClusterAddonRelease](./talosclusteraddonrelease.md)
 
 
 

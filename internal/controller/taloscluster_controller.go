@@ -142,8 +142,10 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 	if tc.Spec.ControlPlane != nil && tc.Spec.ControlPlaneRef == nil {
 		tcp := &talosv1alpha1.TalosControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      tc.Name + "-controlplane",
-				Namespace: tc.Namespace,
+				Name:        tc.Name + "-controlplane",
+				Namespace:   tc.Namespace,
+				Labels:      tc.Labels,
+				Annotations: tc.Annotations,
 			},
 		}
 		op, err := controllerutil.CreateOrUpdate(ctx, r.Client, tcp, func() error {

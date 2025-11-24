@@ -264,6 +264,22 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosEtcdBackupSchedule")
 		os.Exit(1)
 	}
+	if err := (&controller.TalosClusterAddonReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("talosclusteraddon-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TalosClusterAddon")
+		os.Exit(1)
+	}
+	if err := (&controller.TalosClusterAddonReleaseReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("talosclusteraddonrelease-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TalosClusterAddonRelease")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

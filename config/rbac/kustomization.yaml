@@ -35,6 +35,12 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the talos-operator itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
+- talosclusteraddonrelease_admin_role.yaml
+- talosclusteraddonrelease_editor_role.yaml
+- talosclusteraddonrelease_viewer_role.yaml
+- talosclusteraddon_admin_role.yaml
+- talosclusteraddon_editor_role.yaml
+- talosclusteraddon_viewer_role.yaml
 - talosetcdbackup_admin_role.yaml
 - talosetcdbackup_editor_role.yaml
 - talosetcdbackup_viewer_role.yaml
