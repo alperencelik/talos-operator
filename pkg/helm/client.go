@@ -155,7 +155,8 @@ func (c *Client) installChart(ctx context.Context, spec talosv1alpha1.HelmSpec) 
 	return installConfig.RunWithContext(ctx, chartReq, vals)
 }
 
-func (c *Client) UninstallChart(ctx context.Context, releaseName string) (*helmRelease.UninstallReleaseResponse, error) {
+func (c *Client) UninstallChart(ctx context.Context, releaseName string) (
+	*helmRelease.UninstallReleaseResponse, error) {
 
 	uninstallClient := action.NewUninstall(c.actionConfig)
 	_, err := uninstallClient.Run(releaseName)
@@ -178,7 +179,8 @@ func handleValuesTemplate(valuesTemplate string) (map[string]interface{}, error)
 	return valueOpts.MergeValues(getter.All(cli.New()))
 }
 
-func generateHelmInstallConfig(actionConfig *action.Configuration, helmOptions *capiaddons.HelmOptions) *action.Install {
+func generateHelmInstallConfig(actionConfig *action.Configuration,
+	helmOptions *capiaddons.HelmOptions) *action.Install {
 	installClient := action.NewInstall(actionConfig)
 	installClient.CreateNamespace = true
 	if actionConfig.RegistryClient != nil {
@@ -204,7 +206,8 @@ func generateHelmInstallConfig(actionConfig *action.Configuration, helmOptions *
 	return installClient
 }
 
-func generateHelmUpgradeConfig(actionConfig *action.Configuration, helmOptions *capiaddons.HelmOptions) *action.Upgrade {
+func generateHelmUpgradeConfig(actionConfig *action.Configuration,
+	helmOptions *capiaddons.HelmOptions) *action.Upgrade {
 	upgradeClient := action.NewUpgrade(actionConfig)
 	if actionConfig.RegistryClient != nil {
 		upgradeClient.SetRegistryClient(actionConfig.RegistryClient)

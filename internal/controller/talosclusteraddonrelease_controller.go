@@ -72,10 +72,10 @@ func (r *TalosClusterAddonReleaseReconciler) Reconcile(ctx context.Context, req 
 	} else {
 		// Handle deletion
 		if controllerutil.ContainsFinalizer(&tcAddonRelease, talosv1alpha1.TalosClusterAddonReleaseFinalizer) {
-			res, delErr := r.handleDelete(ctx, tcAddonRelease)
+			delErr := r.handleDelete(ctx, tcAddonRelease)
 			if delErr != nil {
 				logger.Error(delErr, "failed to handle deletion for TalosClusterAddonRelease", "name", tcAddonRelease.Name)
-				return res, delErr
+				return ctrl.Result{}, delErr
 			}
 			controllerutil.RemoveFinalizer(&tcAddonRelease, talosv1alpha1.TalosClusterAddonReleaseFinalizer)
 			if err := r.Update(ctx, &tcAddonRelease); err != nil {
@@ -165,28 +165,28 @@ func (r *TalosClusterAddonReleaseReconciler) handleFinalizer(ctx context.Context
 	return nil
 }
 
-func (r *TalosClusterAddonReleaseReconciler) handleDelete(ctx context.Context, tcAddonRelease talosv1alpha1.TalosClusterAddonRelease) (ctrl.Result, error) {
+func (r *TalosClusterAddonReleaseReconciler) handleDelete(ctx context.Context, tcAddonRelease talosv1alpha1.TalosClusterAddonRelease) error {
 	// TODO: Remove helm chart from the cluster
 	_, _ = ctx, tcAddonRelease
 	logger := logf.FromContext(ctx)
 	kubeconfigData, err := r.GetKubeConfigData(ctx, tcAddonRelease)
 	if err != nil {
 		logger.Error(err, "failed to get kubeconfig data for TalosClusterAddonRelease", "name", tcAddonRelease.Name)
-		return ctrl.Result{}, err
+		return err
 	}
 	// Create a helm client using the kubeconfig data
 	helmClient, err := helm.NewClient(*kubeconfigData, tcAddonRelease.Spec.HelmSpec.ReleaseNamespace)
 	if err != nil {
 		logger.Error(err, "failed to create helm client")
-		return ctrl.Result{}, err
+		return err
 	}
 	_, err = helmClient.UninstallChart(ctx, tcAddonRelease.Spec.HelmSpec.ReleaseName)
 	if err != nil {
 		logger.Error(err, "failed to uninstall helm chart")
-		return ctrl.Result{}, err
+		return err
 	}
 
-	return ctrl.Result{}, nil
+	return nil
 }
 
 func (r *TalosClusterAddonReleaseReconciler) GetKubeConfigData(ctx context.Context, tcAddonRelease talosv1alpha1.TalosClusterAddonRelease) (*[]byte, error) {
