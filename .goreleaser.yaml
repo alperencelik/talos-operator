@@ -16,12 +16,9 @@ builds:
     ldflags:
       - -s -w -X main.version={{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .CommitDate }} -X main.treeState={{ .IsGitDirty }} 
     goos:
-      - darwin
       - linux
     goarch:
       - amd64
-      - arm
-      - arm64
     ignore:
       - goos: openbsd
         goarch: arm
@@ -34,7 +31,7 @@ kos:
     main: ./cmd/...
     base_image: ghcr.io/distroless/static:latest
     platforms:
-      - all
+      - linux/amd64
     ldflags:
       - -extldflags "-static"
       - -s
