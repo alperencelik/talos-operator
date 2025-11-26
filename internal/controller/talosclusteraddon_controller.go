@@ -24,11 +24,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -58,8 +60,7 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	var tcAddon talosv1alpha1.TalosClusterAddon
 	if err := r.Get(ctx, req.NamespacedName, &tcAddon); err != nil {
-		logger.Error(err, "unable to fetch TalosClusterAddon")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	// Finalizer
 	var delErr error
@@ -81,6 +82,12 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				r.Recorder.Event(&tcAddon, corev1.EventTypeWarning, "DeleteFailed", "Failed to handle delete for TalosControlPlane")
 
 				return res, fmt.Errorf("failed to handle delete for TalosControlPlane %s: %w", tcAddon.Name, delErr)
+			}
+			// Remove the finalizer
+			controllerutil.RemoveFinalizer(&tcAddon, talosv1alpha1.TalosClusterAddonFinalizer)
+			if err := r.Update(ctx, &tcAddon); err != nil {
+				logger.Error(err, "failed to remove finalizer for TalosClusterAddon", "name", tcAddon.Name)
+				return ctrl.Result{}, err
 			}
 		}
 		// Stop reconciliation as the object is being deleted
@@ -153,7 +160,7 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 func (r *TalosClusterAddonReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&talosv1alpha1.TalosClusterAddon{}).
-		Owns(&talosv1alpha1.TalosClusterAddonRelease{}).
+		Owns(&talosv1alpha1.TalosClusterAddonRelease{}, builder.WithPredicates(TalosClusterAddonReleasePredicate)).
 		Named("talosclusteraddon").
 		Complete(r)
 }
@@ -169,7 +176,8 @@ func (r *TalosClusterAddonReconciler) handleFinalizer(ctx context.Context, tcAdd
 }
 
 func (r *TalosClusterAddonReconciler) handleDelete(ctx context.Context, tcAddon *talosv1alpha1.TalosClusterAddon) (ctrl.Result, error) {
-	// Perform any necessary cleanup operations here
+	// I believe I shouldn't need to delete owned TalosClusterAddonRelease resources
+	// because owner references should handle that automatically.
 	_, _ = ctx, tcAddon
 	return ctrl.Result{}, nil
 }
@@ -210,7 +218,7 @@ func (r *TalosClusterAddonReconciler) createOrUpdateAddonRelease(ctx context.Con
 			Name:       cluster.Name,
 			Namespace:  cluster.Namespace,
 		}
-		return controllerutil.SetOwnerReference(&tcAddon, tcAddonRelease, r.Scheme)
+		return controllerutil.SetControllerReference(&tcAddon, tcAddonRelease, r.Scheme)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create or update TalosClusterAddonRelease %s: %w", tcAddonRelease.Name, err)
@@ -249,4 +257,13 @@ func isClusterInList(clusterName string, clusterList []talosv1alpha1.TalosContro
 		}
 	}
 	return false
+}
+
+func (r *TalosClusterAddonReconciler) handleResourceNotFound(ctx context.Context, err error) error {
+	logger := logf.FromContext(ctx)
+	if kerrors.IsNotFound(err) {
+		logger.Info("TalosClusterAddon resource not found. Ignoring since object must be deleted.")
+		return nil
+	}
+	return err
 }

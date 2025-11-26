@@ -21,11 +21,13 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -59,8 +61,7 @@ func (r *TalosClusterAddonReleaseReconciler) Reconcile(ctx context.Context, req 
 
 	var tcAddonRelease talosv1alpha1.TalosClusterAddonRelease
 	if err := r.Get(ctx, req.NamespacedName, &tcAddonRelease); err != nil {
-		logger.Error(err, "unable to fetch TalosClusterAddonRelease")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	var delErr error
 	if tcAddonRelease.DeletionTimestamp.IsZero() {
@@ -118,7 +119,11 @@ func (r *TalosClusterAddonReleaseReconciler) Reconcile(ctx context.Context, req 
 		}
 		return ctrl.Result{}, err
 	}
-	_, err = helmClient.InstallOrUpgradeChart(ctx, tcAddonRelease.Spec.HelmSpec)
+	helmRelease, err := helmClient.InstallOrUpgradeChart(ctx, tcAddonRelease.Spec.HelmSpec)
+	if helmRelease.Info.Status == "deployed" {
+		logger.Info("Helm chart deployed successfully", "releaseName", tcAddonRelease.Spec.HelmSpec.ReleaseName)
+	}
+
 	if err != nil {
 		logger.Error(err, "failed to install or upgrade helm chart")
 		meta.SetStatusCondition(&tcAddonRelease.Status.Conditions, metav1.Condition{
@@ -150,7 +155,7 @@ func (r *TalosClusterAddonReleaseReconciler) Reconcile(ctx context.Context, req 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TalosClusterAddonReleaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&talosv1alpha1.TalosClusterAddonRelease{}).
+		For(&talosv1alpha1.TalosClusterAddonRelease{}, builder.WithPredicates(TalosClusterAddonReleasePredicate)).
 		Named("talosclusteraddonrelease").
 		Complete(r)
 }
@@ -167,8 +172,9 @@ func (r *TalosClusterAddonReleaseReconciler) handleFinalizer(ctx context.Context
 
 func (r *TalosClusterAddonReleaseReconciler) handleDelete(ctx context.Context, tcAddonRelease talosv1alpha1.TalosClusterAddonRelease) error {
 	// TODO: Remove helm chart from the cluster
-	_, _ = ctx, tcAddonRelease
 	logger := logf.FromContext(ctx)
+	logger.Info("Deleting TalosClusterAddonRelease, uninstalling helm chart", "name", tcAddonRelease.Name)
+
 	kubeconfigData, err := r.GetKubeConfigData(ctx, tcAddonRelease)
 	if err != nil {
 		logger.Error(err, "failed to get kubeconfig data for TalosClusterAddonRelease", "name", tcAddonRelease.Name)
@@ -180,12 +186,17 @@ func (r *TalosClusterAddonReleaseReconciler) handleDelete(ctx context.Context, t
 		logger.Error(err, "failed to create helm client")
 		return err
 	}
-	_, err = helmClient.UninstallChart(ctx, tcAddonRelease.Spec.HelmSpec.ReleaseName)
-	if err != nil {
-		logger.Error(err, "failed to uninstall helm chart")
-		return err
+	// Get the release to make sure if it exists
+	release, _ := helmClient.GetRelease(ctx, tcAddonRelease.Spec.HelmSpec.ReleaseName)
+	// Uninstall the chart
+	if release != nil {
+		_, err = helmClient.UninstallChart(ctx, tcAddonRelease.Spec.HelmSpec.ReleaseName)
+		if err != nil {
+			logger.Error(err, "failed to uninstall helm chart")
+			return err
+		}
 	}
-
+	// If release is nil or there is an error, we assume the release does not exist or is already uninstalled
 	return nil
 }
 
@@ -218,4 +229,13 @@ func (r *TalosClusterAddonReleaseReconciler) GetKubeConfigData(ctx context.Conte
 		return nil, err
 	}
 	return &kubeconfigData, nil
+}
+
+func (r *TalosClusterAddonReleaseReconciler) handleResourceNotFound(ctx context.Context, err error) error {
+	logger := logf.FromContext(ctx)
+	if kerrors.IsNotFound(err) {
+		logger.Info("Talos ClusterAddonRelease resource not found. Ignoring since object must be deleted.")
+		return nil
+	}
+	return err
 }

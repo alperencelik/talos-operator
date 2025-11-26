@@ -45,3 +45,10 @@ var jobPredicate = predicate.Funcs{
 		return false
 	},
 }
+
+var TalosClusterAddonReleasePredicate = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		// Only reconcile if the generation of the object has changed
+		return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+	},
+}

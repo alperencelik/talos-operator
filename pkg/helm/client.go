@@ -159,11 +159,6 @@ func (c *Client) UninstallChart(ctx context.Context, releaseName string) (
 	*helmRelease.UninstallReleaseResponse, error) {
 
 	uninstallClient := action.NewUninstall(c.actionConfig)
-	_, err := uninstallClient.Run(releaseName)
-	if err != nil {
-		return nil, err
-	}
-
 	return uninstallClient.Run(releaseName)
 
 }
