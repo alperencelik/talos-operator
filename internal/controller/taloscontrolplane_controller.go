@@ -153,6 +153,12 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to reconcile TalosControlPlane in metal mode: %w", err)
 		}
+	case TalosModeCloud:
+		r.Recorder.Event(&tcp, corev1.EventTypeNormal, "Reconciling", "Reconciling TalosControlPlane in cloud mode")
+		result, err = r.reconcileCloudMode(ctx, &tcp)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to reconcile TalosControlPlane in cloud mode: %w", err)
+		}
 	default:
 		logger.Info("Unsupported mode for TalosControlPlane", "mode", tcp.Spec.Mode)
 		return ctrl.Result{}, nil
@@ -897,6 +903,16 @@ func (r *TalosControlPlaneReconciler) SetConfig(ctx context.Context, tcp *talosv
 		}
 		ClientEndpoint = ipAddresses
 	}
+	// Cloud mode
+	if tcp.Spec.Mode == "cloud" {
+		// Get the LoadBalancer IPs from the Service
+		lbIP, err := r.GetLoadBalancerIP(ctx, tcp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get LoadBalancer IP for TalosControlPlane %s: %w", tcp.Name, err)
+		}
+		ClientEndpoint = lbIP
+	}
+
 	var endpoint string
 	// Construct endpoint
 	if tcp.Spec.Endpoint != "" {

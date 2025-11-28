@@ -40,6 +40,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	computev1beta1 "github.com/GoogleCloudPlatform/k8s-config-connector/pkg/clients/generated/apis/compute/v1beta1"
+	kccv1alpha1 "github.com/GoogleCloudPlatform/k8s-config-connector/pkg/clients/generated/apis/k8s/v1alpha1"
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/internal/controller"
 	"github.com/alperencelik/talos-operator/pkg/talos"
@@ -56,6 +58,10 @@ func init() {
 
 	utilruntime.Must(talosv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
+	// Add kcc schemes
+	utilruntime.Must(kccv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(computev1beta1.AddToScheme(scheme))
+
 }
 
 func main() {

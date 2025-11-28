@@ -6,6 +6,7 @@ const (
 	TalosModeContainer = "container"
 	// TalosModeMetal is the mode for Talos running on bare metal
 	TalosModeMetal = "metal"
+	TalosModeCloud = "cloud"
 
 	// MachineType
 	TalosMachineTypeControlPlane = "controlplane"

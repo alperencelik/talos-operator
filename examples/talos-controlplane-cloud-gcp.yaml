@@ -1,0 +1,17 @@
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosControlPlane
+metadata:
+  name: taloscontrolplane-gcp-sample 
+spec:
+  version: v1.10.3
+  mode: cloud 
+  replicas: 2
+  kubeVersion: v1.33.0
+  cloudSpec: 
+    gcp:
+      project: daring-charmer-113515 
+      region: us-central1
+      zone: us-central1-a
+      image: projects/daring-charmer-113515/global/images/talos
+      tags:
+        - talos-gcp-example 

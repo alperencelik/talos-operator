@@ -43,6 +43,48 @@ spec:
                 description: ControlPlane defines the control plane configuration
                   for the Talos cluster.
                 properties:
+                  cloudSpec:
+                    description: Cloud Spec is required when mode is 'cloud'
+                    properties:
+                      gcp:
+                        description: GCP Spec is required when platform is 'gcp'
+                        properties:
+                          image:
+                            description: Image is the source image URI for Talos
+                            type: string
+                          instanceType:
+                            default: e2-small
+                            description: InstanceType is the Compute instance type
+                            type: string
+                          network:
+                            default: default
+                            description: Network is the network name
+                            type: string
+                          project:
+                            description: Project is the GCP project ID
+                            type: string
+                          region:
+                            description: Region is the GCP region
+                            type: string
+                          subnetwork:
+                            default: default
+                            description: Subnetwork is the subnetwork name
+                            type: string
+                          tags:
+                            description: Tags is a list of network tags
+                            items:
+                              type: string
+                            type: array
+                          zone:
+                            description: Zone is the GCP zone
+                            type: string
+                        required:
+                        - image
+                        - project
+                        - region
+                        - zone
+                        type: object
+                    type: object
                   clusterDomain:
                     default: cluster.local
                     description: ClusterDomain is the domain for the Kubernetes cluster

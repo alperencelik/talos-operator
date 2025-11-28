@@ -39,7 +39,6 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:default="v1.10.3"
 	Version string `json:"version,omitempty"`
 
-	// TODO: Add support for cloud mode
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=container;metal;cloud
 	Mode string `json:"mode,omitempty"`
@@ -51,6 +50,9 @@ type TalosControlPlaneSpec struct {
 
 	// Metal Spec is required when mode is 'metal'
 	MetalSpec MetalSpec `json:"metalSpec,omitempty"`
+
+	// Cloud Spec is required when mode is 'cloud'
+	CloudSpec CloudSpec `json:"cloudSpec,omitempty"`
 
 	// Endpoint for the Kubernetes API Server
 	// +kubebuilder:validation:Optional
@@ -124,6 +126,39 @@ type MetalSpec struct {
 	// MachineSpec defines the specifications for each Talos control plane machine.
 	// +kubebuilder:validation:Optional
 	MachineSpec *MachineSpec `json:"machineSpec,omitempty"`
+}
+
+type CloudSpec struct {
+	// GCP Spec is required when platform is 'gcp'
+	// +kubebuilder:validation:Optional
+	GCP *GCPSpec `json:"gcp,omitempty"`
+}
+
+type GCPSpec struct {
+	// Project is the GCP project ID
+	// +kubebuilder:validation:Required
+	Project string `json:"project"`
+	// Region is the GCP region
+	// +kubebuilder:validation:Required
+	Region string `json:"region"`
+	// Zone is the GCP zone
+	// +kubebuilder:validation:Required
+	Zone string `json:"zone"`
+	// InstanceType is the Compute instance type
+	// +kubebuilder:default="e2-small"
+	InstanceType string `json:"instanceType,omitempty"`
+	// Image is the source image URI for Talos
+	// +kubebuilder:validation:Required
+	Image string `json:"image"`
+	// Network is the network name
+	// +kubebuilder:default="default"
+	Network string `json:"network,omitempty"`
+	// Subnetwork is the subnetwork name
+	// +kubebuilder:default="default"
+	Subnetwork string `json:"subnetwork,omitempty"`
+	// Tags is a list of network tags
+	// +kubebuilder:validation:Optional
+	Tags []string `json:"tags,omitempty"`
 }
 
 // +kubebuilder:validation:XValidation:rule="has(self.address) != has(self.machineRef)",message="address and machineRef are mutually exclusive"
