@@ -18,95 +18,107 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
 )
 
 var _ = Describe("TalosEtcdBackupSchedule Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-backup-schedule"
+	const (
+		timeout  = time.Second * 10
+		interval = time.Millisecond * 250
+	)
 
-		ctx := context.Background()
+	var (
+		schedule     *talosv1alpha1.TalosEtcdBackupSchedule
+		scheduleName string
+		namespace    string
+		ctx          context.Context
+	)
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default",
-		}
-		talosetcdbackupschedule := &talosv1alpha1.TalosEtcdBackupSchedule{}
+	BeforeEach(func() {
+		ctx = context.Background()
+		namespace = DefaultNamespace
+		scheduleName = "test-schedule-" + RandStringRunes(5)
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind TalosEtcdBackupSchedule")
-			err := k8sClient.Get(ctx, typeNamespacedName, talosetcdbackupschedule)
-			if err != nil && errors.IsNotFound(err) {
-				retention := int32(3)
-				resource := &talosv1alpha1.TalosEtcdBackupSchedule{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					Spec: talosv1alpha1.TalosEtcdBackupScheduleSpec{
-						Schedule:  "0 2 * * *",
-						Retention: &retention,
-						BackupTemplate: talosv1alpha1.TalosEtcdBackupTemplateSpec{
-							Spec: talosv1alpha1.TalosEtcdBackupSpec{
-								TalosControlPlaneRef: &corev1.LocalObjectReference{
-									Name: "test-controlplane",
+		schedule = &talosv1alpha1.TalosEtcdBackupSchedule{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      scheduleName,
+				Namespace: namespace,
+			},
+			Spec: talosv1alpha1.TalosEtcdBackupScheduleSpec{
+				Schedule: "*/1 * * * *", // Every minute
+				BackupTemplate: talosv1alpha1.TalosEtcdBackupTemplateSpec{
+					Spec: talosv1alpha1.TalosEtcdBackupSpec{
+						TalosControlPlaneRef: &corev1.LocalObjectReference{
+							Name: "some-cp",
+						},
+						BackupStorage: talosv1alpha1.BackupStorage{
+							S3: &talosv1alpha1.S3Storage{
+								Bucket: "bucket",
+								Region: "us-east-1",
+								AccessKeyID: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{Name: "s"}, Key: "k",
 								},
-								BackupStorage: talosv1alpha1.BackupStorage{
-									S3: &talosv1alpha1.S3Storage{
-										Bucket: "test-bucket",
-										Region: "us-west-2",
-										AccessKeyID: &corev1.SecretKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "test-secret",
-											},
-											Key: "accessKeyID",
-										},
-										SecretAccessKey: &corev1.SecretKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "test-secret",
-											},
-											Key: "secretAccessKey",
-										},
-									},
+								SecretAccessKey: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{Name: "s"}, Key: "k",
 								},
 							},
 						},
 					},
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
+				},
+			},
+		}
+	})
+
+	Context("When reconciling a TalosEtcdBackupSchedule", func() {
+		It("Should successfully create the schedule and trigger an initial backup", func() {
+			By("Creating the TalosEtcdBackupSchedule")
+			Expect(k8sClient.Create(ctx, schedule)).To(Succeed())
+
+			By("Checking for Finalizer and NextScheduleTime")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: scheduleName, Namespace: namespace}, schedule)).To(Succeed())
+				g.Expect(schedule.Finalizers).To(ContainElement(talosv1alpha1.TalosEtcdBackupScheduleFinalizer))
+				g.Expect(schedule.Status.NextScheduleTime).NotTo(BeNil())
+			}, timeout, interval).Should(Succeed())
+
+			By("Checking for created TalosEtcdBackup")
+			Eventually(func(g Gomega) {
+				var backupList talosv1alpha1.TalosEtcdBackupList
+				g.Expect(k8sClient.List(ctx, &backupList, client.InNamespace(namespace), client.MatchingLabels{
+					talosv1alpha1.TalosEtcdBackupScheduleLabelKey: scheduleName,
+				})).To(Succeed())
+				g.Expect(backupList.Items).To(HaveLen(1))
+			}, timeout, interval).Should(Succeed())
 		})
+		It("Should handle deletion properly", func() {
+			By("Creating the TalosEtcdBackupSchedule")
+			Expect(k8sClient.Create(ctx, schedule)).To(Succeed())
 
-		AfterEach(func() {
-			resource := &talosv1alpha1.TalosEtcdBackupSchedule{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+			By("Deleting the TalosEtcdBackupSchedule")
+			Expect(k8sClient.Delete(ctx, schedule)).To(Succeed())
 
-			By("Cleanup the specific resource instance TalosEtcdBackupSchedule")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &TalosEtcdBackupScheduleReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
+			By("Verifying resource is deleted")
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: scheduleName, Namespace: namespace}, schedule)
+			}, timeout, interval).ShouldNot(Succeed())
+			// Also verify the child backups are deleted if any
+			By("Verifying associated TalosEtcdBackups are deleted")
+			Eventually(func(g Gomega) {
+				var backupList talosv1alpha1.TalosEtcdBackupList
+				g.Expect(k8sClient.List(ctx, &backupList, client.InNamespace(namespace), client.MatchingLabels{
+					talosv1alpha1.TalosEtcdBackupScheduleLabelKey: scheduleName,
+				})).To(Succeed())
+				g.Expect(backupList.Items).To(BeEmpty())
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 })

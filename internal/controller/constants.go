@@ -22,4 +22,7 @@ const (
 
 	// ReconcileModeImport is the mode for importing existing Talos resources
 	ReconcileModeImport = "import"
+
+	// For tests
+	DefaultNamespace = "default"
 )
