@@ -18,67 +18,91 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 )
 
 var _ = Describe("TalosMachine Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	const (
+		timeout  = time.Second * 10
+		interval = time.Millisecond * 250
+	)
 
-		ctx := context.Background()
+	var (
+		talosMachine     *talosv1alpha1.TalosMachine
+		talosMachineName string
+		namespace        string
+		ctx              context.Context
+	)
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+	BeforeEach(func() {
+		ctx = context.Background()
+		namespace = "default"
+		talosMachineName = "test-machine-" + RandStringRunes(5)
+
+		talosMachine = &talosv1alpha1.TalosMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      talosMachineName,
+				Namespace: namespace,
+			},
+			Spec: talosv1alpha1.TalosMachineSpec{
+				Endpoint: "192.168.1.10",
+				Version:  "v1.10.4",
+			},
 		}
-		talosmachine := &talosv1alpha1.TalosMachine{}
+	})
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind TalosMachine")
-			err := k8sClient.Get(ctx, typeNamespacedName, talosmachine)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &talosv1alpha1.TalosMachine{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
+	Context("When reconciling a TalosMachine", func() {
+		It("Should successfully create the resource", func() {
+			By("Creating the TalosMachine")
+			Expect(k8sClient.Create(ctx, talosMachine)).To(Succeed())
+
+			By("Checking for resource existence")
+			createdResource := &talosv1alpha1.TalosMachine{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: talosMachineName, Namespace: namespace}, createdResource)
+			}, timeout, interval).Should(Succeed())
+
+			Expect(createdResource.Spec.Endpoint).To(Equal("192.168.1.10"))
+			Expect(createdResource.Spec.Version).To(Equal("v1.10.4"))
 		})
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &talosv1alpha1.TalosMachine{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+		It("Should handle updates", func() {
+			By("Creating the TalosMachine")
+			Expect(k8sClient.Create(ctx, talosMachine)).To(Succeed())
 
-			By("Cleanup the specific resource instance TalosMachine")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			By("Updating the version")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosMachineName, Namespace: namespace}, talosMachine)).To(Succeed())
+				talosMachine.Spec.Version = "v1.5.1"
+				g.Expect(k8sClient.Update(ctx, talosMachine)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying the update")
+			createdResource := &talosv1alpha1.TalosMachine{}
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosMachineName, Namespace: namespace}, createdResource)).To(Succeed())
+				g.Expect(createdResource.Spec.Version).To(Equal("v1.5.1"))
+			}, timeout, interval).Should(Succeed())
 		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &TalosMachineReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+		It("Should handle deletion", func() {
+			By("Creating the TalosMachine")
+			Expect(k8sClient.Create(ctx, talosMachine)).To(Succeed())
+
+			By("Deleting the TalosMachine")
+			Expect(k8sClient.Delete(ctx, talosMachine)).To(Succeed())
+
+			By("Verifying resource is deleted")
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: talosMachineName, Namespace: namespace}, talosMachine)
+			}, timeout, interval).ShouldNot(Succeed())
 		})
 	})
 })

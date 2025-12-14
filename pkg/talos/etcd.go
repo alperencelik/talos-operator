@@ -19,17 +19,3 @@ func (tc *TalosClient) EtcdSnapshotReader(ctx context.Context) (io.ReadCloser, e
 
 	return resp, nil
 }
-
-// TakeSnapshot is deprecated. Use EtcdSnapshotReader for streaming to avoid local I/O.
-// This method is kept for backwards compatibility but will write to local disk.
-func (tc *TalosClient) TakeSnapshot(ctx context.Context) ([]byte, error) {
-	reader, err := tc.EtcdSnapshotReader(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close() // nolint:errcheck
-
-	// For backwards compatibility, discard the data
-	_, err = io.Copy(io.Discard, reader)
-	return nil, err
-}

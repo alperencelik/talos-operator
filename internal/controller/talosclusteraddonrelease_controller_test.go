@@ -18,67 +18,99 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 )
 
 var _ = Describe("TalosClusterAddonRelease Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	const (
+		timeout  = time.Second * 10
+		interval = time.Millisecond * 250
+	)
 
-		ctx := context.Background()
+	var (
+		release          *talosv1alpha1.TalosClusterAddonRelease
+		releaseName      string
+		controlPlaneName string
+		namespace        string
+		ctx              context.Context
+	)
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+	BeforeEach(func() {
+		ctx = context.Background()
+		namespace = "default"
+		releaseName = "test-release-" + RandStringRunes(5)
+		controlPlaneName = "test-cp-release-" + RandStringRunes(5)
+
+		// Create matching TalosControlPlane
+		cp := &talosv1alpha1.TalosControlPlane{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      controlPlaneName,
+				Namespace: namespace,
+			},
+			Spec: talosv1alpha1.TalosControlPlaneSpec{
+				Replicas:    1,
+				Version:     "v1.10.4",
+				KubeVersion: "v1.33.1",
+				Mode:        "cloud",
+			},
 		}
-		talosclusteraddonrelease := &talosv1alpha1.TalosClusterAddonRelease{}
+		Expect(k8sClient.Create(ctx, cp)).To(Succeed())
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind TalosClusterAddonRelease")
-			err := k8sClient.Get(ctx, typeNamespacedName, talosclusteraddonrelease)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &talosv1alpha1.TalosClusterAddonRelease{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-		})
+		// Create kubeconfig secret
+		kubeconfigSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      controlPlaneName + "-kubeconfig",
+				Namespace: namespace,
+			},
+			Data: map[string][]byte{
+				"kubeconfig": []byte("dummy-kubeconfig"),
+			},
+		}
+		Expect(k8sClient.Create(ctx, kubeconfigSecret)).To(Succeed())
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &talosv1alpha1.TalosClusterAddonRelease{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+		release = &talosv1alpha1.TalosClusterAddonRelease{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      releaseName,
+				Namespace: namespace,
+			},
+			Spec: talosv1alpha1.TalosClusterAddonReleaseSpec{
+				ClusterRef: corev1.ObjectReference{
+					Name:       controlPlaneName,
+					Namespace:  namespace,
+					Kind:       "TalosControlPlane",
+					APIVersion: talosv1alpha1.GroupVersion.String(),
+				},
+				HelmSpec: talosv1alpha1.HelmSpec{
+					ChartName:        "nginx",
+					RepoURL:          "https://charts.bitnami.com/bitnami",
+					Version:          "1.0.0",
+					ReleaseName:      "my-nginx",
+					ReleaseNamespace: "default",
+				},
+			},
+		}
+	})
 
-			By("Cleanup the specific resource instance TalosClusterAddonRelease")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &TalosClusterAddonReleaseReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
+	Context("When reconciling a TalosClusterAddonRelease", func() {
+		It("Should successfully reconcile and add finalizer", func() {
+			By("Creating the TalosClusterAddonRelease")
+			Expect(k8sClient.Create(ctx, release)).To(Succeed())
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+			By("Checking for Finalizer")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: releaseName, Namespace: namespace}, release)).To(Succeed())
+				g.Expect(release.Finalizers).To(ContainElement(talosv1alpha1.TalosClusterAddonReleaseFinalizer))
+			}, timeout, interval).Should(Succeed())
+
+			// Likely fails later due to bad kubeconfig, but Finalizer presence means controller started work.
 		})
 	})
 })

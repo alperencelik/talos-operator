@@ -18,67 +18,127 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 )
 
 var _ = Describe("TalosEtcdBackup Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	const (
+		timeout  = time.Second * 10
+		interval = time.Millisecond * 250
+	)
 
-		ctx := context.Background()
+	var (
+		talosEtcdBackup     *talosv1alpha1.TalosEtcdBackup
+		talosEtcdBackupName string
+		controlPlaneName    string
+		namespace           string
+		ctx                 context.Context
+	)
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+	BeforeEach(func() {
+		ctx = context.Background()
+		namespace = "default"
+		talosEtcdBackupName = "test-backup-" + RandStringRunes(5)
+		controlPlaneName = "test-cp-backup-" + RandStringRunes(5)
+
+		// Create dummy ControlPlane
+		cp := &talosv1alpha1.TalosControlPlane{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      controlPlaneName,
+				Namespace: namespace,
+			},
+			Spec: talosv1alpha1.TalosControlPlaneSpec{
+				Replicas:    1,
+				Version:     "v1.10.4",
+				KubeVersion: "v1.33.1",
+				Mode:        "cloud",
+			},
 		}
-		talosetcdbackup := &talosv1alpha1.TalosEtcdBackup{}
+		Expect(k8sClient.Create(ctx, cp)).To(Succeed())
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind TalosEtcdBackup")
-			err := k8sClient.Get(ctx, typeNamespacedName, talosetcdbackup)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &talosv1alpha1.TalosEtcdBackup{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
+		// Create dummy Secrets for S3
+		secretName := "s3-secret-" + RandStringRunes(5)
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secretName,
+				Namespace: namespace,
+			},
+			StringData: map[string]string{
+				"access-key": "dummy",
+				"secret-key": "dummy",
+			},
+		}
+		Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+
+		talosEtcdBackup = &talosv1alpha1.TalosEtcdBackup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      talosEtcdBackupName,
+				Namespace: namespace,
+			},
+			Spec: talosv1alpha1.TalosEtcdBackupSpec{
+				TalosControlPlaneRef: &corev1.LocalObjectReference{
+					Name: controlPlaneName,
+				},
+				BackupStorage: talosv1alpha1.BackupStorage{
+					S3: &talosv1alpha1.S3Storage{
+						Bucket: "test-bucket",
+						Region: "us-east-1",
+						AccessKeyID: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: secretName,
+							},
+							Key: "access-key",
+						},
+						SecretAccessKey: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: secretName,
+							},
+							Key: "secret-key",
+						},
 					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
+				},
+			},
+		}
+	})
+
+	Context("When reconciling a TalosEtcdBackup", func() {
+		It("Should successfully create the resource and add finalizer", func() {
+			By("Creating the TalosEtcdBackup")
+			Expect(k8sClient.Create(ctx, talosEtcdBackup)).To(Succeed())
+
+			By("Checking for Finalizer")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosEtcdBackupName, Namespace: namespace}, talosEtcdBackup)).To(Succeed())
+				g.Expect(talosEtcdBackup.Finalizers).To(ContainElement(talosv1alpha1.TalosEtcdBackupFinalizer))
+			}, timeout, interval).Should(Succeed())
 		})
+		It("Should handle deletion and remove finalizer", func() {
+			By("Creating the TalosEtcdBackup")
+			Expect(k8sClient.Create(ctx, talosEtcdBackup)).To(Succeed())
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &talosv1alpha1.TalosEtcdBackup{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+			By("Deleting the TalosEtcdBackup")
+			Expect(k8sClient.Delete(ctx, talosEtcdBackup)).To(Succeed())
 
-			By("Cleanup the specific resource instance TalosEtcdBackup")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &TalosEtcdBackupReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+			By("Verifying resource is deleted")
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: talosEtcdBackupName, Namespace: namespace}, talosEtcdBackup)
+			}, timeout, interval).ShouldNot(Succeed())
 		})
 	})
+
+	// TODO: Find a way to mock S3 interactions to test backup process
+	// backupKey := storage.GenerateBackupKey(controlPlaneName)
+	// By("Checking for backup process initiation")
+	// Eventually(func(g Gomega) {
+	// g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosEtcdBackupName, Namespace: namespace}, talosEtcdBackup)).To(Succeed())
+	// g.Expect(talosEtcdBackup.Status.FilePath).To(Equal(backupKey))
+	// }, timeout, interval).Should(Succeed())
 })

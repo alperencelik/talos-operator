@@ -18,67 +18,166 @@ package controller
 
 import (
 	"context"
+	"math/rand"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 )
 
 var _ = Describe("TalosCluster Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	const (
+		timeout  = time.Second * 10
+		interval = time.Millisecond * 250
+	)
 
-		ctx := context.Background()
+	var (
+		talosCluster     *talosv1alpha1.TalosCluster
+		talosClusterName string
+		namespace        string
+		ctx              context.Context
+	)
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+	BeforeEach(func() {
+		ctx = context.Background()
+		namespace = "default"
+		talosClusterName = "test-talos-cluster-" + RandStringRunes(5)
+
+		talosCluster = &talosv1alpha1.TalosCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      talosClusterName,
+				Namespace: namespace,
+			},
+			Spec: talosv1alpha1.TalosClusterSpec{
+				ControlPlane: &talosv1alpha1.TalosControlPlaneSpec{
+					Replicas:    3,
+					Version:     "v1.10.4",
+					KubeVersion: "v1.31.0",
+					Mode:        "cloud",
+				},
+				Worker: &talosv1alpha1.TalosWorkerSpec{
+					Replicas:    3,
+					Version:     "v1.10.4",
+					KubeVersion: "v1.31.0",
+					Mode:        "cloud",
+				},
+			},
 		}
-		taloscluster := &talosv1alpha1.TalosCluster{}
+	})
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind TalosCluster")
-			err := k8sClient.Get(ctx, typeNamespacedName, taloscluster)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &talosv1alpha1.TalosCluster{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					// TODO(user): Specify other spec details if needed.
+	Context("When reconciling a TalosCluster", func() {
+		It("Should create TalosControlPlane and TalosWorker resources", func() {
+			By("Creating the TalosCluster")
+			Expect(k8sClient.Create(ctx, talosCluster)).To(Succeed())
+
+			By("Checking for TalosControlPlane creation")
+			controlPlaneName := talosClusterName + "-controlplane"
+			createdControlPlane := &talosv1alpha1.TalosControlPlane{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: controlPlaneName, Namespace: namespace}, createdControlPlane)
+			}, timeout, interval).Should(Succeed())
+
+			Expect(createdControlPlane.Spec.Replicas).To(Equal(int32(3)))
+			Expect(createdControlPlane.Spec.Version).To(Equal("v1.10.4"))
+
+			By("Checking for TalosWorker creation")
+			workerName := talosClusterName + "-worker"
+			createdWorker := &talosv1alpha1.TalosWorker{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: workerName, Namespace: namespace}, createdWorker)
+			}, timeout, interval).Should(Succeed())
+
+			Expect(createdWorker.Spec.Replicas).To(Equal(int32(3)))
+			Expect(createdWorker.Spec.ControlPlaneRef.Name).To(Equal(controlPlaneName))
+
+			By("Verifying OwnerReferences")
+			// Helper to check owner reference
+			isOwnedBy := func(obj client.Object, owner *talosv1alpha1.TalosCluster) bool {
+				for _, ref := range obj.GetOwnerReferences() {
+					if ref.UID == owner.UID {
+						return true
+					}
 				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+				return false
 			}
+			Expect(isOwnedBy(createdControlPlane, talosCluster)).To(BeTrue(), "TalosControlPlane should be owned by TalosCluster")
+			Expect(isOwnedBy(createdWorker, talosCluster)).To(BeTrue(), "TalosWorker should be owned by TalosCluster")
+
+			By("Checking Finalizer")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, talosCluster)).To(Succeed())
+				g.Expect(talosCluster.Finalizers).To(ContainElement(talosv1alpha1.TalosClusterFinalizer))
+			}, timeout, interval).Should(Succeed())
 		})
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &talosv1alpha1.TalosCluster{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+		It("Should update child resources when TalosCluster is updated", func() {
+			By("Creating the TalosCluster")
+			Expect(k8sClient.Create(ctx, talosCluster)).To(Succeed())
 
-			By("Cleanup the specific resource instance TalosCluster")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			By("Waiting for child resources")
+			controlPlaneName := talosClusterName + "-controlplane"
+			createdControlPlane := &talosv1alpha1.TalosControlPlane{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: controlPlaneName, Namespace: namespace}, createdControlPlane)
+			}, timeout, interval).Should(Succeed())
+
+			By("Updating TalosCluster spec")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, talosCluster)).To(Succeed())
+				talosCluster.Spec.ControlPlane.Replicas = 5
+				g.Expect(k8sClient.Update(ctx, talosCluster)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying TalosControlPlane update")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: controlPlaneName, Namespace: namespace}, createdControlPlane)).To(Succeed())
+				g.Expect(createdControlPlane.Spec.Replicas).To(Equal(int32(5)))
+			}, timeout, interval).Should(Succeed())
 		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &TalosClusterReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+		It("Should handle deletion correctly", func() {
+			By("Creating the TalosCluster")
+			Expect(k8sClient.Create(ctx, talosCluster)).To(Succeed())
+
+			By("Waiting for finalizer")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, talosCluster)).To(Succeed())
+				g.Expect(talosCluster.Finalizers).To(ContainElement(talosv1alpha1.TalosClusterFinalizer))
+			}, timeout, interval).Should(Succeed())
+
+			By("Deleting the TalosCluster")
+			Expect(k8sClient.Delete(ctx, talosCluster)).To(Succeed())
+
+			By("Verifying resource is deleted")
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, talosCluster)
+			}, timeout, interval).ShouldNot(Succeed())
+			// Also verify child resources are deleted
+			controlPlaneName := talosClusterName + "-controlplane"
+			workerName := talosClusterName + "-worker"
+
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: controlPlaneName, Namespace: namespace}, &talosv1alpha1.TalosControlPlane{})
+			}, timeout, interval).ShouldNot(Succeed())
+
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: workerName, Namespace: namespace}, &talosv1alpha1.TalosWorker{})
+			}, timeout, interval).ShouldNot(Succeed())
+
 		})
 	})
 })
+
+func RandStringRunes(n int) string {
+	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
