@@ -43,7 +43,7 @@ var _ = Describe("TalosControlPlane Controller", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		namespace = "default"
+		namespace = DefaultNamespace
 		talosControlPlaneName = "test-tcp-" + RandStringRunes(5)
 
 		talosControlPlane = &talosv1alpha1.TalosControlPlane{

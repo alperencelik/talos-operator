@@ -45,7 +45,7 @@ var _ = Describe("TalosCluster Controller", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		namespace = "default"
+		namespace = DefaultNamespace
 		talosClusterName = "test-talos-cluster-" + RandStringRunes(5)
 
 		talosCluster = &talosv1alpha1.TalosCluster{

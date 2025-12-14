@@ -23,12 +23,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.21
+          go-version: '1.24'
 
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Run mage.go
         run: go run mage.go
+
+      - name: Run Tests
+        run: |
+          # Ensure directories exist for envtest
+          mkdir -p bin
+          make test

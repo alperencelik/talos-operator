@@ -8,8 +8,8 @@ import (
 func TestGetEnv(t *testing.T) {
 	key := "TEST_ENV_VAR"
 	val := "test_value"
-	os.Setenv(key, val)
-	defer os.Unsetenv(key)
+	os.Setenv(key, val)    // nolint:errcheck
+	defer os.Unsetenv(key) // nolint:errcheck
 
 	if got := GetEnv(key, "fallback"); got != val {
 		t.Errorf("GetEnv() = %v, want %v", got, val)
@@ -83,7 +83,7 @@ func TestIsValidTalosVersion(t *testing.T) {
 		{"v1.2", true},
 		{"v1", true},
 		{"1.0.0", false},
-		{"v1.0.0-beta", false}, // Regex `^v\d+(\.\d+)*$` doesn't seem to support suffixes like -beta based on my read, but check source.
+		{"v1.0.0-beta", false},
 	}
 	// Re-reading IsValidTalosVersion regex: `^v\d+(\.\d+)*$`
 	// It strictly matches vDigits(.Digits)*

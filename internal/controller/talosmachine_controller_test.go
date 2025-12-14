@@ -43,7 +43,7 @@ var _ = Describe("TalosMachine Controller", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		namespace = "default"
+		namespace = DefaultNamespace
 		talosMachineName = "test-machine-" + RandStringRunes(5)
 
 		talosMachine = &talosv1alpha1.TalosMachine{

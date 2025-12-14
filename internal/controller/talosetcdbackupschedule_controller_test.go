@@ -45,7 +45,7 @@ var _ = Describe("TalosEtcdBackupSchedule Controller", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		namespace = "default"
+		namespace = DefaultNamespace
 		scheduleName = "test-schedule-" + RandStringRunes(5)
 
 		schedule = &talosv1alpha1.TalosEtcdBackupSchedule{
@@ -117,7 +117,7 @@ var _ = Describe("TalosEtcdBackupSchedule Controller", func() {
 				g.Expect(k8sClient.List(ctx, &backupList, client.InNamespace(namespace), client.MatchingLabels{
 					talosv1alpha1.TalosEtcdBackupScheduleLabelKey: scheduleName,
 				})).To(Succeed())
-				g.Expect(backupList.Items).To(HaveLen(0))
+				g.Expect(backupList.Items).To(BeEmpty())
 			}, timeout, interval).Should(Succeed())
 		})
 	})

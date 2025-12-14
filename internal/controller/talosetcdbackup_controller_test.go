@@ -45,7 +45,7 @@ var _ = Describe("TalosEtcdBackup Controller", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		namespace = "default"
+		namespace = DefaultNamespace
 		talosEtcdBackupName = "test-backup-" + RandStringRunes(5)
 		controlPlaneName = "test-cp-backup-" + RandStringRunes(5)
 

@@ -45,7 +45,7 @@ var _ = Describe("TalosClusterAddon Controller", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		namespace = "default"
+		namespace = DefaultNamespace
 		addonName = "test-addon-" + RandStringRunes(5)
 		controlPlaneName = "test-cp-addon-" + RandStringRunes(5)
 

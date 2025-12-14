@@ -45,7 +45,7 @@ var _ = Describe("TalosWorker Controller", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		namespace = "default"
+		namespace = DefaultNamespace
 		talosWorkerName = "test-worker-" + RandStringRunes(5)
 		controlPlaneName = "test-cp-for-worker-" + RandStringRunes(5)
 

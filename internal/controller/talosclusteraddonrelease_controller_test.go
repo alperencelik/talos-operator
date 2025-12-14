@@ -45,7 +45,7 @@ var _ = Describe("TalosClusterAddonRelease Controller", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		namespace = "default"
+		namespace = DefaultNamespace
 		releaseName = "test-release-" + RandStringRunes(5)
 		controlPlaneName = "test-cp-release-" + RandStringRunes(5)
 
