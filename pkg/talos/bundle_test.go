@@ -71,8 +71,8 @@ func TestGenerateConfigs(t *testing.T) {
 	cfg := &BundleConfig{
 		ClusterName:   "test-cluster",
 		Endpoint:      "https://1.2.3.4:6443",
-		Version:       "v1.5.0",
-		KubeVersion:   "v1.28.0",
+		Version:       "v1.10.3",
+		KubeVersion:   "v1.31.0",
 		SecretsBundle: (*secrets.Bundle)(sb),
 	}
 

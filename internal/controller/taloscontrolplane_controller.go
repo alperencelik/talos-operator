@@ -997,7 +997,7 @@ func (r *TalosControlPlaneReconciler) handleDelete(ctx context.Context, tcp *tal
 			Message: "Deleting TalosControlPlane",
 		})
 		if err := r.Status().Update(ctx, tcp); err != nil {
-			logger.Error(err, "Error updating VirtualMachine status")
+			logger.Error(err, "Error updating TalosControlPlane status")
 			return ctrl.Result{Requeue: true}, client.IgnoreNotFound(err)
 		}
 	}
