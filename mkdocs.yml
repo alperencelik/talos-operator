@@ -20,6 +20,8 @@ nav:
   - TalosContolPlane: crds/taloscontrolplane.md
   - TalosWorker: crds/talosworker.md
   - TalosMachine: crds/talosmachine.md
+  - TalosClusterAddon: crds/talosclusteraddon.md
+  - TalosClusterAddonRelease: crds/talosclusteraddonrelease.md
   - TalosEtcdBackup: crds/talosetcdbackup.md
   - TalosEtcdBackupSchedule: crds/talosetcdbackupschedule.md
 - Operator Manual: 
