@@ -100,7 +100,7 @@ spec:
                 pattern: ^https?://[a-zA-Z0-9.-]+(:\d+)?$
                 type: string
               kubeVersion:
-                default: v1.33.1
+                default: v1.35.0
                 description: KubeVersion is the version of Kubernetes to use for the
                   control plane
                 pattern: ^v\d+\.\d+\.\d+(-\w+)?$
@@ -191,22 +191,45 @@ spec:
                             from which the machine IP address can be extracted.
                           properties:
                             apiVersion:
-                              description: APIVersion of the referenced object.
+                              description: API version of the referent.
                               type: string
                             fieldPath:
-                              description: FieldPath is the field path within the
-                                referenced object.
+                              description: |-
+                                If referring to a piece of an object instead of an entire object, this string
+                                should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+                                For example, if the object reference is to a container within a pod, this would take on a value like:
+                                "spec.containers{name}" (where "name" refers to the name of the container that triggered
+                                the event) or if no container name is specified "spec.containers[2]" (container with
+                                index 2 in this pod). This syntax is chosen only to have some well-defined way of
+                                referencing a part of an object.
                               type: string
                             kind:
-                              description: Kind of the referenced object.
+                              description: |-
+                                Kind of the referent.
+                                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
                               type: string
                             name:
-                              description: Name of the referenced object.
+                              description: |-
+                                Name of the referent.
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                               type: string
                             namespace:
-                              description: Namespace of the referenced object.
+                              description: |-
+                                Namespace of the referent.
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+                              type: string
+                            resourceVersion:
+                              description: |-
+                                Specific resourceVersion to which this reference is made, if any.
+                                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+                              type: string
+                            uid:
+                              description: |-
+                                UID of the referent.
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
                               type: string
                           type: object
+                          x-kubernetes-map-type: atomic
                       type: object
                       x-kubernetes-validations:
                       - message: address and machineRef are mutually exclusive
@@ -226,7 +249,6 @@ spec:
                   type: string
                 type: array
               replicas:
-                default: 1
                 description: Number of control-plane machines to maintain
                 format: int32
                 minimum: 1
@@ -243,9 +265,9 @@ spec:
                 pattern: ^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$
                 type: string
               version:
-                default: v1.10.3
+                default: v1.12.1
                 description: Version of Talos to use for the control plane(controller-manager,
-                  scheduler, kube-apiserver, etcd) -- e.g "v1.33.1"
+                  scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
                 pattern: ^v\d+\.\d+\.\d+(-\w+)?$
                 type: string
             required:

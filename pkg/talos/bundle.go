@@ -21,16 +21,56 @@ const (
 )
 
 var (
-	removeAdmissionControl         = `[{"op": "remove", "path": "/cluster/apiServer/admissionControl"}]`
-	podSubnets                     = `[{"op":"replace","path":"/cluster/network/podSubnets","value":%s}]`
-	serviceSubnets                 = `[{"op":"replace","path":"/cluster/network/serviceSubnets","value":%s}]`
-	InstallDisk                    = `[{"op": "replace", "path": "/machine/install/disk", "value": "%s"}]`
-	InstallImage                   = `[{"op": "replace", "path": "/machine/install/image", "value": "%s"}]`
-	WipeDisk                       = `[{"op": "replace", "path": "/machine/install/wipe", "value": "%t"}]`
-	AirGapp                        = `[{"op": "add", "path": "/machine/time", "value": {"disabled": true}}, {"op": "replace", "path": "/cluster/discovery/enabled", "value": false}]` // nolint:lll
-	AllowSchedulingOnControlPlanes = `[{"op": "add", "path": "/cluster/allowSchedulingOnControlPlanes", "value": true}]`
-	ImageCache                     = `[{"op": "add", "path": "/machine/features/imageCache", "value": {"localEnabled": true}}]` // nolint:lll
-	ImageCacheVolumeConfig         = `
+	removeAdmissionControl = `
+cluster:
+  apiServer:
+    admissionControl:
+      $patch: delete
+`
+	podSubnets = `
+cluster:
+  network:
+    podSubnets: %s
+`
+	serviceSubnets = `
+cluster:
+  network:
+    serviceSubnets: %s
+`
+	InstallDisk = `
+machine:
+  install:
+    disk: %s
+`
+	InstallImage = `
+machine:
+  install:
+    image: %s
+`
+	WipeDisk = `
+machine:
+  install:
+    wipe: %t
+`
+	AirGapp = `
+machine:
+  time:
+    disabled: true
+cluster:
+  discovery:
+    enabled: false
+`
+	AllowSchedulingOnControlPlanes = `
+cluster:
+  allowSchedulingOnControlPlanes: true
+`
+	ImageCache = `
+machine:
+  features:
+    imageCache:
+      localEnabled: true
+`
+	ImageCacheVolumeConfig = `
 ---
 apiVersion: v1alpha1
 kind: VolumeConfig
@@ -90,6 +130,12 @@ func NewCPBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 	if patches != nil && len(*patches) > 0 {
 		cpPatches = append(cpPatches, *patches...)
 	}
+	// DEBUG
+	// Print the patches being applied
+	//fmt.Println("Applying the following patches to control plane config:")
+	//fmt.Printf("Control Plane Patches: %v\n", cpPatches)
+
+	//time.Sleep(30 * time.Second)
 
 	b, err := gen.GenerateConfigBundle(genOptions,
 		cfg.ClusterName, // Cluster name

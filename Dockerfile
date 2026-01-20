@@ -15,8 +15,6 @@ RUN go mod download
 COPY cmd/main.go cmd/main.go
 COPY api/ api/
 COPY internal/ internal/
-# TODO: Remove this dirty hack and pull pkg from the go module properly
-# Copy the pkg source 
 COPY pkg/ pkg/
 
 # Build

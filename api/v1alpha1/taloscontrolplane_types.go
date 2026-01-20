@@ -33,10 +33,10 @@ type TalosControlPlaneSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.33.1"
+	// Version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
-	// +kubebuilder:default="v1.10.3"
+	// +kubebuilder:default="v1.12.1"
 	Version string `json:"version,omitempty"`
 
 	// TODO: Add support for cloud mode
@@ -46,7 +46,6 @@ type TalosControlPlaneSpec struct {
 
 	// Number of control-plane machines to maintain
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:default=1
 	Replicas int32 `json:"replicas,omitempty"`
 
 	// Metal Spec is required when mode is 'metal'
@@ -60,7 +59,7 @@ type TalosControlPlaneSpec struct {
 	// KubeVersion is the version of Kubernetes to use for the control plane
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
-	// +kubebuilder:default="v1.33.1"
+	// +kubebuilder:default="v1.35.0"
 	// +kubebuilder:validation:XValidation:rule="self >= oldSelf",message="KubeVersion can not be decreased"
 	KubeVersion string `json:"kubeVersion,omitempty"`
 
@@ -133,21 +132,7 @@ type Machine struct {
 	Address *string `json:"address,omitempty"`
 	// MachineRef is a reference to a Kubernetes object from which the machine IP address can be extracted.
 	// +kubebuilder:validation:Optional
-	MachineRef *ObjectRef `json:"machineRef,omitempty"`
-}
-
-// TODO: Think about using the v1.ObjectReference here
-type ObjectRef struct {
-	// APIVersion of the referenced object.
-	APIVersion string `json:"apiVersion,omitempty"`
-	// Kind of the referenced object.
-	Kind string `json:"kind,omitempty"`
-	// Name of the referenced object.
-	Name string `json:"name,omitempty"`
-	// Namespace of the referenced object.
-	Namespace string `json:"namespace,omitempty"`
-	// FieldPath is the field path within the referenced object.
-	FieldPath string `json:"fieldPath,omitempty"`
+	MachineRef *corev1.ObjectReference `json:"machineRef,omitempty"`
 }
 
 // META is network metadata for Talos machines

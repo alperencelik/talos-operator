@@ -483,7 +483,9 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	// patches
 	var patches []string
 	patches = append(patches, diskPatch)
-	patches = append(patches, wipeDiskPatch)
+	if wipeDiskPatch != "" {
+		patches = append(patches, wipeDiskPatch)
+	}
 	patches = append(patches, imagePatch)
 	// Air gapped patch
 	var airGappedPatch string
@@ -505,13 +507,22 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	}
 
 	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.Registries != nil {
-		jsonBytes, err := yaml.YAMLToJSON(tm.Spec.MachineSpec.Registries.Raw)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert registries to json: %w", err)
+		var registries interface{}
+		if err := yaml.Unmarshal(tm.Spec.MachineSpec.Registries.Raw, &registries); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal registries: %w", err)
 		}
-		path := "/machine/registries"
-		patch := fmt.Sprintf(`[{"op": "add", "path": "%s", "value": %s}]`, path, string(jsonBytes))
-		patches = append(patches, patch)
+
+		patchMap := map[string]interface{}{
+			"machine": map[string]interface{}{
+				"registries": registries,
+			},
+		}
+
+		patchBytes, err := yaml.Marshal(patchMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal registries patch: %w", err)
+		}
+		patches = append(patches, string(patchBytes))
 	}
 
 	return &patches, nil
