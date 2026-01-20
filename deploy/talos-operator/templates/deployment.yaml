@@ -45,6 +45,8 @@ spec:
                   fieldPath: spec.serviceAccountName
             - name: ENABLE_META_KEY
               value: "{{ .Values.featureFlags.enableMetaKey | default "false" }}"
+            - name: UI_PORT
+              value: "{{ .Values.ui.containerPort | default "8081" }}"
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

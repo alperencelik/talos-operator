@@ -38,6 +38,8 @@ rules:
   - talosetcdbackupschedules
   - talosmachines
   - talosworkers
+  - talosclusteraddons
+  - talosclusteraddonreleases
   verbs:
   - create
   - delete
@@ -55,6 +57,8 @@ rules:
   - talosetcdbackupschedules/finalizers
   - talosmachines/finalizers
   - talosworkers/finalizers
+  - talosclusteraddons/finalizers
+  - talosclusteraddonreleases/finalizers
   verbs:
   - update
 - apiGroups:
@@ -66,6 +70,8 @@ rules:
   - talosetcdbackupschedules/status
   - talosmachines/status
   - talosworkers/status
+  - talosclusteraddons/status
+  - talosclusteraddonreleases/status
   verbs:
   - get
   - patch

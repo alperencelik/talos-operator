@@ -1,0 +1,19 @@
+{{- if .Values.ui.enabled -}}
+{{- if eq (int .Values.ui.containerPort) (int .Values.service.port) -}}
+{{- fail "ui.containerPort and service.port must be different to avoid port conflict in the pod" -}}
+{{- end -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "talos-operator.fullname" . }}-test-ports-config"
+  labels:
+    {{- include "talos-operator.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: check-config
+      image: busybox
+      command: ['echo', 'Port configuration is valid']
+  restartPolicy: Never
+{{- end -}}

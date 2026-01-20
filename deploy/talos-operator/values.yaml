@@ -28,10 +28,10 @@ ui:
     repository: alperencelik/talos-operator-ui
     pullPolicy: Always
     tag: "latest"
-  containerPort: 8080 
+  containerPort: 8081 
   service:
     type: ClusterIP
-    port: 8080
+    port: 8081
   resources: {}
   ingress:
     enabled: false
