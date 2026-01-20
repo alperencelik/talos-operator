@@ -45,8 +45,6 @@ spec:
                   fieldPath: spec.serviceAccountName
             - name: ENABLE_META_KEY
               value: "{{ .Values.featureFlags.enableMetaKey | default "false" }}"
-            - name: UI_PORT
-              value: "{{ .Values.ui.containerPort | default "8081" }}"
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -66,6 +64,9 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.ui.image.repository }}:{{ .Values.ui.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.ui.image.pullPolicy }}
+          env:
+            - name: UI_PORT
+              value: "{{ .Values.ui.containerPort | default "8081" }}"
           ports:
             - name: http-ui
               containerPort: {{ .Values.ui.containerPort }}
