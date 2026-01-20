@@ -9,6 +9,9 @@ markdown_extensions:
 nav:
 - Overview: index.md
 - Getting Started: getting_started.md
+- Architecture:
+  - Quick Reference: architecture/quick-reference.md
+  - Module by Module Guide: architecture/module-by-module-guide.md
 - Custom Resources:
   - Overview: crds/index.md
   - TalosCluster: crds/taloscluster.md

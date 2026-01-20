@@ -17,3 +17,10 @@ As a person who is against CLI tools to install clusters, I wanted to create a w
 - Managing the lifecycle of Talos clusters: You need to follow some specific steps to create, update, and delete Talos clusters with some specific verifications.
 
 The **talos-operator** allows you to define your Talos cluster configuration in Kubernetes Custom Resource Definitions (CRDs) and manage the lifecycle of Talos clusters using Kubernetes controllers. Since we offload state management part to the Kubernetes we don't need to worry about Talosconfigs, secret bundles or any-other operation that needs to be done via Talos CLI. The operator takes care all of those and you don't need to run any Talos CLI commands manually.
+
+## Understanding the Project
+
+If you're new to talos-operator or want to understand how it works internally, check out our architecture documentation:
+
+- **[Quick Reference](architecture/quick-reference.md)**: A quick overview of the project structure, key components, and common workflows
+- **[Module by Module Guide](architecture/module-by-module-guide.md)**: Comprehensive explanation of each module, its purpose, and how they work together
