@@ -17,7 +17,7 @@ nav:
 - Custom Resources:
   - Overview: crds/index.md
   - TalosCluster: crds/taloscluster.md
-  - TalosContolPlane: crds/taloscontrolplane.md
+  - TalosControlPlane: crds/taloscontrolplane.md
   - TalosWorker: crds/talosworker.md
   - TalosMachine: crds/talosmachine.md
   - TalosClusterAddon: crds/talosclusteraddon.md
