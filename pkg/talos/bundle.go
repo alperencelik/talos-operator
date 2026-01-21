@@ -130,12 +130,6 @@ func NewCPBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 	if patches != nil && len(*patches) > 0 {
 		cpPatches = append(cpPatches, *patches...)
 	}
-	// DEBUG
-	// Print the patches being applied
-	//fmt.Println("Applying the following patches to control plane config:")
-	//fmt.Printf("Control Plane Patches: %v\n", cpPatches)
-
-	//time.Sleep(30 * time.Second)
 
 	b, err := gen.GenerateConfigBundle(genOptions,
 		cfg.ClusterName, // Cluster name

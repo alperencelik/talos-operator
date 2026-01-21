@@ -56,7 +56,7 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:validation:Pattern=`^https?://[a-zA-Z0-9.-]+(:\d+)?$`
 	Endpoint string `json:"endpoint,omitempty"`
 
-	//Can't force the decrease CEL validation as it would prevent downgrades in some scenarios, eventhough the operator doesn't support downgrades
+	// Can't force the decrease CEL validation as it would prevent downgrades in some scenarios, eventhough the operator doesn't support downgrades
 	// Example: User created cluster with v1.33.0, then tried to upgrade v1.35.0 but the job failed since talos doesn't allow that so now user
 	// need to re-attempt upgrade to v1.34.0 but CEL validation would prevent that.
 
