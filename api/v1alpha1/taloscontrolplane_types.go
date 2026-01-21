@@ -56,11 +56,14 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:validation:Pattern=`^https?://[a-zA-Z0-9.-]+(:\d+)?$`
 	Endpoint string `json:"endpoint,omitempty"`
 
+	//Can't force the decrease CEL validation as it would prevent downgrades in some scenarios, eventhough the operator doesn't support downgrades
+	// Example: User created cluster with v1.33.0, then tried to upgrade v1.35.0 but the job failed since talos doesn't allow that so now user
+	// need to re-attempt upgrade to v1.34.0 but CEL validation would prevent that.
+
 	// KubeVersion is the version of Kubernetes to use for the control plane
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	// +kubebuilder:default="v1.35.0"
-	// +kubebuilder:validation:XValidation:rule="self >= oldSelf",message="KubeVersion can not be decreased"
 	KubeVersion string `json:"kubeVersion,omitempty"`
 
 	// ClusterDomain is the domain for the Kubernetes cluster

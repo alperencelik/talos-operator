@@ -109,9 +109,6 @@ spec:
                       the control plane
                     pattern: ^v\d+\.\d+\.\d+(-\w+)?$
                     type: string
-                    x-kubernetes-validations:
-                    - message: KubeVersion can not be decreased
-                      rule: self >= oldSelf
                   metalSpec:
                     description: Metal Spec is required when mode is 'metal'
                     properties:
@@ -354,9 +351,6 @@ spec:
                       the control plane
                     pattern: ^v\d+\.\d+\.\d+(-\w+)?$
                     type: string
-                    x-kubernetes-validations:
-                    - message: KubeVersion can not be decreased
-                      rule: self >= oldSelf
                   metalSpec:
                     description: Metal Spec is required when mode is 'metal'
                     properties:
