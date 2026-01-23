@@ -17,7 +17,6 @@ require (
 	github.com/siderolabs/go-kubernetes v0.2.28
 	github.com/siderolabs/talos v1.12.1
 	github.com/siderolabs/talos/pkg/machinery v1.12.1
-	github.com/stretchr/testify v1.11.1
 	google.golang.org/protobuf v1.36.10
 	gopkg.in/yaml.v2 v2.4.0
 	helm.sh/helm/v3 v3.19.4
