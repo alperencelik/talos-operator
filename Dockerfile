@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM golang:1.24.4 AS builder
+FROM golang:1.25.3 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -15,8 +15,6 @@ RUN go mod download
 COPY cmd/main.go cmd/main.go
 COPY api/ api/
 COPY internal/ internal/
-# TODO: Remove this dirty hack and pull pkg from the go module properly
-# Copy the pkg source 
 COPY pkg/ pkg/
 
 # Build

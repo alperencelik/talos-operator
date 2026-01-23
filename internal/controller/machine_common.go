@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
+
+	"net"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -43,7 +46,12 @@ func getMachineIPAddress(ctx context.Context, c client.Client, machine *talosv1a
 		// Create a new JSONPath parser
 		jp := jsonpath.New("get-ip")
 		// Parse the field path, wrapping it in braces as required by the library
-		if err := jp.Parse(fmt.Sprintf("{%s}", fieldPath)); err != nil {
+		// Ensure it starts with a dot for root access
+		path := fieldPath
+		if !strings.HasPrefix(path, ".") {
+			path = "." + path
+		}
+		if err := jp.Parse(fmt.Sprintf("{%s}", path)); err != nil {
 			// The path string itself is invalid
 			return nil, fmt.Errorf("invalid FieldPath for IP address %q on machine %s: %w", fieldPath, macRef.Name, err)
 		}
@@ -74,9 +82,13 @@ func getMachineIPAddress(ctx context.Context, c client.Client, machine *talosv1a
 
 			// Check if it's a string
 			if ip, ok := value.(string); ok && ip != "" {
+				// Confirm it's a valid IP address format
+				if net.ParseIP(ip) == nil {
+					return nil, fmt.Errorf("invalid IP address format: %s", ip)
+				}
 				return &ip, nil
 			}
-			// TODO: Control if IP is in valid format?
+
 			// Check if it's a pointer to a string
 			if ipPtr, ok := value.(*string); ok && ipPtr != nil && *ipPtr != "" {
 				return ipPtr, nil
