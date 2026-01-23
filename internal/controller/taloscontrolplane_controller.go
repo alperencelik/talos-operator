@@ -145,13 +145,13 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		r.Recorder.Event(&tcp, corev1.EventTypeNormal, "Reconciling", "Reconciling TalosControlPlane in container mode")
 		result, err = r.reconcileContainerMode(ctx, &tcp)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to reconcile TalosControlPlane in container mode: %w", err)
+			return result, fmt.Errorf("failed to reconcile TalosControlPlane in container mode: %w", err)
 		}
 	case TalosModeMetal:
 		r.Recorder.Event(&tcp, corev1.EventTypeNormal, "Reconciling", "Reconciling TalosControlPlane in metal mode")
 		result, err = r.reconcileMetalMode(ctx, &tcp)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to reconcile TalosControlPlane in metal mode: %w", err)
+			return result, fmt.Errorf("failed to reconcile TalosControlPlane in metal mode: %w", err)
 		}
 	default:
 		logger.Info("Unsupported mode for TalosControlPlane", "mode", tcp.Spec.Mode)
@@ -165,10 +165,7 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		r.Recorder.Event(&tcp, corev1.EventTypeWarning, "KubeVersionReconciliationFailed", "Failed to reconcile kube version")
 		return result, err
 	}
-	if result.Requeue {
-		return result, nil
-	}
-	return ctrl.Result{}, nil
+	return result, nil
 }
 
 // reconcileKubeVersion reconciles the KubeVersion of the TalosControlPlane.
