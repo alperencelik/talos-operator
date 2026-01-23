@@ -25,8 +25,8 @@ jobs:
         with:
           go-version: v1.25
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.2
+          version: latest
       - name: Run Linter
         run: golangci-lint run --timeout 10m --verbose 
