@@ -122,7 +122,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			logger.Error(err, "Error checking machine readiness", "name", talosMachine.Name)
 			return ctrl.Result{}, err
 		}
-		if res.Requeue {
+		if res != (ctrl.Result{}) {
 			logger.Info("Requeuing reconciliation to check machine readiness", "name", talosMachine.Name)
 			r.Recorder.Event(&talosMachine, corev1.EventTypeNormal, "Requeuing", "Requeuing reconciliation to check machine readiness")
 			return res, nil // Requeue the reconciliation to check the machine status again

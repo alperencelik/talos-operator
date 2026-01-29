@@ -314,7 +314,7 @@ func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context
 		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to reconcile StatefulSet for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 	// If the previous op was create then requeue so that we refresh the cache and check the status
-	if result.Requeue {
+	if result != (ctrl.Result{}) {
 		return result, nil
 	}
 	if _, err := r.CheckControlPlaneReady(ctx, tcp); err != nil {
