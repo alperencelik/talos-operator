@@ -32,10 +32,9 @@ type TalosWorkerSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.33.1"
+	// Version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
-	// +kubebuilder:default="v1.33.1"
 	Version string `json:"version,omitempty"`
 
 	// TODO: Add support for cloud mode
@@ -54,9 +53,8 @@ type TalosWorkerSpec struct {
 	// KubeVersion is the version of Kubernetes to use for the control plane
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
-	// +kubebuilder:default="v1.33.1"
+	// +kubebuilder:default="v1.35.0"
 	// TODO: Deprecate this field since the KubeVersion is derived fromm the control plane version
-	// +kubebuilder:validation:XValidation:rule="self >= oldSelf",message="KubeVersion can not be decreased"
 	KubeVersion string `json:"kubeVersion,omitempty"`
 
 	// StorageClassName is the name of the storage class to use for persistent volumes

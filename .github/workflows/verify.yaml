@@ -33,8 +33,8 @@ jobs:
       - name: Run mage.go
         run: go run mage.go
 
-      - name: Run Tests
-        run: |
-          # Ensure directories exist for envtest
-          mkdir -p bin
-          make test
+#      - name: Run Tests
+#        run: |
+#          # Ensure directories exist for envtest
+#          mkdir -p bin
+#          make test

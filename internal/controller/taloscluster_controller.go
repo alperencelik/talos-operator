@@ -107,7 +107,7 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		logger.Error(err, "failed to reconcile control plane", "name", tc.Name, "namespace", tc.Namespace)
 	}
-	if res.Requeue {
+	if res != (ctrl.Result{}) {
 		return res, nil
 	}
 	// Worker reconciliation
