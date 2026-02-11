@@ -9,12 +9,19 @@ markdown_extensions:
 nav:
 - Overview: index.md
 - Getting Started: getting_started.md
+- Architecture:
+  - Overview: architecture/index.md
+  - Quick Reference: architecture/quick-reference.md
+  - Architecture Diagrams: architecture/diagrams.md
+  - Module by Module Guide: architecture/module-by-module-guide.md
 - Custom Resources:
   - Overview: crds/index.md
   - TalosCluster: crds/taloscluster.md
-  - TalosContolPlane: crds/taloscontrolplane.md
+  - TalosControlPlane: crds/taloscontrolplane.md
   - TalosWorker: crds/talosworker.md
   - TalosMachine: crds/talosmachine.md
+  - TalosClusterAddon: crds/talosclusteraddon.md
+  - TalosClusterAddonRelease: crds/talosclusteraddonrelease.md
   - TalosEtcdBackup: crds/talosetcdbackup.md
   - TalosEtcdBackupSchedule: crds/talosetcdbackupschedule.md
 - Operator Manual: 
