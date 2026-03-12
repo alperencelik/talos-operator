@@ -115,7 +115,7 @@ func getMachineIPAddress(ctx context.Context, c client.Client, machine *talosv1a
 // rawExtensionsToPatches converts a slice of RawExtension config patches to YAML strings
 // suitable for passing to talos.GenerateControlPlaneConfig or talos.GenerateWorkerConfig.
 func rawExtensionsToPatches(patches []runtime.RawExtension) ([]string, error) {
-	var result []string
+	result := make([]string, 0, len(patches))
 	for i, p := range patches {
 		var patchObj any
 		if err := yaml.Unmarshal(p.Raw, &patchObj); err != nil {

@@ -66,6 +66,10 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "upgrade-k8s" {
 		// This is the upgrade-k8s command
 		kubeClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
+		if err != nil {
+			setupLog.Error(err, "unable to create kube client")
+			os.Exit(1)
+		}
 
 		err = upgradeK8s(kubeClient)
 		if err != nil {
@@ -252,7 +256,7 @@ func upgradeK8s(kubeClient client.Client) error {
 	if err := kubeClient.Get(context.Background(), client.ObjectKey{
 		Name: os.Getenv("TCP_NAME"), Namespace: os.Getenv("TCP_NAMESPACE")}, &tcp); err != nil {
 		setupLog.Error(err, "unable to get TalosControlPlane")
-		os.Exit(1)
+		return err
 	}
 
 	// Create a new Talos client
@@ -260,13 +264,13 @@ func upgradeK8s(kubeClient client.Client) error {
 		Client: kubeClient, Scheme: scheme}).SetConfig(context.Background(), &tcp)
 	if err != nil {
 		setupLog.Error(err, "unable to set config")
-		os.Exit(1)
+		return fmt.Errorf("failed to get config for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 
 	talosClient, err := talos.NewClient(config, false)
 	if err != nil {
 		setupLog.Error(err, "unable to create talos client")
-		os.Exit(1)
+		return fmt.Errorf("failed to create Talos client for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 
 	// Upgrade the Kubernetes version
@@ -282,7 +286,7 @@ func upgradeK8s(kubeClient client.Client) error {
 		if err := kubeClient.Status().Update(context.Background(), &tcp); err != nil {
 			setupLog.Error(err, "unable to update TalosControlPlane status")
 		}
-		os.Exit(1)
+		return fmt.Errorf("failed to upgrade Kubernetes version for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 
 	// Update the status of the TalosControlPlane resource
@@ -294,7 +298,7 @@ func upgradeK8s(kubeClient client.Client) error {
 	})
 	if err := kubeClient.Status().Update(context.Background(), &tcp); err != nil {
 		setupLog.Error(err, "unable to update TalosControlPlane status")
-		os.Exit(1)
+		return fmt.Errorf("failed to update status for TalosControlPlane %s after Kubernetes upgrade: %w", tcp.Name, err)
 	}
 
 	fmt.Println("Kubernetes upgrade complete.")
