@@ -1,10 +1,26 @@
 markdown_extensions:
 - admonition
+- attr_list
+- md_in_html
+- toc:
+    permalink: true
+- pymdownx.details
+- pymdownx.highlight:
+    anchor_linenums: true
+    line_spans: __span
+    pygments_lang_class: true
+- pymdownx.inlinehilite
+- pymdownx.snippets
+- pymdownx.tabbed:
+    alternate_style: true
 - pymdownx.superfences:
     custom_fences:
     - name: mermaid
       class: mermaid
       format: !!python/name:pymdownx.superfences.fence_code_format
+- pymdownx.emoji:
+    emoji_index: !!python/name:material.extensions.emoji.twemoji
+    emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 nav:
 - Overview: index.md
@@ -17,47 +33,72 @@ nav:
   - TalosMachine: crds/talosmachine.md
   - TalosEtcdBackup: crds/talosetcdbackup.md
   - TalosEtcdBackupSchedule: crds/talosetcdbackupschedule.md
-- Operator Manual: 
+- Operator Manual:
   - Overview: operator_manual/index.md
   - Reconciliation Modes: operator_manual/reconciliation_modes.md
   - Modes: operator_manual/modes.md
   - Upgrading Versions: operator_manual/upgrade_versions.md
   - Importing Existing Resources: operator_manual/import_existing_resources.md
-- Upgrading: 
+- Upgrading:
   - Overview: upgrading/index.md
   - v0.3.4: upgrading/v0.3.4.md
-  
+
 - metrics.md
 - contributing.md
 - roadmap.md
 - Releases ⧉: https://github.com/alperencelik/talos-operator/releases
 
-repo_url: https://github.com/alperencelik/talos-operator 
-site_name: talos-operator - Talos Linux Operator for Kubernetes 
+repo_url: https://github.com/alperencelik/talos-operator
+repo_name: alperencelik/talos-operator
+site_name: talos-operator
 strict: true
 theme:
   favicon: images/logo.png
   font:
-    text: Work Sans
+    text: Inter
+    code: JetBrains Mono
   logo: images/logo.png
   name: material
+  custom_dir: docs/overrides
+  icon:
+    repo: fontawesome/brands/github
   features:
-    - material/mermaid
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.tracking
+    - header.autohide
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
   palette:
   - media: '(prefers-color-scheme: light)'
-    primary: indigo # deep orange? 
+    primary: deep-orange
+    accent: orange
     scheme: default
     toggle:
-      icon: material/brightness-7
+      icon: material/weather-sunny
       name: Switch to dark mode
   - media: '(prefers-color-scheme: dark)'
-    primary: indigo # deep orange?
+    primary: deep-orange
+    accent: orange
     scheme: slate
     toggle:
-      icon: material/brightness-4
+      icon: material/weather-night
       name: Switch to light mode
 
-plugins: 
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search:
+      lang: en
   - glightbox:
       touchNavigation: true
       loop: false
@@ -74,7 +115,6 @@ plugins:
       background: white
       shadow: true
   - mike:
-      # These fields are all optional; the defaults are as below...
       alias_type: symlink
       redirect_template: null
       deploy_prefix: ''
@@ -83,5 +123,6 @@ plugins:
       css_dir: css
       javascript_dir: js
 extra:
-  version:
-    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/alperencelik/talos-operator

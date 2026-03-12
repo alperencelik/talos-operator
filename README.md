@@ -2,6 +2,12 @@
 
 A Kubernetes operator to manage Talos Linux–based clusters declaratively.
 
+[![GitHub release](https://img.shields.io/github/v/release/alperencelik/talos-operator)](https://github.com/alperencelik/talos-operator/releases)
+[![Go Version](https://img.shields.io/badge/go-1.25-blue)](https://golang.org/)
+[![License](https://img.shields.io/github/license/alperencelik/talos-operator)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/alperencelik/talos-operator)](https://github.com/alperencelik/talos-operator/stargazers)
+[![Documentation](https://img.shields.io/badge/docs-online-brightgreen)](https://alperencelik.github.io/talos-operator/)
+
 <div style="text-align:center;">
   <img src="docs/images/logo.png" alt="Logo" width="250" height="250">
 </div>
