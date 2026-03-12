@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -149,6 +150,7 @@ func (r *TalosEtcdBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&talosv1alpha1.TalosEtcdBackup{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Named("talosetcdbackup").
+		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Complete(r)
 }
 

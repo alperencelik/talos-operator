@@ -34,6 +34,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -376,6 +377,7 @@ func (r *TalosWorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			},
 		}).
 		Named("talosworker").
+		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Complete(r)
 }
 
@@ -384,8 +386,17 @@ func (r *TalosWorkerReconciler) GenerateConfig(ctx context.Context, tw *talosv1a
 	if err != nil {
 		return fmt.Errorf("failed to set configuration for TalosWorker %s: %w", tw.Name, err)
 	}
+	// If the user provided configPatches, convert each one and pass them to the generator.
+	var patches *[]string
+	if tw.Spec.MetalSpec.MachineSpec != nil && len(tw.Spec.MetalSpec.MachineSpec.ConfigPatches) > 0 {
+		patchList, err := rawExtensionsToPatches(tw.Spec.MetalSpec.MachineSpec.ConfigPatches)
+		if err != nil {
+			return fmt.Errorf("failed to process configPatches for TalosWorker %s: %w", tw.Name, err)
+		}
+		patches = &patchList
+	}
 	// Generate the Talos worker configuration
-	wkConfig, err := talos.GenerateWorkerConfig(bundleConfig, nil)
+	wkConfig, err := talos.GenerateWorkerConfig(bundleConfig, patches)
 	if err != nil {
 		return err
 	}

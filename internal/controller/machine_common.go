@@ -10,10 +10,12 @@ import (
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/jsonpath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
 )
 
 func getMachineIPAddress(ctx context.Context, c client.Client, machine *talosv1alpha1.Machine) (*string, error) {
@@ -108,6 +110,24 @@ func getMachineIPAddress(ctx context.Context, c client.Client, machine *talosv1a
 		return nil, nil
 	}
 	return nil, nil
+}
+
+// rawExtensionsToPatches converts a slice of RawExtension config patches to YAML strings
+// suitable for passing to talos.GenerateControlPlaneConfig or talos.GenerateWorkerConfig.
+func rawExtensionsToPatches(patches []runtime.RawExtension) ([]string, error) {
+	var result []string
+	for i, p := range patches {
+		var patchObj any
+		if err := yaml.Unmarshal(p.Raw, &patchObj); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal configPatch[%d]: %w", i, err)
+		}
+		patchBytes, err := yaml.Marshal(patchObj)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal configPatch[%d]: %w", i, err)
+		}
+		result = append(result, string(patchBytes))
+	}
+	return result, nil
 }
 
 func getMachinesIPAddresses(ctx context.Context, c client.Client, machines *[]talosv1alpha1.Machine) ([]string, error) {

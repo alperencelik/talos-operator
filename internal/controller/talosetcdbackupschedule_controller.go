@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -182,6 +183,7 @@ func (r *TalosEtcdBackupScheduleReconciler) SetupWithManager(mgr ctrl.Manager) e
 		For(&talosv1alpha1.TalosEtcdBackupSchedule{}).
 		Owns(&talosv1alpha1.TalosEtcdBackup{}).
 		Named("talosetcdbackupschedule").
+		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Complete(r)
 }
 
