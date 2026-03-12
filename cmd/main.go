@@ -66,10 +66,6 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "upgrade-k8s" {
 		// This is the upgrade-k8s command
 		kubeClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
-		if err != nil {
-			setupLog.Error(err, "unable to create kube client")
-			os.Exit(1)
-		}
 
 		err = upgradeK8s(kubeClient)
 		if err != nil {
