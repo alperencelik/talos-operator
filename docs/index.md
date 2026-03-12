@@ -1,19 +1,48 @@
-# Overview
+---
+template: home.html
+hide:
+  - toc
+---
 
-## What is talos-operator?
+**talos-operator** is a Kubernetes operator for managing the full lifecycle of [Talos Linux](https://www.talos.dev/) clusters using native Custom Resources. It replaces manual `talosctl` workflows with a declarative, controller-driven approach — secrets, configs, upgrades, and backups all reconciled continuously.
 
-**talos-operator** is a Kubernetes operator for managing Talos clusters. It can help you to bootstrap/create Talos clusters in different environments.
+---
 
-## Why use talos-operator?
+## Features
 
-Talos Linux is great choice for running Kubernetes clusters due to it's minimalistic design and being an API-driven OS. However, creating and managing the lifecycle of Talos clusters can be challenging because it's only available to Talos CLI. Maintaiing the artifacts, secrets and configuration files for Talos clusters can be cumbersome. talos-operator aims to solve these problems by providing a Kubernetes-native way to manage Talos clusters. For further information, please refer to the [motivation](#motivation) section of the documentation.
+- **Declarative cluster management** — define control planes, workers, and cluster topology as CRDs
+- **Automatic secret management** — mTLS bundles, Talos secrets, and kubeconfigs stored as Kubernetes Secrets
+- **Metal & container modes** — run on bare metal machines in maintenance mode or as pods inside an existing cluster
+- **Etcd backup & restore** — scheduled snapshots with S3 storage via `TalosEtcdBackup` and `TalosEtcdBackupSchedule`
+- **Helm addon management** — deploy and lifecycle-manage Helm charts into Talos clusters
+- **Declarative upgrades** — upgrade Talos OS and Kubernetes versions across control plane and worker nodes
+
+---
 
 ## Motivation
 
-As a person who is against CLI tools to install clusters, I wanted to create a way to manage Talos clusters declaratively using Kubernetes operators. The problem with the managing cluster lifecycles within a CLI tool has some quite challenges such as
+Talos Linux is a minimal, API-driven OS purpose-built for Kubernetes. It strips away everything unnecessary — no SSH, no shell, no package manager — leaving a secure and immutable system controlled entirely through an API.
 
-- Managing the secrets: Talos API requires mTLS secrets to be passed in order to interact with the Talos cluster. You have to manage these secrets manually and ensure they are properly configured for each Talos cluster. This can be error-prone and time-consuming.
-- Managing the configuration files: Talos clusters require various configuration files to be created and managed. This includes controlplane configuration, worker node configuration, and or other patch configurations. Managing these files and versioning them can be difficult, especially when you have multiple Talos clusters with different configurations.
-- Managing the lifecycle of Talos clusters: You need to follow some specific steps to create, update, and delete Talos clusters with some specific verifications.
+But operating Talos at scale still requires significant manual effort. Generating machine configs, bootstrapping nodes, rotating secrets, and managing upgrades across a fleet of clusters means running sequences of `talosctl` commands, maintaining shell scripts, and tracking state outside of Kubernetes.
 
-The **talos-operator** allows you to define your Talos cluster configuration in Kubernetes Custom Resource Definitions (CRDs) and manage the lifecycle of Talos clusters using Kubernetes controllers. Since we offload state management part to the Kubernetes we don't need to worry about Talosconfigs, secret bundles or any-other operation that needs to be done via Talos CLI. The operator takes care all of those and you don't need to run any Talos CLI commands manually.
+This creates a gap: Talos gives you a great foundation, but the operational layer on top of it is left to you.
+
+---
+
+## Why talos-operator?
+
+**talos-operator** closes that gap by bringing Talos cluster lifecycle management into Kubernetes itself. Instead of imperative CLI workflows, you describe the desired state of your clusters as Custom Resources — and the operator continuously reconciles reality to match.
+
+- **No more `talosctl` for day-to-day operations.** Bootstrapping, secret generation, and upgrades are handled by the controller.
+- **GitOps-native.** Your cluster definitions live in Git alongside everything else, and changes are applied through the standard Kubernetes reconciliation loop.
+- **Works with your existing tooling.** The operator generates kubeconfigs as Kubernetes Secrets, making it straightforward to integrate with ArgoCD, FluxCD, or any other tool that consumes kubeconfigs.
+- **Flexible deployment models.** Run Talos clusters on bare metal in maintenance mode, or spin them up as pods inside an existing cluster for testing and development.
+
+---
+
+## Next Steps
+
+- [Getting Started](getting_started.md) — installation and first cluster walkthrough
+- [CRD Reference](crds/index.md) — full reference for all custom resources
+- [Platform Modes](operator_manual/modes.md) — metal vs container mode explained
+- [Upgrade Guide](operator_manual/upgrade_versions.md) — upgrading Talos OS and Kubernetes versions

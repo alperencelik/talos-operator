@@ -1,241 +1,327 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import ReactFlow, { Node, Edge, useNodesState, useEdgesState, Controls, Background, BackgroundVariant } from 'reactflow';
+import ReactFlow, {
+  Node,
+  Edge,
+  useNodesState,
+  useEdgesState,
+  Controls,
+  Background,
+  BackgroundVariant,
+} from 'reactflow';
 import 'reactflow/dist/style.css';
-import axios from 'axios';
-import { Card, Modal } from 'react-bootstrap';
 import YAML from 'js-yaml';
 import dagre from 'dagre';
+import { X, RefreshCw, FileCode } from 'lucide-react';
+import { Resources } from '../App';
 import '../TalosUI.css';
 
-// Dagre graph for layouting
+// ─── Dagre layout ─────────────────────────────────────────────────────────────
+
 const g = new dagre.graphlib.Graph();
-g.setGraph({ rankdir: 'TB' }); // Top-to-bottom layout
+g.setGraph({ rankdir: 'TB', ranksep: 80, nodesep: 60 });
 g.setDefaultNodeLabel(() => ({}));
 g.setDefaultEdgeLabel(() => ({}));
 
-const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
-  g.nodes().forEach((node) => g.removeNode(node));
-  g.edges().forEach((edge) => g.removeEdge(edge.v, edge.w));
+function getLayoutedElements(nodes: Node[], edges: Edge[]) {
+  g.nodes().forEach(n => g.removeNode(n));
+  g.edges().forEach(e => g.removeEdge(e.v, e.w));
 
-  nodes.forEach((node) => {
-    const nodeData = { width: 250, height: 100 };
-    g.setNode(node.id, nodeData);
-  });
-  edges.forEach((edge) => g.setEdge(edge.source, edge.target));
-
+  nodes.forEach(node => g.setNode(node.id, { width: 220, height: 80 }));
+  edges.forEach(edge => g.setEdge(edge.source, edge.target));
   dagre.layout(g);
 
-  const layoutedNodes = nodes.map((node) => {
-    const nodeWithPosition = g.node(node.id);
-    return {
-      ...node,
-      position: { x: nodeWithPosition.x - nodeWithPosition.width / 2, y: nodeWithPosition.y - nodeWithPosition.height / 2 },
-    };
+  const layouted = nodes.map(node => {
+    const pos = g.node(node.id);
+    return { ...node, position: { x: pos.x - 110, y: pos.y - 40 } };
   });
 
-  // Targeted adjustment: Align TalosWorker with its referenced TalosControlPlane,
-  // and adjust TalosMachine owned by these workers.
-  layoutedNodes.forEach(node => {
-    if (node.data.label.startsWith('TalosWorker') && node.data.spec?.controlPlaneRef?.name) {
-      const referencedControlPlaneName = node.data.spec.controlPlaneRef.name;
-      const controlPlaneNode = layoutedNodes.find(cpNode =>
-        cpNode.data.label.startsWith('TalosControlPlane') && cpNode.id === referencedControlPlaneName
+  // Align TalosWorker nodes with their referenced TalosControlPlane
+  layouted.forEach(node => {
+    if (node.data.label?.startsWith('TalosWorker') && node.data.spec?.controlPlaneRef?.name) {
+      const cpNode = layouted.find(
+        n =>
+          n.data.label?.startsWith('TalosControlPlane') &&
+          n.id === node.data.spec.controlPlaneRef.name
       );
-
-      if (controlPlaneNode) {
-        // Align worker with control plane
-        node.position.y = controlPlaneNode.position.y;
-
-        // Adjust TalosMachine nodes owned by this worker
-        layoutedNodes.forEach(machineNode => {
-          if (machineNode.data.label.startsWith('TalosMachine') && machineNode.data.metadata?.ownerReferences) {
-            const ownerRef = machineNode.data.metadata.ownerReferences.find(
+      if (cpNode) {
+        node.position.y = cpNode.position.y;
+        layouted.forEach(machine => {
+          if (
+            machine.data.label?.startsWith('TalosMachine') &&
+            machine.data.metadata?.ownerReferences?.some(
               (ref: any) => ref.kind === 'TalosWorker' && ref.name === node.id
-            );
-            if (ownerRef) {
-              // Position machine below the worker
-              machineNode.position.y = node.position.y + (node.height || 100) + 50; // Worker height + some offset
-            }
+            )
+          ) {
+            machine.position.y = node.position.y + 130;
           }
         });
       }
     }
   });
 
-  return layoutedNodes;
+  return layouted;
+}
+
+// ─── Node styles ──────────────────────────────────────────────────────────────
+
+const NODE_STYLES: Record<string, React.CSSProperties> = {
+  TalosCluster: {
+    background: 'rgba(255,107,53,0.08)',
+    border: '1px solid rgba(255,107,53,0.5)',
+    borderRadius: '10px',
+    color: '#e4e4e7',
+    fontSize: '12px',
+    padding: '10px 14px',
+    width: 220,
+    fontFamily: 'Inter, sans-serif',
+    boxShadow: '0 0 0 1px rgba(255,107,53,0.1)',
+  },
+  TalosControlPlane: {
+    background: 'rgba(56,189,248,0.06)',
+    border: '1px solid rgba(56,189,248,0.35)',
+    borderRadius: '10px',
+    color: '#e4e4e7',
+    fontSize: '12px',
+    padding: '10px 14px',
+    width: 220,
+    fontFamily: 'Inter, sans-serif',
+  },
+  TalosWorker: {
+    background: 'rgba(192,132,252,0.06)',
+    border: '1px solid rgba(192,132,252,0.35)',
+    borderRadius: '10px',
+    color: '#e4e4e7',
+    fontSize: '12px',
+    padding: '10px 14px',
+    width: 220,
+    fontFamily: 'Inter, sans-serif',
+  },
+  TalosMachine: {
+    background: '#18181b',
+    border: '1px solid #3f3f46',
+    borderRadius: '8px',
+    color: '#a1a1aa',
+    fontSize: '11px',
+    padding: '8px 12px',
+    width: 200,
+    fontFamily: 'Inter, sans-serif',
+  },
 };
 
-const ClusterVisualizer = () => {
+function nodeStyle(kind: string): React.CSSProperties {
+  return NODE_STYLES[kind] ?? NODE_STYLES.TalosMachine;
+}
+
+// ─── YAML modal ───────────────────────────────────────────────────────────────
+
+function YamlModal({ node, onClose }: { node: any; onClose: () => void }) {
+  const yaml = YAML.dump(node);
+  return (
+    <div
+      className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-xl max-h-[75vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800 flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileCode size={14} className="text-zinc-500 flex-shrink-0" />
+            <span className="text-sm font-semibold text-zinc-100 truncate">
+              {node?.metadata?.name}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-zinc-500 hover:text-zinc-300 transition-colors ml-3 p-1 hover:bg-zinc-800 rounded"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <div className="overflow-auto flex-1 p-5">
+          <pre className="text-xs font-mono text-zinc-300 leading-relaxed whitespace-pre">{yaml}</pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+interface ClusterVisualizerProps {
+  resources: Resources | null;
+  loading: boolean;
+  onRefresh: () => void;
+}
+
+export default function ClusterVisualizer({ resources, loading, onRefresh }: ClusterVisualizerProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [showModal, setShowModal] = useState(false);
   const [selectedNode, setSelectedNode] = useState<any>(null);
 
-  const handleClose = () => setShowModal(false);
+  const buildGraph = useCallback(() => {
+    if (!resources) return;
 
-  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    const { talosClusters, talosControlPlanes, talosWorkers, talosMachines } = resources;
+    const newNodes: Node[] = [];
+    const newEdges: Edge[] = [];
+
+    const kindOf = (item: any, kind: string) =>
+      `${kind}: ${item.metadata?.name ?? ''}`;
+
+    // Nodes
+    talosClusters.forEach(c =>
+      newNodes.push({
+        id: c.metadata.name,
+        type: 'default',
+        data: { label: kindOf(c, 'TalosCluster'), ...c },
+        position: { x: 0, y: 0 },
+        style: nodeStyle('TalosCluster'),
+      })
+    );
+    talosControlPlanes.forEach(cp =>
+      newNodes.push({
+        id: cp.metadata.name,
+        type: 'default',
+        data: { label: kindOf(cp, 'TalosControlPlane'), ...cp },
+        position: { x: 0, y: 0 },
+        style: nodeStyle('TalosControlPlane'),
+      })
+    );
+    talosWorkers.forEach(w =>
+      newNodes.push({
+        id: w.metadata.name,
+        type: 'default',
+        data: { label: kindOf(w, 'TalosWorker'), ...w },
+        position: { x: 0, y: 0 },
+        style: nodeStyle('TalosWorker'),
+      })
+    );
+    talosMachines.forEach(m =>
+      newNodes.push({
+        id: m.metadata.name,
+        type: 'default',
+        data: { label: kindOf(m, 'TalosMachine'), ...m },
+        position: { x: 0, y: 0 },
+        style: nodeStyle('TalosMachine'),
+      })
+    );
+
+    // Edges
+    const edgeBase = {
+      animated: true,
+      style: { stroke: '#52525b', strokeWidth: 1.5 },
+      labelStyle: { fontSize: 10, fill: '#71717a', background: '#18181b' },
+      labelBgStyle: { fill: '#18181b', fillOpacity: 0.8 },
+    };
+
+    talosClusters.forEach(c => {
+      if (c.spec?.controlPlaneRef)
+        newEdges.push({ ...edgeBase, id: `e-${c.metadata.name}-cp-ref`, source: c.metadata.name, target: c.spec.controlPlaneRef.name, label: 'ref' });
+      if (c.spec?.workerRef)
+        newEdges.push({ ...edgeBase, id: `e-${c.metadata.name}-wk-ref`, source: c.metadata.name, target: c.spec.workerRef.name, label: 'ref' });
+    });
+
+    talosControlPlanes.forEach(cp => {
+      const owner = cp.metadata?.ownerReferences?.find((r: any) => r.kind === 'TalosCluster');
+      if (owner)
+        newEdges.push({ ...edgeBase, id: `e-${owner.name}-${cp.metadata.name}-own`, source: owner.name, target: cp.metadata.name, label: 'owns' });
+    });
+
+    talosWorkers.forEach(w => {
+      if (w.spec?.controlPlaneRef)
+        newEdges.push({ ...edgeBase, id: `e-${w.metadata.name}-cp`, source: w.metadata.name, target: w.spec.controlPlaneRef.name, label: 'ref', type: 'smoothstep' });
+      const owner = w.metadata?.ownerReferences?.find((r: any) => r.kind === 'TalosCluster');
+      if (owner)
+        newEdges.push({ ...edgeBase, id: `e-${owner.name}-${w.metadata.name}-own`, source: owner.name, target: w.metadata.name, label: 'owns' });
+    });
+
+    talosMachines.forEach(m => {
+      if (m.metadata?.ownerReferences?.length) {
+        const owner = m.metadata.ownerReferences[0].name;
+        newEdges.push({ ...edgeBase, id: `e-${owner}-${m.metadata.name}`, source: owner, target: m.metadata.name, label: 'owns' });
+      }
+    });
+
+    setNodes(getLayoutedElements(newNodes, newEdges));
+    setEdges(newEdges);
+  }, [resources, setNodes, setEdges]);
+
+  useEffect(() => {
+    buildGraph();
+  }, [buildGraph]);
+
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     setSelectedNode(node.data);
-    setShowModal(true);
   }, []);
 
-  const onNodeDrag = useCallback((event: any, draggedNode: Node) => {
-    setNodes((nds) => {
-      const updatedNodes = nds.map((node) => {
-        if (node.id === draggedNode.id) {
-          let newX = draggedNode.position.x;
-          let newY = draggedNode.position.y;
+  const onNodeDrag = useCallback(
+    (_: any, draggedNode: Node) => {
+      setNodes(nds =>
+        nds.map(node => {
+          if (node.id !== draggedNode.id) return node;
 
-          const draggedNodeWidth = node.width || 250;
-          const draggedNodeHeight = node.height || 100;
+          let { x, y } = draggedNode.position;
+          const dw = node.width ?? 220;
+          const dh = node.height ?? 80;
 
-          nds.forEach((otherNode) => {
-            if (otherNode.id !== draggedNode.id) {
-              const otherNodeWidth = otherNode.width || 250;
-              const otherNodeHeight = otherNode.height || 100;
-
-              const otherNodePosition = otherNode.position || { x: 0, y: 0 };
-
-              const draggedRect = {
-                left: newX,
-                right: newX + draggedNodeWidth,
-                top: newY,
-                bottom: newY + draggedNodeHeight,
-              };
-              const otherRect = {
-                left: otherNodePosition.x,
-                right: otherNodePosition.x + otherNodeWidth,
-                top: otherNodePosition.y,
-                bottom: otherNodePosition.y + otherNodeHeight,
-              };
-
-              if (
-                draggedRect.left < otherRect.right &&
-                draggedRect.right > otherRect.left &&
-                draggedRect.top < otherRect.bottom &&
-                draggedRect.bottom > otherRect.top
-              ) {
-                const overlapX = Math.min(draggedRect.right, otherRect.right) - Math.max(draggedRect.left, otherRect.left);
-                const overlapY = Math.min(draggedRect.bottom, otherRect.bottom) - Math.max(draggedRect.top, otherRect.top);
-
-                if (overlapX < overlapY) {
-                  if (draggedRect.left < otherRect.left) {
-                    newX = otherRect.left - draggedNodeWidth;
-                  } else {
-                    newX = otherRect.right;
-                  }
-                } else {
-                  if (draggedRect.top < otherRect.top) {
-                    newY = otherRect.top - draggedNodeHeight;
-                  } else {
-                    newY = otherRect.bottom;
-                  }
-                }
-              }
+          nds.forEach(other => {
+            if (other.id === draggedNode.id) return;
+            const ow = other.width ?? 220;
+            const oh = other.height ?? 80;
+            const op = other.position;
+            const overlapX = Math.min(x + dw, op.x + ow) - Math.max(x, op.x);
+            const overlapY = Math.min(y + dh, op.y + oh) - Math.max(y, op.y);
+            if (overlapX > 0 && overlapY > 0) {
+              if (overlapX < overlapY) x = x < op.x ? op.x - dw : op.x + ow;
+              else y = y < op.y ? op.y - dh : op.y + oh;
             }
           });
 
-          return { ...node, position: { x: newX, y: newY } };
-        }
-        return node;
-      });
-      return updatedNodes;
-    });
-  }, [setNodes]);
+          return { ...node, position: { x, y } };
+        })
+      );
+    },
+    [setNodes]
+  );
 
-  useEffect(() => {
-    axios.get('/api/resources')
-      .then(response => {
-        console.log("Backend Response:", response.data);
-        const { talosClusters, talosControlPlanes, talosWorkers, talosMachines } = response.data;
-        const newNodes: Node[] = [];
-        const newEdges: Edge[] = [];
-
-        // Add nodes
-        talosClusters.forEach((cluster: any) => {
-          newNodes.push({ id: cluster.metadata.name, type: 'default', data: { label: `TalosCluster: ${cluster.metadata.name}`, ...cluster }, position: { x: 0, y: 0 } });
-        });
-
-        talosControlPlanes.forEach((cp: any) => {
-          newNodes.push({ id: cp.metadata.name, type: 'default', data: { label: `TalosControlPlane: ${cp.metadata.name}`, ...cp }, position: { x: 0, y: 0 } });
-        });
-
-        talosWorkers.forEach((worker: any) => {
-          newNodes.push({ id: worker.metadata.name, type: 'default', data: { label: `TalosWorker: ${worker.metadata.name}`, ...worker }, position: { x: 0, y: 0 } });
-        });
-
-        talosMachines.forEach((machine: any) => {
-          newNodes.push({ id: machine.metadata.name, type: 'default', data: { label: `TalosMachine: ${machine.metadata.name}`, ...machine }, position: { x: 0, y: 0 } });
-        });
-
-        // Add edges
-        talosClusters.forEach((cluster: any) => {
-          if (cluster.spec.controlPlaneRef) {
-            newEdges.push({ id: `e-${cluster.metadata.name}-${cluster.spec.controlPlaneRef.name}`, source: cluster.metadata.name, target: cluster.spec.controlPlaneRef.name, animated: true, label: 'ref' });
-          }
-          if (cluster.spec.workerRef) {
-            newEdges.push({ id: `e-${cluster.metadata.name}-${cluster.spec.workerRef.name}`, source: cluster.metadata.name, target: cluster.spec.workerRef.name, animated: true, label: 'references worker' });
-          }
-        });
-
-        talosControlPlanes.forEach((cp: any) => {
-          if (cp.metadata.ownerReferences && cp.metadata.ownerReferences.length > 0) {
-            const ownerRef = cp.metadata.ownerReferences.find(
-              (ref: any) => ref.kind === 'TalosCluster'
-            );
-            if (ownerRef) {
-              newEdges.push({
-                id: `e-${ownerRef.name}-${cp.metadata.name}-owner`,
-                source: ownerRef.name,
-                target: cp.metadata.name,
-                animated: true,
-                label: 'owns',
-              });
-            }
-          }
-        });
-
-        talosWorkers.forEach((worker: any) => {
-          if (worker.spec.controlPlaneRef) {
-            newEdges.push({ id: `e-${worker.metadata.name}-${worker.spec.controlPlaneRef.name}`, source: worker.metadata.name, target: worker.spec.controlPlaneRef.name, animated: true, label: 'ref', type: 'smoothstep' });
-          }
-
-          if (worker.metadata.ownerReferences && worker.metadata.ownerReferences.length > 0) {
-            const ownerRef = worker.metadata.ownerReferences.find(
-              (ref: any) => ref.kind === 'TalosCluster'
-            );
-            if (ownerRef) {
-              newEdges.push({
-                id: `e-${ownerRef.name}-${worker.metadata.name}-owner`,
-                source: ownerRef.name,
-                target: worker.metadata.name,
-                animated: true,
-                label: 'owns',
-              });
-            }
-          }
-        });
-
-        talosMachines.forEach((machine: any) => {
-          if (machine.metadata.ownerReferences && machine.metadata.ownerReferences.length > 0) {
-            const owner = machine.metadata.ownerReferences[0].name;
-            newEdges.push({ id: `e-${owner}-${machine.metadata.name}`, source: owner, target: machine.metadata.name, animated: true, label: 'owns' });
-          }
-        });
-
-        const layoutedNodes = getLayoutedElements(newNodes, newEdges);
-        setNodes(layoutedNodes);
-        setEdges(newEdges);
-      })
-      .catch(error => {
-        console.error("Error fetching resources:", error);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const isEmpty = !resources ||
+    (resources.talosClusters.length + resources.talosControlPlanes.length +
+      resources.talosWorkers.length + resources.talosMachines.length === 0);
 
   return (
-    <Card className="talos-card talos-visualizer">
-      <Card.Body>
-        <div style={{ height: '600px', width: '100%', borderRadius: '8px', overflow: 'hidden' }}>
+    <div className="flex flex-col h-full relative">
+      {/* Toolbar */}
+      <div className="flex-shrink-0 px-5 py-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
+        <p className="text-xs text-zinc-500">
+          Click a node to inspect its YAML. Drag to rearrange.
+        </p>
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-40"
+        >
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+          Reload graph
+        </button>
+      </div>
+
+      {/* ReactFlow canvas */}
+      <div className="flex-1 relative">
+        {loading ? (
+          <div className="flex items-center justify-center h-full gap-3 text-sm text-zinc-500">
+            <div className="w-4 h-4 border-2 border-zinc-700 border-t-brand rounded-full animate-spin" />
+            Loading cluster topology…
+          </div>
+        ) : isEmpty ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-8">
+            <div className="text-zinc-600 text-sm mb-1">No resources to visualize</div>
+            <div className="text-zinc-700 text-xs max-w-xs">
+              Create Talos resources using the Generator and they'll appear here as a graph.
+            </div>
+          </div>
+        ) : (
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -244,26 +330,18 @@ const ClusterVisualizer = () => {
             onNodeClick={onNodeClick}
             onNodeDrag={onNodeDrag}
             fitView
+            fitViewOptions={{ padding: 0.3 }}
           >
             <Controls />
-            <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#27272a" />
           </ReactFlow>
-        </div>
-        <Modal show={showModal} onHide={handleClose} className="talos-modal">
-          <Modal.Header closeButton>
-            <Modal.Title>{selectedNode?.metadata.name}</Modal.Title>
-          </Modal.Header>
-          <Modal.Body style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            <div className="talos-yaml-display">
-              <pre>
-                <code>{YAML.dump(selectedNode)}</code>
-              </pre>
-            </div>
-          </Modal.Body>
-        </Modal>
-      </Card.Body>
-    </Card>
-  );
-};
+        )}
 
-export default ClusterVisualizer;
+        {/* YAML modal */}
+        {selectedNode && (
+          <YamlModal node={selectedNode} onClose={() => setSelectedNode(null)} />
+        )}
+      </div>
+    </div>
+  );
+}

@@ -10,3 +10,4 @@ This is the operator manual for Talos Operator. It provides detailed information
   - [Reconciliation Modes](reconciliation_modes.md)
   - [Modes](modes.md)
   - [Upgrading Versions](upgrade_versions.md)
+  - [Import Existing Clusters](import_existing_resources.md)
