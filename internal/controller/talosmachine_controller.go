@@ -29,14 +29,18 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 )
 
@@ -525,6 +529,14 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 		patches = append(patches, string(patchBytes))
 	}
 
+	if tm.Spec.MachineSpec != nil && len(tm.Spec.MachineSpec.ConfigPatches) > 0 {
+		configPatches, err := rawExtensionsToPatches(tm.Spec.MachineSpec.ConfigPatches)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process configPatches for TalosMachine %s: %w", tm.Name, err)
+		}
+		patches = append(patches, configPatches...)
+	}
+
 	return &patches, nil
 }
 
@@ -533,13 +545,36 @@ func (r *TalosMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&talosv1alpha1.TalosMachine{}).
 		Named("talosmachine").
+		// Watch ConfigMaps so that changes to a referenced configRef trigger reconciliation.
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.configMapToTalosMachines)).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				// Only reconcile if the generation of the object has changed
 				return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
 			},
 		}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Complete(r)
+}
+
+// configMapToTalosMachines maps a ConfigMap change event to the TalosMachines that reference it via configRef.
+func (r *TalosMachineReconciler) configMapToTalosMachines(ctx context.Context, obj client.Object) []reconcile.Request {
+	var machineList talosv1alpha1.TalosMachineList
+	if err := r.List(ctx, &machineList, client.InNamespace(obj.GetNamespace())); err != nil {
+		return nil
+	}
+	var requests []reconcile.Request
+	for _, machine := range machineList.Items {
+		if machine.Spec.ConfigRef != nil && machine.Spec.ConfigRef.Name == obj.GetName() {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      machine.Name,
+					Namespace: machine.Namespace,
+				},
+			})
+		}
+	}
+	return requests
 }
 
 func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {

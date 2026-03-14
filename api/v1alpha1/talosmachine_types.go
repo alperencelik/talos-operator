@@ -85,6 +85,11 @@ type MachineSpec struct {
 	// additionalConfig is additional Talos configuration to append to the generated config.
 	// +kubebuilder:validation:Optional
 	AdditionalConfig *runtime.RawExtension `json:"additionalConfig,omitempty"`
+	// ConfigPatches is a list of strategic merge patches applied to the generated Talos machine config.
+	// Unlike additionalConfig (which appends a separate YAML document), each patch is merged into
+	// the main machine config, allowing you to override or extend any field (e.g. machine.network).
+	// +kubebuilder:validation:Optional
+	ConfigPatches []runtime.RawExtension `json:"configPatches,omitempty"`
 }
 
 // TalosMachineStatus defines the observed state of TalosMachine.

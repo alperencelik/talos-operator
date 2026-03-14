@@ -107,6 +107,15 @@ spec:
                         description: AllowSchedulingOnControlPlanes indicates whether
                           to allow scheduling workloads on control plane nodes.
                         type: boolean
+                      configPatches:
+                        description: |-
+                          ConfigPatches is a list of strategic merge patches applied to the generated Talos machine config.
+                          Unlike additionalConfig (which appends a separate YAML document), each patch is merged into
+                          the main machine config, allowing you to override or extend any field (e.g. machine.network).
+                        items:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                        type: array
                       image:
                         description: Image is the Talos image to use for this machine.
                         type: string
