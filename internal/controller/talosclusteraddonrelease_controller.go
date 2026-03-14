@@ -120,9 +120,6 @@ func (r *TalosClusterAddonReleaseReconciler) Reconcile(ctx context.Context, req 
 		return ctrl.Result{}, err
 	}
 	helmRelease, err := helmClient.InstallOrUpgradeChart(ctx, tcAddonRelease.Spec.HelmSpec)
-	if helmRelease.Info.Status == "deployed" {
-		logger.Info("Helm chart deployed successfully", "releaseName", tcAddonRelease.Spec.HelmSpec.ReleaseName)
-	}
 
 	if err != nil {
 		logger.Error(err, "failed to install or upgrade helm chart")
@@ -136,6 +133,10 @@ func (r *TalosClusterAddonReleaseReconciler) Reconcile(ctx context.Context, req 
 			logger.Error(updateErr, "failed to update TalosClusterAddonRelease status")
 		}
 		return ctrl.Result{}, err
+	}
+
+	if helmRelease.Info.Status == "deployed" {
+		logger.Info("Helm chart deployed successfully", "releaseName", tcAddonRelease.Spec.HelmSpec.ReleaseName)
 	}
 
 	meta.SetStatusCondition(&tcAddonRelease.Status.Conditions, metav1.Condition{

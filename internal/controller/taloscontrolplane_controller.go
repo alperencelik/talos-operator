@@ -39,6 +39,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -279,6 +280,7 @@ func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return condition1 || condition2
 			},
 		}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Named("taloscontrolplane").
 		Complete(r)
 }
@@ -645,6 +647,14 @@ func (r *TalosControlPlaneReconciler) GenerateConfig(ctx context.Context, tcp *t
 		return fmt.Errorf("failed to set config for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 	var patches *[]string
+	// If the user provided configPatches, convert each one and pass them to the generator.
+	if tcp.Spec.MetalSpec.MachineSpec != nil && len(tcp.Spec.MetalSpec.MachineSpec.ConfigPatches) > 0 {
+		patchList, err := rawExtensionsToPatches(tcp.Spec.MetalSpec.MachineSpec.ConfigPatches)
+		if err != nil {
+			return fmt.Errorf("failed to process configPatches for TalosControlPlane %s: %w", tcp.Name, err)
+		}
+		patches = &patchList
+	}
 	// Generate the Talos ControlPlane config
 	cpConfig, err := talos.GenerateControlPlaneConfig(bundleConfig, patches)
 	if err != nil {

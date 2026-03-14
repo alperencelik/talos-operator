@@ -65,70 +65,17 @@ func main() {
 
 	if len(os.Args) > 1 && os.Args[1] == "upgrade-k8s" {
 		// This is the upgrade-k8s command
-		fmt.Println("Upgrading Kubernetes...")
-		fmt.Println("Target version:", os.Getenv("TARGET_VERSION"))
-		fmt.Println("TalosControlPlane:", os.Getenv("TCP_NAME"))
-		fmt.Println("Namespace:", os.Getenv("TCP_NAMESPACE"))
-
-		// Create a new Kubernetes client
-		ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 		kubeClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
 		if err != nil {
 			setupLog.Error(err, "unable to create kube client")
 			os.Exit(1)
 		}
 
-		// Get the TalosControlPlane resource
-		var tcp talosv1alpha1.TalosControlPlane
-		if err := kubeClient.Get(context.Background(), client.ObjectKey{
-			Name: os.Getenv("TCP_NAME"), Namespace: os.Getenv("TCP_NAMESPACE")}, &tcp); err != nil {
-			setupLog.Error(err, "unable to get TalosControlPlane")
-			os.Exit(1)
-		}
-
-		// Create a new Talos client
-		config, err := (&controller.TalosControlPlaneReconciler{
-			Client: kubeClient, Scheme: scheme}).SetConfig(context.Background(), &tcp)
+		err = upgradeK8s(kubeClient)
 		if err != nil {
-			setupLog.Error(err, "unable to set config")
+			setupLog.Error(err, "unable to upgrade Kubernetes")
 			os.Exit(1)
 		}
-
-		talosClient, err := talos.NewClient(config, false)
-		if err != nil {
-			setupLog.Error(err, "unable to create talos client")
-			os.Exit(1)
-		}
-
-		// Upgrade the Kubernetes version
-		if err := talosClient.UpgradeKubeVersion(context.Background(),
-			os.Getenv("TARGET_VERSION"), tcp.Spec.Endpoint); err != nil {
-			setupLog.Error(err, "unable to upgrade kubernetes version")
-			meta.SetStatusCondition(&tcp.Status.Conditions, metav1.Condition{
-				Type:    talosv1alpha1.ConditionKubernetesUpgradeFailed,
-				Status:  metav1.ConditionTrue,
-				Reason:  "UpgradeFailed",
-				Message: err.Error(),
-			})
-			if err := kubeClient.Status().Update(context.Background(), &tcp); err != nil {
-				setupLog.Error(err, "unable to update TalosControlPlane status")
-			}
-			os.Exit(1)
-		}
-
-		// Update the status of the TalosControlPlane resource
-		tcp.Status.ObservedKubeVersion = os.Getenv("TARGET_VERSION")
-		meta.SetStatusCondition(&tcp.Status.Conditions, metav1.Condition{
-			Type:   talosv1alpha1.ConditionKubernetesUpgradeSucceeded,
-			Status: metav1.ConditionTrue,
-			Reason: "UpgradeSucceeded",
-		})
-		if err := kubeClient.Status().Update(context.Background(), &tcp); err != nil {
-			setupLog.Error(err, "unable to update TalosControlPlane status")
-			os.Exit(1)
-		}
-
-		fmt.Println("Kubernetes upgrade complete.")
 		return
 	}
 
@@ -296,4 +243,64 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func upgradeK8s(kubeClient client.Client) error {
+	fmt.Println("Upgrading Kubernetes...")
+	fmt.Println("Target version:", os.Getenv("TARGET_VERSION"))
+	fmt.Println("TalosControlPlane:", os.Getenv("TCP_NAME"))
+	fmt.Println("Namespace:", os.Getenv("TCP_NAMESPACE"))
+
+	// Get the TalosControlPlane resource
+	var tcp talosv1alpha1.TalosControlPlane
+	if err := kubeClient.Get(context.Background(), client.ObjectKey{
+		Name: os.Getenv("TCP_NAME"), Namespace: os.Getenv("TCP_NAMESPACE")}, &tcp); err != nil {
+		setupLog.Error(err, "unable to get TalosControlPlane")
+		return err
+	}
+
+	// Create a new Talos client
+	config, err := (&controller.TalosControlPlaneReconciler{
+		Client: kubeClient, Scheme: scheme}).SetConfig(context.Background(), &tcp)
+	if err != nil {
+		setupLog.Error(err, "unable to set config")
+		return fmt.Errorf("failed to get config for TalosControlPlane %s: %w", tcp.Name, err)
+	}
+
+	talosClient, err := talos.NewClient(config, false)
+	if err != nil {
+		setupLog.Error(err, "unable to create talos client")
+		return fmt.Errorf("failed to create Talos client for TalosControlPlane %s: %w", tcp.Name, err)
+	}
+
+	// Upgrade the Kubernetes version
+	if err := talosClient.UpgradeKubeVersion(context.Background(),
+		os.Getenv("TARGET_VERSION"), tcp.Spec.Endpoint); err != nil {
+		setupLog.Error(err, "unable to upgrade kubernetes version")
+		meta.SetStatusCondition(&tcp.Status.Conditions, metav1.Condition{
+			Type:    talosv1alpha1.ConditionKubernetesUpgradeFailed,
+			Status:  metav1.ConditionTrue,
+			Reason:  "UpgradeFailed",
+			Message: err.Error(),
+		})
+		if err := kubeClient.Status().Update(context.Background(), &tcp); err != nil {
+			setupLog.Error(err, "unable to update TalosControlPlane status")
+		}
+		return fmt.Errorf("failed to upgrade Kubernetes version for TalosControlPlane %s: %w", tcp.Name, err)
+	}
+
+	// Update the status of the TalosControlPlane resource
+	tcp.Status.ObservedKubeVersion = os.Getenv("TARGET_VERSION")
+	meta.SetStatusCondition(&tcp.Status.Conditions, metav1.Condition{
+		Type:   talosv1alpha1.ConditionKubernetesUpgradeSucceeded,
+		Status: metav1.ConditionTrue,
+		Reason: "UpgradeSucceeded",
+	})
+	if err := kubeClient.Status().Update(context.Background(), &tcp); err != nil {
+		setupLog.Error(err, "unable to update TalosControlPlane status")
+		return fmt.Errorf("failed to update status for TalosControlPlane %s after Kubernetes upgrade: %w", tcp.Name, err)
+	}
+
+	fmt.Println("Kubernetes upgrade complete.")
+	return nil
 }
