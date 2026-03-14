@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -42,8 +43,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/pkg/talos"
@@ -265,9 +268,13 @@ func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// TODO: Look into this, for some reason it doesn't trigger reconciliation when the job is updated
 		// Owns(&batchv1.Job{}, builder.WithPredicates(jobPredicate)).
 		Owns(&batchv1.Job{}, builder.WithPredicates(jobPredicate)).
+		// Watch ConfigMaps so that changes to a referenced configRef trigger reconciliation.
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.configMapToTalosControlPlanes)).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
-				// Only reconcile if the generation of the object has changed
+				if _, ok := e.ObjectNew.(*corev1.ConfigMap); ok {
+					return true
+				}
 				oldTcp, ok1 := e.ObjectOld.(*talosv1alpha1.TalosControlPlane)
 				newTcp, ok2 := e.ObjectNew.(*talosv1alpha1.TalosControlPlane)
 				if !ok1 || !ok2 {
@@ -283,6 +290,26 @@ func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Named("taloscontrolplane").
 		Complete(r)
+}
+
+// configMapToTalosControlPlanes maps a ConfigMap change event to TalosControlPlanes that reference it via configRef.
+func (r *TalosControlPlaneReconciler) configMapToTalosControlPlanes(ctx context.Context, obj client.Object) []reconcile.Request {
+	var tcpList talosv1alpha1.TalosControlPlaneList
+	if err := r.List(ctx, &tcpList, client.InNamespace(obj.GetNamespace())); err != nil {
+		return nil
+	}
+	var requests []reconcile.Request
+	for _, tcp := range tcpList.Items {
+		if tcp.Spec.ConfigRef != nil && tcp.Spec.ConfigRef.Name == obj.GetName() {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      tcp.Name,
+					Namespace: tcp.Namespace,
+				},
+			})
+		}
+	}
+	return requests
 }
 
 func (r *TalosControlPlaneReconciler) reconcileContainerMode(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (ctrl.Result, error) {

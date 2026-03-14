@@ -549,7 +549,9 @@ func (r *TalosMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.configMapToTalosMachines)).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
-				// Only reconcile if the generation of the object has changed
+				if _, ok := e.ObjectNew.(*corev1.ConfigMap); ok {
+					return true
+				}
 				return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
 			},
 		}).
