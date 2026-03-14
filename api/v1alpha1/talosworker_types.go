@@ -26,50 +26,51 @@ import (
 
 // +kubebuilder:validadtion:XValidation:rule="!has(oldSelf.mode) || has(self.mode)", message="Mode is immutable"
 // +kubebuilder:validation:XValidation:rule="self.mode!='metal' || has(self.metalSpec)", message="MetalSpec is required when mode 'metal'"
+// +kubebuilder:validation:XValidation:rule="self.mode != 'container' || self.replicas >= 1",message="replicas must be at least 1 when mode is 'container'"
 
 // TalosWorkerSpec defines the desired state of TalosWorker.
 type TalosWorkerSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
+	// version of Talos to use for the worker nodes -- e.g "v1.12.1"
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	Version string `json:"version,omitempty"`
 
+	// mode specifies the deployment mode for the worker nodes (container, metal, or cloud).
 	// TODO: Add support for cloud mode
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=container;metal;cloud
 	Mode string `json:"mode,omitempty"`
 
-	// +kubebuilder:validation:Minimum=1
+	// replicas is the number of worker machines to maintain. Only applies when mode is 'container'.
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=1
-	// Number of control-plane machines to maintain
-	Replicas int32 `json:"replicas"`
+	Replicas int32 `json:"replicas,omitempty"`
 
-	// Metal Spec is required when mode is 'metal'
+	// metalSpec is required when mode is 'metal'.
 	MetalSpec MetalSpec `json:"metalSpec,omitempty"`
 
-	// KubeVersion is the version of Kubernetes to use for the control plane
+	// kubeVersion is the version of Kubernetes to use for the worker nodes.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	// +kubebuilder:default="v1.35.0"
-	// TODO: Deprecate this field since the KubeVersion is derived fromm the control plane version
 	KubeVersion string `json:"kubeVersion,omitempty"`
 
-	// StorageClassName is the name of the storage class to use for persistent volumes
+	// storageClassName is the name of the storage class to use for persistent volumes.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$`
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="StorageClassName is immutable, you cannot change it after creation"
 	StorageClassName *string `json:"storageClassName,omitempty"`
 
-	// ControlPlaneRef is a reference to the TalosControlPlane that this worker belongs to
+	// controlPlaneRef is a reference to the TalosControlPlane that this worker belongs to.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Format=objectreference
 	ControlPlaneRef corev1.LocalObjectReference `json:"controlPlaneRef"`
 
+	// configRef is a reference to a ConfigMap containing the Talos cluster configuration.
 	// +kubebuilder:validation:Optional
-	// Reference to a ConfigMap containing the Talos cluster configuration
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
 }
 
@@ -77,12 +78,18 @@ type TalosWorkerSpec struct {
 type TalosWorkerStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// conditions represent the current state of the TalosWorker resource.
+	// +listType=map
+	// +listMapKey=type
+	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	Config     string             `json:"config,omitempty"` // Serialized Talos configuration for the worker
-	// Imported is only valid when ReconcileMode is 'import' and indicates whether the Talos control plane has been imported
+	// config is the serialized Talos configuration for the worker.
+	Config string `json:"config,omitempty"`
+	// imported is only valid when ReconcileMode is 'import' and indicates whether the Talos worker has been imported.
 	Imported *bool `json:"imported,omitempty"`
-	// State represents the current state of the Talos worker
-	State string `json:"state,omitempty"` // e.g., "Ready", "Provisioning", "Failed"
+	// state represents the current state of the Talos worker (e.g., "Ready", "Provisioning", "Failed").
+	State string `json:"state,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -90,10 +97,18 @@ type TalosWorkerStatus struct {
 
 // TalosWorker is the Schema for the talosworkers API.
 type TalosWorker struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is a standard object metadata.
+	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TalosWorkerSpec   `json:"spec,omitempty"`
+	// spec defines the desired state of TalosWorker.
+	// +optional
+	Spec TalosWorkerSpec `json:"spec,omitempty"`
+
+	// status defines the observed state of TalosWorker.
+	// +optional
 	Status TalosWorkerStatus `json:"status,omitempty"`
 }
 
