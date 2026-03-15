@@ -31,11 +31,11 @@ type TalosClusterAddonReleaseSpec struct {
 	// The following markers will use OpenAPI v3 schema to validate the value
 	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
 
-	// ClusterRef is a reference to the TalosCluster where the addon will be installed.
+	// clusterRef is a reference to the TalosCluster where the addon will be installed.
 	// +kubebuilder:validation:Required
 	ClusterRef corev1.ObjectReference `json:"clusterRef"`
 
-	// Helm spec contains the configuration for the Helm chart that defines the addon.
+	// helmSpec contains the configuration for the Helm chart that defines the addon.
 	HelmSpec HelmSpec `json:"helmSpec,omitempty"`
 }
 

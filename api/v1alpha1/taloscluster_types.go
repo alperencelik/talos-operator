@@ -34,27 +34,29 @@ type TalosClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// ControlPlane defines the control plane configuration for the Talos cluster.
+	// controlPlane defines the control plane configuration for the Talos cluster.
 	// +kubebuilder:validation:Optional
 	ControlPlane *TalosControlPlaneSpec `json:"controlPlane,omitempty"`
 
-	// ControlPlaneRef references the TalosControlPlane resource that manages the control plane.
+	// controlPlaneRef references the TalosControlPlane resource that manages the control plane.
 	// +kubebuilder:validation:Optional
 	ControlPlaneRef *corev1.LocalObjectReference `json:"controlPlaneRef,omitempty"`
 
-	// Worker defines the worker configuration for the Talos cluster.
+	// worker defines the worker configuration for the Talos cluster.
 	// +kubebuilder:validation:Optional
 	Worker *TalosWorkerSpec `json:"worker,omitempty"`
 
-	// WorkerRef references the TalosWorker resource that manages the worker nodes.
+	// workerRef references the TalosWorker resource that manages the worker nodes.
 	// +kubebuilder:validation:Optional
 	WorkerRef *corev1.LocalObjectReference `json:"workerRef,omitempty"`
 }
 
 // TalosClusterStatus defines the observed state of TalosCluster.
 type TalosClusterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// conditions represent the current state of the TalosCluster resource.
+	// +listType=map
+	// +listMapKey=type
+	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
@@ -63,10 +65,18 @@ type TalosClusterStatus struct {
 
 // TalosCluster is the Schema for the talosclusters API.
 type TalosCluster struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is a standard object metadata.
+	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TalosClusterSpec   `json:"spec,omitempty"`
+	// spec defines the desired state of TalosCluster.
+	// +optional
+	Spec TalosClusterSpec `json:"spec,omitempty"`
+
+	// status defines the observed state of TalosCluster.
+	// +optional
 	Status TalosClusterStatus `json:"status,omitempty"`
 }
 

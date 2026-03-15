@@ -31,33 +31,33 @@ type TalosEtcdBackupSpec struct {
 	// The following markers will use OpenAPI v3 schema to validate the value
 	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
 
-	// TalosControlPlaneRef is a reference to the TalosControlPlane this backup is associated with
+	// talosControlPlaneRef is a reference to the TalosControlPlane this backup is associated with.
 	// +kubebuilder:validation:required
 	TalosControlPlaneRef *corev1.LocalObjectReference `json:"talosControlPlaneRef"`
 
-	// BackupStorage specifies where to store the etcd backup
+	// backupStorage specifies where to store the etcd backup.
 	// +kubebuilder:validation:required
 	BackupStorage BackupStorage `json:"backupStorage"`
 }
 
 type BackupStorage struct {
-	// S3 specifies the S3-compatible storage configuration for the etcd backup
+	// s3 specifies the S3-compatible storage configuration for the etcd backup.
 	// +kubebuilder:validation:Required
 	S3 *S3Storage `json:"s3,omitempty"`
 }
 
 type S3Storage struct {
-	// Bucket is the name of the S3 bucket to store the etcd backup
+	// bucket is the name of the S3 bucket to store the etcd backup.
 	Bucket string `json:"bucket"`
-	// Region is the AWS region where the S3 bucket is located
+	// region is the AWS region where the S3 bucket is located.
 	Region string `json:"region"`
-	// Endpoint is the S3 service endpoint (optional, for custom S3-compatible services)
+	// endpoint is the S3 service endpoint (optional, for custom S3-compatible services).
 	Endpoint string `json:"endpoint,omitempty"`
-	// AccessKeyID is the access key ID for the S3 bucket
+	// accessKeyID is the access key ID for the S3 bucket.
 	AccessKeyID *corev1.SecretKeySelector `json:"accessKeyID"`
-	// SecretAccessKey is the secret access key for the S3 bucket
+	// secretAccessKey is the secret access key for the S3 bucket.
 	SecretAccessKey *corev1.SecretKeySelector `json:"secretAccessKey"`
-	// InsecureSkipTLSVerify skips TLS verification for the S3 endpoint (optional)
+	// insecureSkipTLSVerify skips TLS verification for the S3 endpoint (optional).
 	// +kubebuilder:default:=false
 	InsecureSkipTLSVerify bool `json:"insecureSkipTLSVerify,omitempty"`
 }
@@ -67,9 +67,12 @@ type TalosEtcdBackupStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
+	// filename is the path to the backup file in the storage backend.
+	// +optional
+	FilePath string `json:"filename,omitempty"`
+
 	// For Kubernetes API conventions, see:
 	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-	FilePath string `json:"filename,omitempty"`
 
 	// conditions represent the current state of the TalosEtcdBackup resource.
 	// Each condition has a unique type and reflects the status of a specific aspect of the resource.

@@ -27,31 +27,33 @@ import (
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.clusterDomain) || has(self.clusterDomain)", message="ClusterDomain is immutable"
 // +kubebuilder:validadtion:XValidation:rule="!has(oldSelf.mode) || has(self.mode)", message="Mode is immutable"
 // +kubebuilder:validation:XValidation:rule="self.mode != 'metal' || size(self.metalSpec.machines) > 0",message="Machines is required when mode is 'metal'"
+// +kubebuilder:validation:XValidation:rule="self.mode != 'container' || self.replicas >= 1",message="replicas must be at least 1 when mode is 'container'"
 
 // TalosControlPlaneSpec defines the desired state of TalosControlPlane.
 type TalosControlPlaneSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
+	// version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	// +kubebuilder:default="v1.12.1"
 	Version string `json:"version,omitempty"`
 
+	// mode specifies the deployment mode for the control plane (container, metal, or cloud).
 	// TODO: Add support for cloud mode
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=container;metal;cloud
 	Mode string `json:"mode,omitempty"`
 
-	// Number of control-plane machines to maintain
-	// +kubebuilder:validation:Minimum=1
+	// replicas is the number of control-plane machines to maintain. Only applies when mode is 'container'.
+	// +kubebuilder:validation:Optional
 	Replicas int32 `json:"replicas,omitempty"`
 
-	// Metal Spec is required when mode is 'metal'
+	// metalSpec is required when mode is 'metal'.
 	MetalSpec MetalSpec `json:"metalSpec,omitempty"`
 
-	// Endpoint for the Kubernetes API Server
+	// endpoint is the endpoint for the Kubernetes API Server.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^https?://[a-zA-Z0-9.-]+(:\d+)?$`
 	Endpoint string `json:"endpoint,omitempty"`
@@ -60,95 +62,96 @@ type TalosControlPlaneSpec struct {
 	// Example: User created cluster with v1.33.0, then tried to upgrade v1.35.0 but the job failed since talos doesn't allow that so now user
 	// need to re-attempt upgrade to v1.34.0 but CEL validation would prevent that.
 
-	// KubeVersion is the version of Kubernetes to use for the control plane
+	// kubeVersion is the version of Kubernetes to use for the control plane.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	// +kubebuilder:default="v1.35.0"
 	KubeVersion string `json:"kubeVersion,omitempty"`
 
-	// ClusterDomain is the domain for the Kubernetes cluster
+	// clusterDomain is the domain for the Kubernetes cluster.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+[a-z]{2,}$`
 	// +kubebuilder:default="cluster.local"
 	ClusterDomain string `json:"clusterDomain,omitempty"`
 
-	// StorageClassName is the name of the storage class to use for persistent volumes
+	// storageClassName is the name of the storage class to use for persistent volumes.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$`
 	StorageClassName *string `json:"storageClassName,omitempty"`
 
-	// PodCIDRs is the list of CIDR ranges for pod IPs in the cluster.
+	// podCIDR is the list of CIDR ranges for pod IPs in the cluster.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Items=pattern=`^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$`
 	PodCIDR []string `json:"podCIDR,omitempty"`
 
-	// ServiceCIDRs is the list of CIDR ranges for service IPs in the cluster.
+	// serviceCIDR is the list of CIDR ranges for service IPs in the cluster.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Items=pattern=`^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$`
 	ServiceCIDR []string `json:"serviceCIDR,omitempty"`
 
+	// configRef is a reference to a ConfigMap containing the Talos controlplane configuration.
 	// +kubebuilder:validation:Optional
-	// Reference to a ConfigMap containing the Talos controlplane configuration
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
 
-	// CNI configuration for the cluster
+	// cni is the CNI configuration for the cluster.
 	// +kubebuilder:validation:Optional
 	CNI *CNIConfig `json:"cni,omitempty"`
 }
 
 // CNIConfig represents the CNI configuration options.
 type CNIConfig struct {
-	// Name of CNI to use (flannel, custom, none)
+	// name of CNI to use (flannel, custom, none).
 	// +kubebuilder:validation:Enum=flannel;custom;none
 	// +kubebuilder:validation:Optional
 	Name string `json:"name,omitempty"`
 
-	// URLs containing manifests to apply for the CNI.
+	// urls containing manifests to apply for the CNI.
 	// Should be present for "custom", must be empty for "flannel" and "none".
 	// +kubebuilder:validation:Optional
 	URLs []string `json:"urls,omitempty"`
 
-	// Flannel configuration options
+	// flannel configuration options.
 	// +kubebuilder:validation:Optional
 	Flannel *FlannelCNIConfig `json:"flannel,omitempty"`
 }
 
 // FlannelCNIConfig represents the Flannel CNI configuration options.
 type FlannelCNIConfig struct {
-	// Extra arguments for 'flanneld'
+	// extraArgs are extra arguments for 'flanneld'.
 	// +kubebuilder:validation:Optional
 	ExtraArgs []string `json:"extraArgs,omitempty"`
 }
 
 type MetalSpec struct {
-	// Machines is a list of machine specifications for the Talos control plane.
+	// machines is a list of machine specifications for the Talos control plane.
+	// +listType=atomic
 	Machines []Machine `json:"machines,omitempty"`
-	// MachineSpec defines the specifications for each Talos control plane machine.
+	// machineSpec defines the specifications for each Talos control plane machine.
 	// +kubebuilder:validation:Optional
 	MachineSpec *MachineSpec `json:"machineSpec,omitempty"`
 }
 
 // +kubebuilder:validation:XValidation:rule="has(self.address) != has(self.machineRef)",message="address and machineRef are mutually exclusive"
 type Machine struct {
-	// Address is the IP address of the Talos machine.
+	// address is the IP address of the Talos machine.
 	// +kubebuilder:validation:Pattern=`^(\d{1,3}\.){3}\d{1,3}$`
 	Address *string `json:"address,omitempty"`
-	// MachineRef is a reference to a Kubernetes object from which the machine IP address can be extracted.
+	// machineRef is a reference to a Kubernetes object from which the machine IP address can be extracted.
 	// +kubebuilder:validation:Optional
 	MachineRef *corev1.ObjectReference `json:"machineRef,omitempty"`
 }
 
 // META is network metadata for Talos machines
 type META struct {
-	// Hostname is the hostname for the Talos machines.
+	// hostname is the hostname for the Talos machines.
 	Hostname string `json:"hostname,omitempty"`
-	// Interface is the network interface name for Talos machines.
+	// interface is the network interface name for Talos machines.
 	Interface string `json:"interface,omitempty"`
-	// Subnet is the subnet for the Talos machines.
-	Subnet int `json:"subnet,omitempty"` // The subnet for the Talos machines
-	// Gateway is the gateway for the Talos machines.
+	// subnet is the subnet prefix length for the Talos machines.
+	Subnet int `json:"subnet,omitempty"`
+	// gateway is the gateway for the Talos machines.
 	Gateway string `json:"gateway,omitempty"`
-	// DNS Servers is a list of DNS servers for the Talos machines.
+	// dnsServers is a list of DNS servers for the Talos machines.
 	DNSServers []string `json:"dnsServers,omitempty"`
 }
 
@@ -156,15 +159,23 @@ type META struct {
 type TalosControlPlaneStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	// Conditions is a list of conditions for the Talos control plane
-	State        string             `json:"state,omitempty"` // Current state of the control plane
-	Conditions   []metav1.Condition `json:"conditions,omitempty"`
-	Config       string             `json:"config,omitempty"`       // Reference to the Talos configuration used for the control plane
-	SecretBundle string             `json:"secretBundle,omitempty"` // Reference to the secrets bundle used for the control plane
-	BundleConfig string             `json:"bundleConfig,omitempty"` // Reference to the bundle configuration used for the control plane
-	// Imported is only valid when ReconcileMode is 'import' and indicates whether the Talos control plane has been imported
+
+	// state is the current state of the control plane.
+	State string `json:"state,omitempty"`
+	// conditions is a list of conditions for the Talos control plane.
+	// +listType=map
+	// +listMapKey=type
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// config is the reference to the Talos configuration used for the control plane.
+	Config string `json:"config,omitempty"`
+	// secretBundle is the reference to the secrets bundle used for the control plane.
+	SecretBundle string `json:"secretBundle,omitempty"`
+	// bundleConfig is the reference to the bundle configuration used for the control plane.
+	BundleConfig string `json:"bundleConfig,omitempty"`
+	// imported is only valid when ReconcileMode is 'import' and indicates whether the Talos control plane has been imported.
 	Imported *bool `json:"imported,omitempty"`
-	// ObservedKubeVersion is the observed version of Kubernetes.
+	// observedKubeVersion is the observed version of Kubernetes.
 	// +kubebuilder:validation:Optional
 	ObservedKubeVersion string `json:"observedKubeVersion,omitempty"`
 }
@@ -174,10 +185,18 @@ type TalosControlPlaneStatus struct {
 
 // TalosControlPlane is the Schema for the taloscontrolplanes API.
 type TalosControlPlane struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is a standard object metadata.
+	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TalosControlPlaneSpec   `json:"spec,omitempty"`
+	// spec defines the desired state of TalosControlPlane.
+	// +optional
+	Spec TalosControlPlaneSpec `json:"spec,omitempty"`
+
+	// status defines the observed state of TalosControlPlane.
+	// +optional
 	Status TalosControlPlaneStatus `json:"status,omitempty"`
 }
 
