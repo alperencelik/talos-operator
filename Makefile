@@ -168,12 +168,14 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
+KUBE_API_LINTER = $(LOCALBIN)/golangci-lint-kube-api-linter
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.5.0
 CONTROLLER_TOOLS_VERSION ?= v0.16.4
 ENVTEST_VERSION ?= release-0.19
 GOLANGCI_LINT_VERSION ?= v1.61.0
+KUBE_API_LINTER_VERSION ?= v0.0.0-20260206102632-39e3d06a2850
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -194,6 +196,16 @@ $(ENVTEST): $(LOCALBIN)
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
+
+.PHONY: kube-api-lint
+kube-api-lint: $(KUBE_API_LINTER) ## Run kube-api-linter to check API type conventions.
+	$(KUBE_API_LINTER) run --config .kal-golangci.yml ./api/...
+$(KUBE_API_LINTER): $(LOCALBIN)
+	$(call go-install-tool,$(KUBE_API_LINTER),sigs.k8s.io/kube-api-linter/cmd/golangci-lint-kube-api-linter,$(KUBE_API_LINTER_VERSION))
+
+.PHONY: kube-api-lint-fix
+kube-api-lint-fix: $(KUBE_API_LINTER) ## Run kube-api-linter and perform fixes.
+	$(KUBE_API_LINTER) run --config .kal-golangci.yml --fix ./api/...
 
 .PHONY: chart
 chart: manifests ## Copies and cleans CRDs for the Helm chart.

@@ -22,24 +22,24 @@ import (
 
 // TalosEtcdBackupScheduleSpec defines the desired state of TalosEtcdBackupSchedule
 type TalosEtcdBackupScheduleSpec struct {
-	// Schedule is a cron expression defining when to run backups
+	// schedule is a cron expression defining when to run backups.
 	// For example: "0 2 * * *" for daily backups at 2 AM
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Schedule string `json:"schedule"`
 
-	// BackupTemplate is the template for creating TalosEtcdBackup resources
+	// backupTemplate is the template for creating TalosEtcdBackup resources.
 	// +kubebuilder:validation:Required
 	BackupTemplate TalosEtcdBackupTemplateSpec `json:"backupTemplate"`
 
-	// Retention specifies how many successful backups to keep
+	// retention specifies how many successful backups to keep.
 	// Older backups will be automatically deleted
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:default:=5
 	// +optional
 	Retention *int32 `json:"retention,omitempty"`
 
-	// Paused can be set to true to pause the backup schedule
+	// paused can be set to true to pause the backup schedule.
 	// +kubebuilder:default:=false
 	// +optional
 	Paused bool `json:"paused,omitempty"`
@@ -47,26 +47,26 @@ type TalosEtcdBackupScheduleSpec struct {
 
 // TalosEtcdBackupTemplateSpec defines the template for creating TalosEtcdBackup resources
 type TalosEtcdBackupTemplateSpec struct {
-	// Spec is the specification of the TalosEtcdBackup to be created
+	// spec is the specification of the TalosEtcdBackup to be created.
 	// +kubebuilder:validation:Required
 	Spec TalosEtcdBackupSpec `json:"spec"`
 }
 
 // TalosEtcdBackupScheduleStatus defines the observed state of TalosEtcdBackupSchedule
 type TalosEtcdBackupScheduleStatus struct {
-	// LastScheduleTime is the last time a backup was scheduled
+	// lastScheduleTime is the last time a backup was scheduled.
 	// +optional
 	LastScheduleTime *metav1.Time `json:"lastScheduleTime,omitempty"`
 
-	// LastSuccessfulBackupTime is the last time a backup completed successfully
+	// lastSuccessfulBackupTime is the last time a backup completed successfully.
 	// +optional
 	LastSuccessfulBackupTime *metav1.Time `json:"lastSuccessfulBackupTime,omitempty"`
 
-	// NextScheduleTime is the next time a backup will be scheduled
+	// nextScheduleTime is the next time a backup will be scheduled.
 	// +optional
 	NextScheduleTime *metav1.Time `json:"nextScheduleTime,omitempty"`
 
-	// ActiveBackups is the list of currently active backup jobs
+	// activeBackups is the list of currently active backup jobs.
 	// +optional
 	ActiveBackups []string `json:"activeBackups,omitempty"`
 

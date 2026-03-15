@@ -1,0 +1,39 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - kubeapilinter
+  settings:
+    custom:
+      kubeapilinter:
+        type: module
+        description: Kube API Linter lints Kube like APIs based on API conventions and best practices.
+        settings:
+          linters:
+            disable:
+              # Require type changes (bool→*bool, string→*string) — tracked separately
+              - nobools
+              - optionalorrequired
+              - nonpointerstructs
+              - optionalfields
+              - requiredfields
+              # Require changing existing marker syntax — tracked separately
+              - defaults
+              - defaultorrequired
+              # Require patchStrategy/patchMergeKey markers — tracked separately
+              - conditions
+              # Require listType markers for scalar slices — tracked separately
+              - ssatags
+              # Require int→int32/int64 type change — tracked separately
+              - integers
+          lintersConfig: {}
+  exclusions:
+    rules:
+      - linters:
+          - kubeapilinter
+        path-except: api/*
+      # Machine.Address and Machine.MachineRef are mutually exclusive (enforced by CEL).
+      # Neither can be unconditionally marked +required, so arrayofstruct is suppressed here.
+      - linters:
+          - kubeapilinter
+        text: "MetalSpec.Machines is an array of structs"

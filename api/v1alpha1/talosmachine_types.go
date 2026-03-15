@@ -30,62 +30,62 @@ type TalosMachineSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Endpoint is the Talos API endpoint for this machine.
+	// endpoint is the Talos API endpoint for this machine.
 	// +kubebuilder:validation:Required
 	Endpoint string `json:"endpoint,omitempty"`
 
-	// Version is the desired version of Talos to run on this machine.
+	// version is the desired version of Talos to run on this machine.
 	// +kubebuilder:validation:Required
 	Version string `json:"version,omitempty"`
 
-	// MachineSpec is the machine specification for this TalosMachine.
+	// machineSpec is the machine specification for this TalosMachine.
 	MachineSpec *MachineSpec `json:"machineSpec,omitempty"`
 
-	// ControlPlaneRef is a reference to the TalosControlPlane this machine belongs to.
+	// controlPlaneRef is a reference to the TalosControlPlane this machine belongs to.
 	ControlPlaneRef *corev1.ObjectReference `json:"controlPlaneRef,omitempty"`
 
-	// WorkerRef is a reference to the TalosWorker this machine belongs to.
+	// workerRef is a reference to the TalosWorker this machine belongs to.
 	WorkerRef *corev1.ObjectReference `json:"workerRef,omitempty"`
 
+	// configRef is a reference to a ConfigMap containing the Talos cluster configuration.
 	// +kubebuilder:validation:Optional
-	// Reference to a ConfigMap containing the Talos cluster configuration
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
 }
 
 type MachineSpec struct {
-	// InstallDisk is the disk to use for installing Talos on the control plane machines.
+	// installDisk is the disk to use for installing Talos on the control plane machines.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^/dev/(sd[a-z][0-9]*|vd[a-z][0-9]*|nvme[0-9]+n[0-9]+(p[0-9]+)?)$`
 	InstallDisk *string `json:"installDisk,omitempty"`
-	// Wipe indicates whether to wipe the disk before installation.
+	// wipe indicates whether to wipe the disk before installation.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	Wipe bool `json:"wipe,omitempty"`
-	// Image is the Talos image to use for this machine.
+	// image is the Talos image to use for this machine.
 	// +kubebuilder:validation:Optional
 	Image *string `json:"image,omitempty"`
-	// Meta is the meta partition that used by Talos.
+	// meta is the meta partition used by Talos.
 	// +kubebuilder:validation:Optional
 	Meta *META `json:"meta,omitempty"`
-	// AirGap indicates whether the machine is in an air-gapped environment.
+	// airGap indicates whether the machine is in an air-gapped environment.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	AirGap bool `json:"airGap,omitempty"`
-	// ImageCache indicates whether to enable local image caching on the machine.
+	// imageCache indicates whether to enable local image caching on the machine.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	ImageCache bool `json:"imageCache,omitempty"`
-	// AllowSchedulingOnControlPlanes indicates whether to allow scheduling workloads on control plane nodes.
+	// allowSchedulingOnControlPlanes indicates whether to allow scheduling workloads on control plane nodes.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	AllowSchedulingOnControlPlanes bool `json:"allowSchedulingOnControlPlanes,omitempty"`
-	// Registries is the path to a custom registries configuration file.
+	// registries is the path to a custom registries configuration file.
 	// +kubebuilder:validation:Optional
 	Registries *runtime.RawExtension `json:"registries,omitempty"`
-	// AdditionalConfig is additional Talos configuration to append to the generated config.
+	// additionalConfig is additional Talos configuration to append to the generated config.
 	// +kubebuilder:validation:Optional
 	AdditionalConfig *runtime.RawExtension `json:"additionalConfig,omitempty"`
-	// ConfigPatches is a list of strategic merge patches applied to the generated Talos machine config.
+	// configPatches is a list of strategic merge patches applied to the generated Talos machine config.
 	// Unlike additionalConfig (which appends a separate YAML document), each patch is merged into
 	// the main machine config, allowing you to override or extend any field (e.g. machine.network).
 	// +kubebuilder:validation:Optional
@@ -94,15 +94,19 @@ type MachineSpec struct {
 
 // TalosMachineStatus defines the observed state of TalosMachine.
 type TalosMachineStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	ObservedVersion string `json:"observedVersion,omitempty"` // The version of Talos running on this machine
-	// Important: Run "make" to regenerate code after modifying this file
-	Config string `json:"config,omitempty"` // Base64 encoded Talos configuration
-	// Imported is only valid when ReconcileMode is 'import' and indicates whether the Talos machine has been imported
-	Imported *bool `json:"imported,omitempty"`
 
-	State string `json:"state,omitempty"` // e.g., "Ready", "Provisioning", "Failed"
-	// Conditions represent the latest available observations of a TalosMachine's current state.
+	// observedVersion is the version of Talos running on this machine.
+	ObservedVersion string `json:"observedVersion,omitempty"`
+	// config is the base64 encoded Talos configuration.
+	Config string `json:"config,omitempty"`
+	// imported is only valid when ReconcileMode is 'import' and indicates whether the Talos machine has been imported.
+	Imported *bool `json:"imported,omitempty"`
+	// state is the current state of the machine (e.g., "Ready", "Provisioning", "Failed").
+	State string `json:"state,omitempty"`
+	// conditions represent the latest available observations of a TalosMachine's current state.
+	// +listType=map
+	// +listMapKey=type
+	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
@@ -111,10 +115,18 @@ type TalosMachineStatus struct {
 
 // TalosMachine is the Schema for the talosmachines API.
 type TalosMachine struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is a standard object metadata.
+	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TalosMachineSpec   `json:"spec,omitempty"`
+	// spec defines the desired state of TalosMachine.
+	// +optional
+	Spec TalosMachineSpec `json:"spec,omitempty"`
+
+	// status defines the observed state of TalosMachine.
+	// +optional
 	Status TalosMachineStatus `json:"status,omitempty"`
 }
 

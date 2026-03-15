@@ -1,0 +1,26 @@
+name: kube-api-linter
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    paths:
+      - 'api/**'
+      - '.kal-golangci.yml'
+      - '.github/workflows/kube-api-linter.yaml'
+  push:
+    branches: ['**']
+    paths:
+      - 'api/**'
+      - '.kal-golangci.yml'
+      - '.github/workflows/kube-api-linter.yaml'
+
+jobs:
+  kube-api-lint:
+    name: kube-api-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: v1.25
+      - name: Run kube-api-linter
+        run: make kube-api-lint
