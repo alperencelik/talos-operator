@@ -54,24 +54,24 @@ spec:
             description: spec defines the desired state of TalosEtcdBackupSchedule
             properties:
               backupTemplate:
-                description: BackupTemplate is the template for creating TalosEtcdBackup
-                  resources
+                description: backupTemplate is the template for creating TalosEtcdBackup
+                  resources.
                 properties:
                   spec:
-                    description: Spec is the specification of the TalosEtcdBackup
-                      to be created
+                    description: spec is the specification of the TalosEtcdBackup
+                      to be created.
                     properties:
                       backupStorage:
-                        description: BackupStorage specifies where to store the etcd
-                          backup
+                        description: backupStorage specifies where to store the etcd
+                          backup.
                         properties:
                           s3:
-                            description: S3 specifies the S3-compatible storage configuration
-                              for the etcd backup
+                            description: s3 specifies the S3-compatible storage configuration
+                              for the etcd backup.
                             properties:
                               accessKeyID:
-                                description: AccessKeyID is the access key ID for
-                                  the S3 bucket
+                                description: accessKeyID is the access key ID for
+                                  the S3 bucket.
                                 properties:
                                   key:
                                     description: The key of the secret to select from.  Must
@@ -95,25 +95,25 @@ spec:
                                 type: object
                                 x-kubernetes-map-type: atomic
                               bucket:
-                                description: Bucket is the name of the S3 bucket to
-                                  store the etcd backup
+                                description: bucket is the name of the S3 bucket to
+                                  store the etcd backup.
                                 type: string
                               endpoint:
-                                description: Endpoint is the S3 service endpoint (optional,
-                                  for custom S3-compatible services)
+                                description: endpoint is the S3 service endpoint (optional,
+                                  for custom S3-compatible services).
                                 type: string
                               insecureSkipTLSVerify:
                                 default: false
-                                description: InsecureSkipTLSVerify skips TLS verification
-                                  for the S3 endpoint (optional)
+                                description: insecureSkipTLSVerify skips TLS verification
+                                  for the S3 endpoint (optional).
                                 type: boolean
                               region:
-                                description: Region is the AWS region where the S3
-                                  bucket is located
+                                description: region is the AWS region where the S3
+                                  bucket is located.
                                 type: string
                               secretAccessKey:
-                                description: SecretAccessKey is the secret access
-                                  key for the S3 bucket
+                                description: secretAccessKey is the secret access
+                                  key for the S3 bucket.
                                 properties:
                                   key:
                                     description: The key of the secret to select from.  Must
@@ -146,8 +146,8 @@ spec:
                         - s3
                         type: object
                       talosControlPlaneRef:
-                        description: TalosControlPlaneRef is a reference to the TalosControlPlane
-                          this backup is associated with
+                        description: talosControlPlaneRef is a reference to the TalosControlPlane
+                          this backup is associated with.
                         properties:
                           name:
                             default: ""
@@ -169,19 +169,19 @@ spec:
                 type: object
               paused:
                 default: false
-                description: Paused can be set to true to pause the backup schedule
+                description: paused can be set to true to pause the backup schedule.
                 type: boolean
               retention:
                 default: 5
                 description: |-
-                  Retention specifies how many successful backups to keep
+                  retention specifies how many successful backups to keep.
                   Older backups will be automatically deleted
                 format: int32
                 minimum: 1
                 type: integer
               schedule:
                 description: |-
-                  Schedule is a cron expression defining when to run backups
+                  schedule is a cron expression defining when to run backups.
                   For example: "0 2 * * *" for daily backups at 2 AM
                 minLength: 1
                 type: string
@@ -193,8 +193,8 @@ spec:
             description: status defines the observed state of TalosEtcdBackupSchedule
             properties:
               activeBackups:
-                description: ActiveBackups is the list of currently active backup
-                  jobs
+                description: activeBackups is the list of currently active backup
+                  jobs.
                 items:
                   type: string
                 type: array
@@ -260,16 +260,16 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               lastScheduleTime:
-                description: LastScheduleTime is the last time a backup was scheduled
+                description: lastScheduleTime is the last time a backup was scheduled.
                 format: date-time
                 type: string
               lastSuccessfulBackupTime:
-                description: LastSuccessfulBackupTime is the last time a backup completed
-                  successfully
+                description: lastSuccessfulBackupTime is the last time a backup completed
+                  successfully.
                 format: date-time
                 type: string
               nextScheduleTime:
-                description: NextScheduleTime is the next time a backup will be scheduled
+                description: nextScheduleTime is the next time a backup will be scheduled.
                 format: date-time
                 type: string
             type: object

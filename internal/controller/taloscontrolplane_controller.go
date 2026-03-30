@@ -411,7 +411,7 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
 	logger := log.FromContext(ctx)
 
-	machineIPAddresses, err := getMachinesIPAddresses(ctx, r.Client, &tcp.Spec.MetalSpec.Machines)
+	resolvedMachines, err := getMachinesResolved(ctx, r.Client, &tcp.Spec.MetalSpec.Machines)
 	if err != nil {
 		return fmt.Errorf("failed to get machine IP addresses for TalosControlPlane %s: %w", tcp.Name, err)
 	}
@@ -424,7 +424,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 	}
 	// Desired state
 	desired := make(map[string]bool)
-	for _, ip := range machineIPAddresses {
+	for ip := range resolvedMachines {
 		desired[fmt.Sprintf("%s-%s", tcp.Name, ip)] = true
 	}
 	// Delete orphaned machines
@@ -439,7 +439,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 		}
 	}
 	// Create or update TalosMachines
-	for _, ip := range machineIPAddresses {
+	for ip, machine := range resolvedMachines {
 		name := fmt.Sprintf("%s-%s", tcp.Name, ip)
 		// If the talosContolPlane is imported then add an annotation to the TalosMachine to indicate that it's imported
 		var annotations map[string]string
@@ -466,7 +466,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 				},
 				Endpoint:    ip,
 				Version:     tcp.Spec.Version,
-				MachineSpec: tcp.Spec.MetalSpec.MachineSpec,
+				MachineSpec: mergeMachineSpec(tcp.Spec.MetalSpec.MachineSpec, &machine),
 				ConfigRef:   tcp.Spec.ConfigRef,
 			}
 			return nil
