@@ -37,11 +37,11 @@ spec:
           metadata:
             type: object
           spec:
-            description: TalosMachineSpec defines the desired state of TalosMachine.
+            description: spec defines the desired state of TalosMachine.
             properties:
               configRef:
-                description: Reference to a ConfigMap containing the Talos cluster
-                  configuration
+                description: configRef is a reference to a ConfigMap containing the
+                  Talos cluster configuration.
                 properties:
                   key:
                     description: The key to select.
@@ -64,7 +64,7 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               controlPlaneRef:
-                description: ControlPlaneRef is a reference to the TalosControlPlane
+                description: controlPlaneRef is a reference to the TalosControlPlane
                   this machine belongs to.
                 properties:
                   apiVersion:
@@ -108,29 +108,33 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               endpoint:
-                description: Endpoint is the Talos API endpoint for this machine.
+                description: endpoint is the Talos API endpoint for this machine.
                 type: string
               machineSpec:
-                description: MachineSpec is the machine specification for this TalosMachine.
+                description: machineSpec is the machine specification for this TalosMachine.
                 properties:
                   additionalConfig:
-                    description: AdditionalConfig is additional Talos configuration
-                      to append to the generated config.
-                    type: object
-                    x-kubernetes-preserve-unknown-fields: true
+                    description: |-
+                      additionalConfig is a list of additional Talos configuration documents to append to the
+                      generated config, each separated by "---". Entries are appended in order: global first,
+                      then machine-specific.
+                    items:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    type: array
                   airGap:
                     default: false
-                    description: AirGap indicates whether the machine is in an air-gapped
+                    description: airGap indicates whether the machine is in an air-gapped
                       environment.
                     type: boolean
                   allowSchedulingOnControlPlanes:
                     default: false
-                    description: AllowSchedulingOnControlPlanes indicates whether
+                    description: allowSchedulingOnControlPlanes indicates whether
                       to allow scheduling workloads on control plane nodes.
                     type: boolean
                   configPatches:
                     description: |-
-                      ConfigPatches is a list of strategic merge patches applied to the generated Talos machine config.
+                      configPatches is a list of strategic merge patches applied to the generated Talos machine config.
                       Unlike additionalConfig (which appends a separate YAML document), each patch is merged into
                       the main machine config, allowing you to override or extend any field (e.g. machine.network).
                     items:
@@ -138,57 +142,58 @@ spec:
                       x-kubernetes-preserve-unknown-fields: true
                     type: array
                   image:
-                    description: Image is the Talos image to use for this machine.
+                    description: image is the Talos image to use for this machine.
                     type: string
                   imageCache:
                     default: false
-                    description: ImageCache indicates whether to enable local image
+                    description: imageCache indicates whether to enable local image
                       caching on the machine.
                     type: boolean
                   installDisk:
-                    description: InstallDisk is the disk to use for installing Talos
+                    description: installDisk is the disk to use for installing Talos
                       on the control plane machines.
                     pattern: ^/dev/(sd[a-z][0-9]*|vd[a-z][0-9]*|nvme[0-9]+n[0-9]+(p[0-9]+)?)$
                     type: string
                   meta:
-                    description: Meta is the meta partition that used by Talos.
+                    description: meta is the meta partition used by Talos.
                     properties:
                       dnsServers:
-                        description: DNS Servers is a list of DNS servers for the
-                          Talos machines.
+                        description: dnsServers is a list of DNS servers for the Talos
+                          machines.
                         items:
                           type: string
                         type: array
                       gateway:
-                        description: Gateway is the gateway for the Talos machines.
+                        description: gateway is the gateway for the Talos machines.
                         type: string
                       hostname:
-                        description: Hostname is the hostname for the Talos machines.
+                        description: hostname is the hostname for the Talos machines.
                         type: string
                       interface:
-                        description: Interface is the network interface name for Talos
+                        description: interface is the network interface name for Talos
                           machines.
                         type: string
                       subnet:
-                        description: Subnet is the subnet for the Talos machines.
+                        description: subnet is the subnet prefix length for the Talos
+                          machines.
                         type: integer
                     type: object
                   registries:
-                    description: Registries is the path to a custom registries configuration
+                    description: registries is the path to a custom registries configuration
                       file.
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
                   wipe:
                     default: false
-                    description: Wipe indicates whether to wipe the disk before installation.
+                    description: wipe indicates whether to wipe the disk before installation.
                     type: boolean
                 type: object
               version:
-                description: Version is the desired version of Talos to run on this
+                description: version is the desired version of Talos to run on this
                   machine.
                 type: string
               workerRef:
-                description: WorkerRef is a reference to the TalosWorker this machine
+                description: workerRef is a reference to the TalosWorker this machine
                   belongs to.
                 properties:
                   apiVersion:
@@ -236,10 +241,10 @@ spec:
             - version
             type: object
           status:
-            description: TalosMachineStatus defines the observed state of TalosMachine.
+            description: status defines the observed state of TalosMachine.
             properties:
               conditions:
-                description: Conditions represent the latest available observations
+                description: conditions represent the latest available observations
                   of a TalosMachine's current state.
                 items:
                   description: Condition contains details for one aspect of the current
@@ -296,19 +301,23 @@ spec:
                   - type
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
               config:
-                description: 'Important: Run "make" to regenerate code after modifying
-                  this file'
+                description: config is the base64 encoded Talos configuration.
                 type: string
               imported:
-                description: Imported is only valid when ReconcileMode is 'import'
-                  and indicates whether the Talos machine has been imported
+                description: imported is only valid when ReconcileMode is 'import'
+                  and indicates whether the Talos machine has been imported.
                 type: boolean
               observedVersion:
-                description: INSERT ADDITIONAL STATUS FIELD - define observed state
-                  of cluster
+                description: observedVersion is the version of Talos running on this
+                  machine.
                 type: string
               state:
+                description: state is the current state of the machine (e.g., "Ready",
+                  "Provisioning", "Failed").
                 type: string
             type: object
         type: object

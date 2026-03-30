@@ -39,7 +39,7 @@ spec:
             properties:
               clusterSelector:
                 description: |-
-                  ClusterSelector is a label selector that matches the TalosCluster resources
+                  clusterSelector is a label selector that matches the TalosCluster resources
                   to which this TalosClusterAddon should be applied.
                   It allows the addon to be associated with specific clusters based on their labels.
                 properties:
@@ -87,17 +87,17 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               helmSpec:
-                description: Helm spec contains the configuration for the Helm chart
+                description: helmSpec contains the configuration for the Helm chart
                   that defines the addon.
                 properties:
                   chartName:
                     description: |-
-                      ChartName is the name of the Helm chart in the repository.
+                      chartName is the name of the Helm chart in the repository.
                       e.g. chart-path oci://repo-url/chart-name as chartName: chart-name and https://repo-url/chart-name as chartName: chart-name
                     type: string
                   credentials:
                     description: |-
-                      Credentials is a reference to an object containing the OCI credentials. If it is not specified, no credentials will be used.
+                      credentials is a reference to an object containing the OCI credentials. If it is not specified, no credentials will be used.
                       Inherited from Cluster API Addons API.
                     properties:
                       key:
@@ -125,12 +125,12 @@ spec:
                   namespace:
                     default: default
                     description: |-
-                      ReleaseNamespace is the namespace the Helm release will be installed on each selected
+                      namespace is the namespace the Helm release will be installed on each selected
                       Cluster. If it is not specified, it will be set to the default namespace.
                     type: string
                   options:
                     description: |-
-                      Options represents CLI flags passed to Helm operations (i.e. install, upgrade, delete)
+                      options represents CLI flags passed to Helm operations (i.e. install, upgrade, delete)
                       include options such as wait, skipCRDs, timeout, waitForJobs, etc.
                       Inherited from Cluster API Addons API.
                     properties:
@@ -254,17 +254,17 @@ spec:
                         type: boolean
                     type: object
                   releaseName:
-                    description: ReleaseName is the release name of the installed
+                    description: releaseName is the release name of the installed
                       Helm chart. If it is not specified, a name will be generated.
                     type: string
                   repoURL:
                     description: |-
-                      RepoURL is the URL of the Helm chart repository.
+                      repoURL is the URL of the Helm chart repository.
                       e.g. chart-path oci://repo-url/chart-name as repoURL: oci://repo-url and https://repo-url/chart-name as repoURL: https://repo-url
                     type: string
                   tlsConfig:
                     description: |-
-                      TLSConfig contains the TLS configuration for a HelmChartProxy.
+                      tlsConfig contains the TLS configuration for a HelmChartProxy.
                       Inherited from Cluster API Addons API.
                     properties:
                       caSecret:
@@ -288,12 +288,12 @@ spec:
                     type: object
                   valuesTemplate:
                     description: |-
-                      ValuesTemplate is an inline YAML representing the values for the Helm chart. This YAML supports Go templating to reference
+                      valuesTemplate is an inline YAML representing the values for the Helm chart. This YAML supports Go templating to reference
                       fields from each selected workload Cluster and programatically create and set values.
                     type: string
                   version:
                     description: |-
-                      Version is the version of the Helm chart. If it is not specified, the chart will use
+                      version is the version of the Helm chart. If it is not specified, the chart will use
                       and be kept up to date with the latest version.
                     type: string
                 required:
@@ -305,16 +305,8 @@ spec:
             description: status defines the observed state of TalosClusterAddon
             properties:
               conditions:
-                description: |-
-                  conditions represent the current state of the TalosClusterAddon resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: conditions represent the latest available observations
+                  of the TalosClusterAddon's current state.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.

@@ -218,7 +218,7 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
 	logger := log.FromContext(ctx)
 
-	machineIPAddresses, err := getMachinesIPAddresses(ctx, r.Client, &tw.Spec.MetalSpec.Machines)
+	resolvedMachines, err := getMachinesResolved(ctx, r.Client, &tw.Spec.MetalSpec.Machines)
 	if err != nil {
 		return fmt.Errorf("failed to get machine IP addresses for TalosWorker %s: %w", tw.Name, err)
 	}
@@ -231,7 +231,7 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 	}
 	// Desired state
 	desired := make(map[string]bool)
-	for _, ip := range machineIPAddresses {
+	for ip := range resolvedMachines {
 		desired[fmt.Sprintf("%s-%s", tw.Name, ip)] = true
 	}
 	// Delete orphaned machines
@@ -246,7 +246,7 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 		}
 	}
 	// Create or update machines
-	for _, ip := range machineIPAddresses {
+	for ip, machine := range resolvedMachines {
 		name := fmt.Sprintf("%s-%s", tw.Name, ip)
 		// If the talosWorker is imported, then add an annotation to the TalosMachine
 		var annotations map[string]string
@@ -273,7 +273,7 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 				},
 				Endpoint:    ip,
 				Version:     tw.Spec.Version,
-				MachineSpec: tw.Spec.MetalSpec.MachineSpec,
+				MachineSpec: mergeMachineSpec(tw.Spec.MetalSpec.MachineSpec, &machine),
 				ConfigRef:   tw.Spec.ConfigRef,
 			}
 			return nil

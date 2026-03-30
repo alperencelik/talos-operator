@@ -82,9 +82,11 @@ type MachineSpec struct {
 	// registries is the path to a custom registries configuration file.
 	// +kubebuilder:validation:Optional
 	Registries *runtime.RawExtension `json:"registries,omitempty"`
-	// additionalConfig is additional Talos configuration to append to the generated config.
+	// additionalConfig is a list of additional Talos configuration documents to append to the
+	// generated config, each separated by "---". Entries are appended in order: global first,
+	// then machine-specific.
 	// +kubebuilder:validation:Optional
-	AdditionalConfig *runtime.RawExtension `json:"additionalConfig,omitempty"`
+	AdditionalConfig []runtime.RawExtension `json:"additionalConfig,omitempty"`
 	// configPatches is a list of strategic merge patches applied to the generated Talos machine config.
 	// Unlike additionalConfig (which appends a separate YAML document), each patch is merged into
 	// the main machine config, allowing you to override or extend any field (e.g. machine.network).

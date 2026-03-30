@@ -146,3 +146,38 @@ func getMachinesIPAddresses(ctx context.Context, c client.Client, machines *[]ta
 	}
 	return ips, nil
 }
+
+// getMachinesResolved resolves the IP address for each machine and returns a map of IP to Machine
+func getMachinesResolved(ctx context.Context, c client.Client, machines *[]talosv1alpha1.Machine) (map[string]talosv1alpha1.Machine, error) {
+	resolved := make(map[string]talosv1alpha1.Machine)
+	for _, machine := range *machines {
+		ip, err := getMachineIPAddress(ctx, c, &machine)
+		if err != nil {
+			return nil, err
+		}
+		if ip == nil {
+			return nil, fmt.Errorf("could not determine IP address for machine %+v", machine)
+		}
+		resolved[*ip] = machine
+	}
+	return resolved, nil
+}
+
+// mergeMachineSpec returns a MachineSpec that starts from the global spec and appends any
+// machine-specific ConfigPatches and AdditionalConfig on top.
+func mergeMachineSpec(global *talosv1alpha1.MachineSpec, machine *talosv1alpha1.Machine) *talosv1alpha1.MachineSpec {
+	if len(machine.ConfigPatches) == 0 && machine.AdditionalConfig == nil {
+		return global
+	}
+	var merged talosv1alpha1.MachineSpec
+	if global != nil {
+		global.DeepCopyInto(&merged)
+	}
+	if len(machine.ConfigPatches) > 0 {
+		merged.ConfigPatches = append(merged.ConfigPatches, machine.ConfigPatches...)
+	}
+	if len(machine.AdditionalConfig) > 0 {
+		merged.AdditionalConfig = append(merged.AdditionalConfig, machine.AdditionalConfig...)
+	}
+	return &merged
+}

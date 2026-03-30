@@ -38,14 +38,14 @@ spec:
             description: spec defines the desired state of TalosEtcdBackup
             properties:
               backupStorage:
-                description: BackupStorage specifies where to store the etcd backup
+                description: backupStorage specifies where to store the etcd backup.
                 properties:
                   s3:
-                    description: S3 specifies the S3-compatible storage configuration
-                      for the etcd backup
+                    description: s3 specifies the S3-compatible storage configuration
+                      for the etcd backup.
                     properties:
                       accessKeyID:
-                        description: AccessKeyID is the access key ID for the S3 bucket
+                        description: accessKeyID is the access key ID for the S3 bucket.
                         properties:
                           key:
                             description: The key of the secret to select from.  Must
@@ -69,25 +69,25 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                       bucket:
-                        description: Bucket is the name of the S3 bucket to store
-                          the etcd backup
+                        description: bucket is the name of the S3 bucket to store
+                          the etcd backup.
                         type: string
                       endpoint:
-                        description: Endpoint is the S3 service endpoint (optional,
-                          for custom S3-compatible services)
+                        description: endpoint is the S3 service endpoint (optional,
+                          for custom S3-compatible services).
                         type: string
                       insecureSkipTLSVerify:
                         default: false
-                        description: InsecureSkipTLSVerify skips TLS verification
-                          for the S3 endpoint (optional)
+                        description: insecureSkipTLSVerify skips TLS verification
+                          for the S3 endpoint (optional).
                         type: boolean
                       region:
-                        description: Region is the AWS region where the S3 bucket
-                          is located
+                        description: region is the AWS region where the S3 bucket
+                          is located.
                         type: string
                       secretAccessKey:
-                        description: SecretAccessKey is the secret access key for
-                          the S3 bucket
+                        description: secretAccessKey is the secret access key for
+                          the S3 bucket.
                         properties:
                           key:
                             description: The key of the secret to select from.  Must
@@ -120,8 +120,8 @@ spec:
                 - s3
                 type: object
               talosControlPlaneRef:
-                description: TalosControlPlaneRef is a reference to the TalosControlPlane
-                  this backup is associated with
+                description: talosControlPlaneRef is a reference to the TalosControlPlane
+                  this backup is associated with.
                 properties:
                   name:
                     default: ""
@@ -211,9 +211,8 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               filename:
-                description: |-
-                  For Kubernetes API conventions, see:
-                  https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+                description: filename is the path to the backup file in the storage
+                  backend.
                 type: string
             type: object
         required:
