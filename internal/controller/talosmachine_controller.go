@@ -437,6 +437,7 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 	if err != nil {
 		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
+	defer tc.Close() //nolint:errcheck
 	if err := tc.Reset(ctx, false, true); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to reset TalosMachine %s: %w", tm.Name, err)
 	}
@@ -454,6 +455,7 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
+	defer talosclient.Close() //nolint:errcheck
 	// Disk Patches
 	diskNamePtr, err := talosclient.GetInstallDisk(ctx, tm)
 	if err != nil {
@@ -593,13 +595,17 @@ func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talo
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
+	defer tc.Close() //nolint:errcheck
 	// Check if the machine is ready
-	svcState := tc.GetServiceStatus(ctx, talos.KUBELET_SERVICE_NAME)
-	if svcState == "" {
+	svcState, err := tc.GetServiceStatus(ctx, talos.KUBELET_SERVICE_NAME)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get Kubelet service status for TalosMachine %s: %w", tm.Name, err)
+	}
+	if svcState == nil {
 		logger.Info("Kubelet service state is empty, requeuing reconciliation", "name", tm.Name)
 		return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
 	}
-	if svcState != talos.KUBELET_STATUS_RUNNING {
+	if *svcState != talos.KUBELET_STATUS_RUNNING {
 		logger.Info("Kubelet service is not running, requeuing reconciliation", "name", tm.Name, "state", svcState)
 		return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
 	}
@@ -620,6 +626,7 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 	if err != nil {
 		return fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
+	defer tc.Close() //nolint:errcheck
 	configDrift := tm.Status.Config != string(*config)
 	applyConfigurationFunc := func() error {
 		if err := tc.ApplyConfig(ctx, *config); err != nil {
@@ -737,6 +744,7 @@ func (r *TalosMachineReconciler) handleMetaKey(ctx context.Context, tm *talosv1a
 	if err != nil {
 		return fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
+	defer tc.Close() //nolint:errcheck
 	// Apply the meta key
 	if err := tc.ApplyMetaKey(ctx, tm.Spec.Endpoint, tm.Spec.MachineSpec.Meta); err != nil {
 		return fmt.Errorf("failed to apply meta key for TalosMachine %s: %w", tm.Name, err)

@@ -74,15 +74,15 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	} else {
 		// Handle deletion logic here
-		if controllerutil.ContainsFinalizer(&tcAddon, talosv1alpha1.TalosControlPlaneFinalizer) {
+		if controllerutil.ContainsFinalizer(&tcAddon, talosv1alpha1.TalosClusterAddonFinalizer) {
 			// Run delete operations
 			var res ctrl.Result
 			res, delErr = r.handleDelete(ctx, &tcAddon)
 			if delErr != nil {
-				logger.Error(delErr, "failed to handle delete for TalosControlPlane", "name", tcAddon.Name)
-				r.Recorder.Event(&tcAddon, corev1.EventTypeWarning, "DeleteFailed", "Failed to handle delete for TalosControlPlane")
+				logger.Error(delErr, "failed to handle delete for TalosClusterAddon", "name", tcAddon.Name)
+				r.Recorder.Event(&tcAddon, corev1.EventTypeWarning, "DeleteFailed", "Failed to handle delete for TalosClusterAddon")
 
-				return res, fmt.Errorf("failed to handle delete for TalosControlPlane %s: %w", tcAddon.Name, delErr)
+				return res, fmt.Errorf("failed to handle delete for TalosClusterAddon %s: %w", tcAddon.Name, delErr)
 			}
 			// Remove the finalizer
 			controllerutil.RemoveFinalizer(&tcAddon, talosv1alpha1.TalosClusterAddonFinalizer)

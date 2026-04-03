@@ -88,7 +88,10 @@ func TestMarshalStringSlice(t *testing.T) {
 	slice := []string{"one", "two", "three"}
 	expected := `["one","two","three"]`
 
-	got := MarshalStringSlice(slice)
+	got, err := MarshalStringSlice(slice)
+	if err != nil {
+		t.Fatalf("MarshalStringSlice() unexpected error: %v", err)
+	}
 	if got != expected {
 		t.Errorf("MarshalStringSlice() = %v, want %v", got, expected)
 	}

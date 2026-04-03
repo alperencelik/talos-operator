@@ -192,6 +192,8 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 	if err := r.handleTalosMachines(ctx, tw); err != nil {
 		return ctrl.Result{}, err
 	}
+	// TODO: The for loop here should be replaced. The problem is if I requeue here the reconcile will start from scratch and
+	// I need to make sure that the previous op is not repeated. Before switching here make sure the previous operations are idempotent and can be safely retried.
 	for {
 		ready, err := r.CheckWorkerMachinesReady(ctx, tw)
 		if err != nil {
@@ -211,7 +213,6 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 		return ctrl.Result{}, fmt.Errorf("failed to update TalosWorker %s status to ready: %w", tw.Name, err)
 	}
 
-	// Return no error and no requeue
 	return ctrl.Result{}, nil
 }
 

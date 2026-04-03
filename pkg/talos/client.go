@@ -88,7 +88,7 @@ func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte) er
 	}
 	resp, err := tc.ApplyConfiguration(ctx, applyRequest)
 	if err != nil {
-		return fmt.Errorf("error applying new configuration %s", err)
+		return fmt.Errorf("error applying new configuration: %w", err)
 	}
 	// TODO: Use FilterMessages over resp
 	// Parse the response
@@ -100,7 +100,7 @@ func (tc *TalosClient) GetTalosVersion(ctx context.Context) (string, error) {
 	// Get the Talos version
 	resp, err := tc.Version(ctx)
 	if err != nil {
-		return "", fmt.Errorf("error getting Talos version: %s", err)
+		return "", fmt.Errorf("error getting Talos version: %w", err)
 	}
 	if len(resp.Messages) == 0 {
 		return "", fmt.Errorf("no version information found")
@@ -137,13 +137,11 @@ func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.Tal
 		// Try to get it from the disks
 		resp, err := tc.Disks(ctx)
 		if err != nil {
-			fmt.Printf("Error getting disks: %s\n", err)
-			return nil, err
+			return nil, fmt.Errorf("error getting disks: %w", err)
 		}
 		disks := resp.Messages
 		if len(disks) == 0 {
-			fmt.Println("No disks found to install Talos")
-			return nil, err
+			return nil, fmt.Errorf("no disks found to install Talos")
 		}
 		// Get disks and remove the readonly ones
 		for _, disk := range disks {
@@ -167,19 +165,15 @@ func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.Tal
 	return nil, nil
 }
 
-func (tc *TalosClient) GetServiceStatus(ctx context.Context, svcName string) string {
-	// Get the service status
+func (tc *TalosClient) GetServiceStatus(ctx context.Context, svcName string) (*string, error) {
 	svcsInfo, err := tc.ServiceInfo(ctx, svcName)
 	if err != nil {
-		fmt.Printf("Error getting service status: %s\n", err)
-		return ""
+		return nil, fmt.Errorf("error getting service info for %s: %w", svcName, err)
 	}
-	svc := svcsInfo[0]
-	// fmt.Printf("Service %s status: %s\n", svc, svc.Service.State)
-	fmt.Printf("Service status: %s\n", svc.Service.State)
-	return svc.Service.State
-	// state := "running" // Placeholder for actual service state
-	// return state
+	if len(svcsInfo) == 0 {
+		return nil, nil
+	}
+	return &svcsInfo[0].Service.State, nil
 }
 
 func (tc *TalosClient) ApplyMetaKey(ctx context.Context, endpoint string, meta *talosv1alpha1.META) error {
@@ -219,18 +213,3 @@ func GetSecretBundleFromConfig(ctx context.Context, machineConfig []byte) (*secr
 	// Create a SecretBundle from the configData
 	return secrets.NewBundleFromConfig(secrets.NewFixedClock(time.Now()), cfg), nil
 }
-
-// func (tc *TalosClient) GetMachineStatus(ctx context.Context) (*string, error) {
-// // Get the machine status
-// res, err := tc.COSI.Get(ctx,
-// resource.NewMetadata("runtime", "machinestatuses", "", resource.VersionUndefined),
-// state.WithGetUnmarshalOptions(state.WithSkipProtobufUnmarshal()),
-// )
-// if err != nil {
-// return nil, fmt.Errorf("error getting machine status: %w", err)
-// }
-// fmt.Printf("Machine status: %v\n", res)
-
-// // tc.COSI.List(ctx, resourceType, resourceID)
-// return nil, nil
-// }

@@ -275,6 +275,8 @@ spec:
             - version
             type: object
             x-kubernetes-validations:
+            - message: Mode is immutable
+              rule: '!has(oldSelf.mode) || has(self.mode)'
             - message: MetalSpec is required when mode 'metal'
               rule: self.mode!='metal' || has(self.metalSpec)
             - message: replicas must be at least 1 when mode is 'container'

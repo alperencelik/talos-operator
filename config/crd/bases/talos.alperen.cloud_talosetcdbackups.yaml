@@ -213,7 +213,7 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               filename:
-                description: filename is the path to the backup file in the storage
+                description: filename is the name of the backup file in the storage
                   backend.
                 type: string
             type: object
