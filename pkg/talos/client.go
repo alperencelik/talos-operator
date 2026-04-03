@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"strings"
 	"text/template"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/client"
 	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -88,11 +91,14 @@ func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte) er
 	}
 	resp, err := tc.ApplyConfiguration(ctx, applyRequest)
 	if err != nil {
+		if isGracefulStop(err) {
+			return nil
+		}
 		return fmt.Errorf("error applying new configuration: %w", err)
 	}
-	// TODO: Use FilterMessages over resp
-	// Parse the response
-	fmt.Printf("ApplyConfiguration response: %s\n", resp.Messages[0].String())
+	if len(resp.Messages) > 0 {
+		fmt.Printf("ApplyConfiguration response: %s\n", resp.Messages[0].String())
+	}
 	return nil
 }
 
@@ -212,4 +218,14 @@ func GetSecretBundleFromConfig(ctx context.Context, machineConfig []byte) (*secr
 	}
 	// Create a SecretBundle from the configData
 	return secrets.NewBundleFromConfig(secrets.NewFixedClock(time.Now()), cfg), nil
+}
+
+// isGracefulStop returns true if the error is a gRPC Unavailable error caused by
+// the server performing a graceful shutdown.
+func isGracefulStop(err error) bool {
+	st, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+	return st.Code() == codes.Unavailable && strings.Contains(st.Message(), "graceful_stop")
 }

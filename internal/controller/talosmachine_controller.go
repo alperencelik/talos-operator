@@ -225,6 +225,8 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 		// Return since the machine is in desired state
 		return ctrl.Result{}, nil
 	}
+	// Ensure the client targets this specific machine, not the cluster name
+	bc.ClientEndpoint = &[]string{tm.Spec.Endpoint}
 	err = r.UpgradeOrApplyConfig(ctx, tm, bc, cpConfig)
 	if err != nil {
 		logger.Error(err, "Failed to apply or upgrade Talos config for TalosMachine", "name", tm.Name)
@@ -590,7 +592,8 @@ func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talo
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
 	}
-	// Anytime we check machine we should beb apply-config before already so create secureClient
+	// Connect to the specific machines endpoint to check its readiness,
+	config.ClientEndpoint = &[]string{tm.Spec.Endpoint}
 	tc, err := talos.NewClient(config, false)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
