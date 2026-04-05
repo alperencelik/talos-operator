@@ -381,6 +381,8 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 	}
 
 	// Wait for all TalosMachines to be created and status Available
+	// TODO: The for loop here should be replaced. The problem is if I requeue here the reconcile will start from scratch and
+	// I need to make sure that the previous op is not repeated. Before switching here make sure the previous operations are idempotent and can be safely retried.
 	for {
 		ready, err := r.CheckControlPlaneReady(ctx, tcp)
 		if err != nil {
@@ -830,6 +832,7 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 	if err != nil {
 		return fmt.Errorf("failed to create Talos client for ControlPlane %s: %w", tcp.Name, err)
 	}
+	defer talosClient.Close() //nolint:errcheck
 	//  Bootstrap the Talos node
 	if err := talosClient.BootstrapNode(config); err != nil {
 		return fmt.Errorf("failed to bootstrap Talos node for ControlPlane %s: %w", tcp.Name, err)
@@ -859,6 +862,7 @@ func (r *TalosControlPlaneReconciler) WriteKubeconfig(ctx context.Context, tcp *
 	if err != nil {
 		return fmt.Errorf("failed to create Talos client for ControlPlane %s: %w", tcp.Name, err)
 	}
+	defer talosClient.Close() //nolint:errcheck
 	// Generate the kubeconfig for the Talos ControlPlane
 	kubeconfig, err := talosClient.Kubeconfig(ctx)
 	if err != nil {

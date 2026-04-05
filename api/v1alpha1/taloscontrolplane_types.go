@@ -26,7 +26,7 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.clusterDomain) || has(self.clusterDomain)", message="ClusterDomain is immutable"
-// +kubebuilder:validadtion:XValidation:rule="!has(oldSelf.mode) || has(self.mode)", message="Mode is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.mode) || has(self.mode)", message="Mode is immutable"
 // +kubebuilder:validation:XValidation:rule="self.mode != 'metal' || size(self.metalSpec.machines) > 0",message="Machines is required when mode is 'metal'"
 // +kubebuilder:validation:XValidation:rule="self.mode != 'container' || self.replicas >= 1",message="replicas must be at least 1 when mode is 'container'"
 

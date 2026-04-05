@@ -122,7 +122,10 @@ func NewCPBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 	}
 
 	// Apply the CIDR patches
-	cpPatches := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
+	cpPatches, err := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate CIDR patches: %w", err)
+	}
 	// Apply the removeAdmissionControl patch
 	cpPatches = append(cpPatches, removeAdmissionControl)
 
@@ -169,7 +172,10 @@ func NewWorkerBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, erro
 		genOptions = append(genOptions, generate.WithClusterCNIConfig(cniConfig))
 	}
 
-	workerPatches := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
+	workerPatches, err := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate CIDR patches: %w", err)
+	}
 
 	// If patches are provided, append them to the worker patches
 	if patches != nil && len(*patches) > 0 {
@@ -214,18 +220,26 @@ func NewClock() secrets.Clock {
 	return secrets.NewClock()
 }
 
-func cidrPatches(podCIDR, serviceCIDR *[]string) []string {
+func cidrPatches(podCIDR, serviceCIDR *[]string) ([]string, error) {
 	var cidrPatches []string
 
 	if podCIDR != nil && len(*podCIDR) > 0 {
-		podSubnets := fmt.Sprintf(podSubnets, utils.MarshalStringSlice(*podCIDR))
+		marshaled, err := utils.MarshalStringSlice(*podCIDR)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal pod CIDR: %w", err)
+		}
+		podSubnets := fmt.Sprintf(podSubnets, marshaled)
 		cidrPatches = append(cidrPatches, podSubnets)
 	}
 	if serviceCIDR != nil && len(*serviceCIDR) > 0 {
-		serviceSubnets := fmt.Sprintf(serviceSubnets, utils.MarshalStringSlice(*serviceCIDR))
+		marshaled, err := utils.MarshalStringSlice(*serviceCIDR)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal service CIDR: %w", err)
+		}
+		serviceSubnets := fmt.Sprintf(serviceSubnets, marshaled)
 		cidrPatches = append(cidrPatches, serviceSubnets)
 	}
-	return cidrPatches
+	return cidrPatches, nil
 }
 
 func ParseBundleConfig(bc string) (*BundleConfig, error) {

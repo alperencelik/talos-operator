@@ -67,9 +67,9 @@ type TalosEtcdBackupStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// filename is the path to the backup file in the storage backend.
+	// filename is the name of the backup file in the storage backend.
 	// +optional
-	FilePath string `json:"filename,omitempty"`
+	Filename string `json:"filename,omitempty"`
 
 	// For Kubernetes API conventions, see:
 	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties

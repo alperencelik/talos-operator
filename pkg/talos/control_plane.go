@@ -7,19 +7,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/machine"
 )
 
-// type ControlPlaneConfig struct {
-// ClusterName   string
-// Endpoint      string
-// Version       string
-// KubeVersion   string
-// SecretsBundle *secrets.Bundle
-// Sans          []string  // Additional Subject Alternative Names for the API server
-// PodCIDR       *[]string // Pod CIDR ranges
-// ServiceCIDR   *[]string // Service CIDR ranges
-// }
-
 func GenerateControlPlaneConfig(cfg *BundleConfig, patches *[]string) (*[]byte, error) {
-
 	bundle, err := NewCPBundle(cfg, patches)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate config bundle: %w", err)

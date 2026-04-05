@@ -308,6 +308,8 @@ spec:
             x-kubernetes-validations:
             - message: ClusterDomain is immutable
               rule: '!has(oldSelf.clusterDomain) || has(self.clusterDomain)'
+            - message: Mode is immutable
+              rule: '!has(oldSelf.mode) || has(self.mode)'
             - message: Machines is required when mode is 'metal'
               rule: self.mode != 'metal' || size(self.metalSpec.machines) > 0
             - message: replicas must be at least 1 when mode is 'container'

@@ -3,6 +3,7 @@ package helm
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/aws/smithy-go/ptr"
@@ -29,7 +30,7 @@ type Client struct {
 func NewClient(kubeconfig []byte, namespace string) (*Client, error) {
 	restConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to parse kubeconfig: %w", err)
 	}
 
 	settings := cli.New()

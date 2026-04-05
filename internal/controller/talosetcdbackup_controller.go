@@ -168,7 +168,7 @@ func (r *TalosEtcdBackupReconciler) handleDelete(ctx context.Context, teb *talos
 	logger := logf.FromContext(ctx)
 	logger.Info("Deleting TalosEtcdBackup from external storage if exists", "TalosEtcdBackup", teb.Name)
 	// Try to get the key from status
-	if teb.Status.FilePath == "" {
+	if teb.Status.Filename == "" {
 		// Nothing to delete
 		return nil
 	}
@@ -182,7 +182,7 @@ func (r *TalosEtcdBackupReconciler) handleDelete(ctx context.Context, teb *talos
 		return fmt.Errorf("failed to create S3 client: %w", err)
 	}
 	// Delete the backup from S3
-	if err := s3Client.Delete(ctx, teb.Status.FilePath); err != nil {
+	if err := s3Client.Delete(ctx, teb.Status.Filename); err != nil {
 		return fmt.Errorf("failed to delete backup from S3: %w", err)
 	}
 	// Successfully deleted
@@ -226,6 +226,7 @@ func (r *TalosEtcdBackupReconciler) performBackup(ctx context.Context, teb *talo
 	if err != nil {
 		return fmt.Errorf("failed to create talos client: %w", err)
 	}
+	defer talosClient.Close() //nolint:errcheck
 
 	// Get S3 configuration and credentials from secrets
 	s3Config, err := r.getS3Config(ctx, teb)
@@ -251,10 +252,10 @@ func (r *TalosEtcdBackupReconciler) performBackup(ctx context.Context, teb *talo
 	backupKey := storage.GenerateBackupKey(tcp.Name)
 	logger.Info("Uploading etcd snapshot to S3", "bucket", s3Config.Bucket, "key", backupKey)
 	// Write that key to status so I can refer it later
-	teb.Status.FilePath = backupKey
+	teb.Status.Filename = backupKey
 	// Update status with the file path
 	if err := r.Status().Update(ctx, teb); err != nil {
-		logger.Error(err, "Failed to update status with file path")
+		return fmt.Errorf("failed to update status with file path: %w", err)
 	}
 	// Stream directly to S3
 	if err := s3Client.Upload(ctx, backupKey, snapshotReader); err != nil {

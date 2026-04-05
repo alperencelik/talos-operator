@@ -120,7 +120,10 @@ func TestCidrPatches(t *testing.T) {
 	podCIDR := []string{"10.100.0.0/16", "10.150.0.0/16"}
 	serviceCIDR := []string{"10.200.0.0/12"}
 
-	patches := cidrPatches(&podCIDR, &serviceCIDR)
+	patches, err := cidrPatches(&podCIDR, &serviceCIDR)
+	if err != nil {
+		t.Fatalf("cidrPatches() unexpected error: %v", err)
+	}
 	if len(patches) != 2 {
 		t.Errorf("expected 2 CIDR patches, got %d", len(patches))
 	}
@@ -150,7 +153,10 @@ func TestCidrPatches(t *testing.T) {
 	}
 
 	// Test nil input
-	patchesNil := cidrPatches(nil, nil)
+	patchesNil, err := cidrPatches(nil, nil)
+	if err != nil {
+		t.Fatalf("cidrPatches(nil, nil) unexpected error: %v", err)
+	}
 	if len(patchesNil) != 0 {
 		t.Errorf("expected 0 patches for nil input, got %d", len(patchesNil))
 	}

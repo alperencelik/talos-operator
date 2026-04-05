@@ -28,7 +28,11 @@ func SecretBundleDecoder(bs string) (*secrets.Bundle, error) {
 }
 
 func GenSans(name string, r *int) []string {
-	var sans []string
+	capacity := 1
+	if r != nil {
+		capacity += *r
+	}
+	sans := make([]string, 0, capacity)
 	sans = append(sans, name)
 	if r == nil {
 		return sans
@@ -39,12 +43,12 @@ func GenSans(name string, r *int) []string {
 	return sans
 }
 
-func MarshalStringSlice(slice []string) string {
+func MarshalStringSlice(slice []string) (string, error) {
 	bytes, err := json.Marshal(slice)
 	if err != nil {
-		panic(fmt.Sprintf("failed to marshal string slice: %v", err))
+		return "", fmt.Errorf("failed to marshal string slice: %w", err)
 	}
-	return string(bytes)
+	return string(bytes), nil
 }
 
 func PtrToString(s *string) string {

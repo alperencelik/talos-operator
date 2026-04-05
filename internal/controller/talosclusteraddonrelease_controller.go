@@ -18,8 +18,10 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	helmDriver "helm.sh/helm/v3/pkg/storage/driver"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -188,7 +190,10 @@ func (r *TalosClusterAddonReleaseReconciler) handleDelete(ctx context.Context, t
 		return err
 	}
 	// Get the release to make sure if it exists
-	release, _ := helmClient.GetRelease(ctx, tcAddonRelease.Spec.HelmSpec.ReleaseName)
+	release, err := helmClient.GetRelease(ctx, tcAddonRelease.Spec.HelmSpec.ReleaseName)
+	if err != nil && !errors.Is(err, helmDriver.ErrReleaseNotFound) {
+		return fmt.Errorf("failed to get helm release %s: %w", tcAddonRelease.Spec.HelmSpec.ReleaseName, err)
+	}
 	// Uninstall the chart
 	if release != nil {
 		_, err = helmClient.UninstallChart(ctx, tcAddonRelease.Spec.HelmSpec.ReleaseName)
