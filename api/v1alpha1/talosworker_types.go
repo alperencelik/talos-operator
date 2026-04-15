@@ -73,9 +73,10 @@ type TalosWorkerSpec struct {
 	// +kubebuilder:validation:Optional
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
 
-	// resetOnDelete indicates whether deleting this Kubernetes resource also resets the machines
-	// +kubebuilder:validation:Required
-	ResetOnDelete bool `json:"resetOnDelete"`
+	// preserveMachinesOnDeletion indicates whether worker machines should be preserved (not reset) when deleting this Kubernetes resource
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	PreserveMachinesOnDeletion bool `json:"preserveMachinesOnDeletion"`
 }
 
 // TalosWorkerStatus defines the observed state of TalosWorker.

@@ -252,16 +252,17 @@ spec:
                 - metal
                 - cloud
                 type: string
+              preserveMachinesOnDeletion:
+                default: false
+                description: preserveMachinesOnDeletion indicates whether worker machines
+                  should be preserved (not reset) when deleting this Kubernetes resource
+                type: boolean
               replicas:
                 default: 1
                 description: replicas is the number of worker machines to maintain.
                   Only applies when mode is 'container'.
                 format: int32
                 type: integer
-              resetOnDelete:
-                description: resetOnDelete indicates whether deleting this Kubernetes
-                  resource also resets the machines
-                type: boolean
               storageClassName:
                 description: storageClassName is the name of the storage class to
                   use for persistent volumes.
@@ -278,7 +279,6 @@ spec:
             required:
             - kubeVersion
             - mode
-            - resetOnDelete
             - version
             type: object
             x-kubernetes-validations:

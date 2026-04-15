@@ -51,9 +51,10 @@ type TalosMachineSpec struct {
 	// +kubebuilder:validation:Optional
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
 
-	// resetOnDelete indicates whether deleting this Kubernetes resource also resets the machine
-	// +kubebuilder:validation:Required
-	ResetOnDelete bool `json:"resetOnDelete"`
+	// preserveMachineOnDeletion indicates whether the machine should be preserved (not reset) when deleting this Kubernetes resource
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	PreserveMachineOnDeletion bool `json:"preserveMachineOnDeletion"`
 }
 
 type MachineSpec struct {

@@ -276,15 +276,17 @@ spec:
                 items:
                   type: string
                 type: array
+              preserveMachinesOnDeletion:
+                default: false
+                description: preserveMachinesOnDeletion indicates whether control
+                  plane machines should be preserved (not reset) when deleting this
+                  Kubernetes resource
+                type: boolean
               replicas:
                 description: replicas is the number of control-plane machines to maintain.
                   Only applies when mode is 'container'.
                 format: int32
                 type: integer
-              resetOnDelete:
-                description: resetOnDelete indicates whether deleting this Kubernetes
-                  resource also resets the machines
-                type: boolean
               serviceCIDR:
                 description: serviceCIDR is the list of CIDR ranges for service IPs
                   in the cluster.
@@ -305,7 +307,6 @@ spec:
             required:
             - kubeVersion
             - mode
-            - resetOnDelete
             - version
             type: object
             x-kubernetes-validations:

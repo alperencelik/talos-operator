@@ -272,11 +272,11 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 					Namespace:  tw.Namespace,
 					APIVersion: talosv1alpha1.GroupVersion.String(),
 				},
-				Endpoint:      ip,
-				Version:       tw.Spec.Version,
-				MachineSpec:   mergeMachineSpec(tw.Spec.MetalSpec.MachineSpec, &machine),
-				ConfigRef:     tw.Spec.ConfigRef,
-				ResetOnDelete: tw.Spec.ResetOnDelete,
+				Endpoint:                  ip,
+				Version:                   tw.Spec.Version,
+				MachineSpec:               mergeMachineSpec(tw.Spec.MetalSpec.MachineSpec, &machine),
+				ConfigRef:                 tw.Spec.ConfigRef,
+				PreserveMachineOnDeletion: tw.Spec.PreserveMachinesOnDeletion,
 			}
 			return nil
 		})
