@@ -258,6 +258,10 @@ spec:
                   Only applies when mode is 'container'.
                 format: int32
                 type: integer
+              resetOnDelete:
+                description: resetOnDelete indicates whether deleting this Kubernetes
+                  resource also resets the machines
+                type: boolean
               storageClassName:
                 description: storageClassName is the name of the storage class to
                   use for persistent volumes.
@@ -274,6 +278,7 @@ spec:
             required:
             - kubeVersion
             - mode
+            - resetOnDelete
             - version
             type: object
             x-kubernetes-validations:

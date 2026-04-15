@@ -97,6 +97,10 @@ type TalosControlPlaneSpec struct {
 	// cni is the CNI configuration for the cluster.
 	// +kubebuilder:validation:Optional
 	CNI *CNIConfig `json:"cni,omitempty"`
+
+	// resetOnDelete indicates whether deleting this Kubernetes resource also resets the machines
+	// +kubebuilder:validation:Required
+	ResetOnDelete bool `json:"resetOnDelete"`
 }
 
 // CNIConfig represents the CNI configuration options.
