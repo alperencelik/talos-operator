@@ -52,8 +52,9 @@ var _ = Describe("TalosMachine Controller", func() {
 				Namespace: namespace,
 			},
 			Spec: talosv1alpha1.TalosMachineSpec{
-				Endpoint: "192.168.1.10",
-				Version:  "v1.10.4",
+				Endpoint:       "192.168.1.10",
+				Version:        "v1.10.4",
+				DeletionPolicy: "reset",
 			},
 		}
 	})
