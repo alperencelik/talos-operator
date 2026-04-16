@@ -11,10 +11,25 @@ spec:
     kind: TalosWorker
     listKind: TalosWorkerList
     plural: talosworkers
+    shortNames:
+    - tw
     singular: talosworker
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .spec.version
+      name: Version
+      type: string
+    - jsonPath: .spec.mode
+      name: Mode
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: TalosWorker is the Schema for the talosworkers API.
@@ -66,7 +81,6 @@ spec:
               controlPlaneRef:
                 description: controlPlaneRef is a reference to the TalosControlPlane
                   that this worker belongs to.
-                format: objectreference
                 properties:
                   name:
                     default: ""
@@ -268,6 +282,7 @@ spec:
                     creation
                   rule: self == oldSelf
               version:
+                default: v1.12.1
                 description: version of Talos to use for the worker nodes -- e.g "v1.12.1"
                 pattern: ^v\d+\.\d+\.\d+(-\w+)?$
                 type: string
@@ -278,7 +293,7 @@ spec:
             type: object
             x-kubernetes-validations:
             - message: Mode is immutable
-              rule: '!has(oldSelf.mode) || has(self.mode)'
+              rule: '!has(oldSelf.mode) || self.mode == oldSelf.mode'
             - message: MetalSpec is required when mode 'metal'
               rule: self.mode!='metal' || has(self.metalSpec)
             - message: replicas must be at least 1 when mode is 'container'

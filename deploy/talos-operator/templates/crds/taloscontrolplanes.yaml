@@ -9,10 +9,28 @@ spec:
     kind: TalosControlPlane
     listKind: TalosControlPlaneList
     plural: taloscontrolplanes
+    shortNames:
+    - tcp
     singular: taloscontrolplane
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .spec.version
+      name: Version
+      type: string
+    - jsonPath: .spec.kubeVersion
+      name: KubeVersion
+      type: string
+    - jsonPath: .spec.mode
+      name: Mode
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: TalosControlPlane is the Schema for the taloscontrolplanes API.
@@ -274,7 +292,10 @@ spec:
                 description: podCIDR is the list of CIDR ranges for pod IPs in the
                   cluster.
                 items:
+                  maxLength: 18
+                  pattern: ^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$
                   type: string
+                maxItems: 4
                 type: array
               replicas:
                 description: replicas is the number of control-plane machines to maintain.
@@ -285,7 +306,10 @@ spec:
                 description: serviceCIDR is the list of CIDR ranges for service IPs
                   in the cluster.
                 items:
+                  maxLength: 18
+                  pattern: ^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$
                   type: string
+                maxItems: 4
                 type: array
               storageClassName:
                 description: storageClassName is the name of the storage class to
@@ -305,9 +329,9 @@ spec:
             type: object
             x-kubernetes-validations:
             - message: ClusterDomain is immutable
-              rule: '!has(oldSelf.clusterDomain) || has(self.clusterDomain)'
+              rule: '!has(oldSelf.clusterDomain) || self.clusterDomain == oldSelf.clusterDomain'
             - message: Mode is immutable
-              rule: '!has(oldSelf.mode) || has(self.mode)'
+              rule: '!has(oldSelf.mode) || self.mode == oldSelf.mode'
             - message: Machines is required when mode is 'metal'
               rule: self.mode != 'metal' || size(self.metalSpec.machines) > 0
             - message: replicas must be at least 1 when mode is 'container'

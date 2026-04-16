@@ -52,7 +52,7 @@ type TalosEtcdBackupTemplateSpec struct {
 	Spec TalosEtcdBackupSpec `json:"spec"`
 }
 
-// TalosEtcdBackupScheduleStatus defines the observed state of TalosEtcdBackupSchedule
+// TalosEtcdBackupScheduleStatus defines the observed state of TalosEtcdBackupSchedule.
 type TalosEtcdBackupScheduleStatus struct {
 	// lastScheduleTime is the last time a backup was scheduled.
 	// +optional
@@ -79,6 +79,7 @@ type TalosEtcdBackupScheduleStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=tebs
 // +kubebuilder:printcolumn:name="Schedule",type=string,JSONPath=`.spec.schedule`
 // +kubebuilder:printcolumn:name="Last Backup",type=date,JSONPath=`.status.lastSuccessfulBackupTime`
 // +kubebuilder:printcolumn:name="Next Backup",type=date,JSONPath=`.status.nextScheduleTime`
