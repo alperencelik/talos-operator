@@ -594,7 +594,6 @@ func (r *TalosControlPlaneReconciler) handleResourceNotFound(ctx context.Context
 	return err
 }
 
-
 // reconcileService creates or updates a Service for a given replica index.
 func (r *TalosControlPlaneReconciler) reconcileService(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
 	// Handle the services for each replica of the TalosControlPlane
