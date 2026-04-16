@@ -428,20 +428,23 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 	if tm.Status.State == talosv1alpha1.StateOrphaned {
 		return ctrl.Result{}, nil
 	}
-	// Run talosctl reset command to reset the machine
-	config, err := r.GetBundleConfig(ctx, tm)
-	if err != nil {
-		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
-	}
-	// Make the client for the machine
-	config.ClientEndpoint = &[]string{tm.Spec.Endpoint}
-	tc, err := talos.NewClient(config, false)
-	if err != nil {
-		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
-	}
-	defer tc.Close() //nolint:errcheck
-	if err := tc.Reset(ctx, false, true); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to reset TalosMachine %s: %w", tm.Name, err)
+	// Only reset if requested by deletion policy:
+	if tm.Spec.DeletionPolicy == "reset" {
+		// Run talosctl reset command to reset the machine
+		config, err := r.GetBundleConfig(ctx, tm)
+		if err != nil {
+			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
+		}
+		// Make the client for the machine
+		config.ClientEndpoint = &[]string{tm.Spec.Endpoint}
+		tc, err := talos.NewClient(config, false)
+		if err != nil {
+			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
+		}
+		defer tc.Close() //nolint:errcheck
+		if err := tc.Reset(ctx, false, true); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to reset TalosMachine %s: %w", tm.Name, err)
+		}
 	}
 	return ctrl.Result{}, nil
 }

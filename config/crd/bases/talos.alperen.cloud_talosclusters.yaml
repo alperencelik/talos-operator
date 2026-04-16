@@ -99,6 +99,15 @@ spec:
                     - key
                     type: object
                     x-kubernetes-map-type: atomic
+                  deletionPolicy:
+                    default: reset
+                    description: deletionPolicy specifies the deletion policy for
+                      control plane machines when deleting this Kubernetes resource
+                      (reset or preserve).
+                    enum:
+                    - reset
+                    - preserve
+                    type: string
                   endpoint:
                     description: endpoint is the endpoint for the Kubernetes API Server.
                     pattern: ^https?://[a-zA-Z0-9.-]+(:\d+)?$
@@ -382,6 +391,15 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  deletionPolicy:
+                    default: reset
+                    description: deletionPolicy specifies the deletion policy for
+                      worker machines when deleting this Kubernetes resource (reset
+                      or preserve).
+                    enum:
+                    - reset
+                    - preserve
+                    type: string
                   kubeVersion:
                     default: v1.35.0
                     description: kubeVersion is the version of Kubernetes to use for

@@ -186,6 +186,11 @@ spec:
                     description: wipe indicates whether to wipe the disk before installation.
                     type: boolean
                 type: object
+              preserveMachineOnDeletion:
+                default: false
+                description: preserveMachineOnDeletion indicates whether the machine
+                  should be preserved (not reset) when deleting this Kubernetes resource
+                type: boolean
               version:
                 description: version is the desired version of Talos to run on this
                   machine.
