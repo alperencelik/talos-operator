@@ -45,6 +45,12 @@ type TalosMachineSpec struct {
 	// configRef is a reference to a ConfigMap containing the Talos cluster configuration.
 	// +kubebuilder:validation:Optional
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
+
+	// deletionPolicy specifies the deletion policy for the machine when deleting this Kubernetes resource (reset or preserve).
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=reset;preserve
+	// +kubebuilder:default=reset
+	DeletionPolicy string `json:"deletionPolicy"`
 }
 
 type MachineSpec struct {

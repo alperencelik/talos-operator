@@ -264,6 +264,11 @@ spec:
                 - metal
                 - cloud
                 type: string
+              preserveMachinesOnDeletion:
+                default: false
+                description: preserveMachinesOnDeletion indicates whether worker machines
+                  should be preserved (not reset) when deleting this Kubernetes resource
+                type: boolean
               replicas:
                 default: 1
                 description: replicas is the number of worker machines to maintain.

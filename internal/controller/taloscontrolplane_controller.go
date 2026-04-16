@@ -467,10 +467,11 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 					Namespace:  tcp.Namespace,
 					APIVersion: talosv1alpha1.GroupVersion.String(),
 				},
-				Endpoint:    ip,
-				Version:     tcp.Spec.Version,
-				MachineSpec: mergeMachineSpec(tcp.Spec.MetalSpec.MachineSpec, &machine),
-				ConfigRef:   tcp.Spec.ConfigRef,
+				Endpoint:       ip,
+				Version:        tcp.Spec.Version,
+				MachineSpec:    mergeMachineSpec(tcp.Spec.MetalSpec.MachineSpec, &machine),
+				ConfigRef:      tcp.Spec.ConfigRef,
+				DeletionPolicy: tcp.Spec.DeletionPolicy,
 			}
 			return nil
 		})

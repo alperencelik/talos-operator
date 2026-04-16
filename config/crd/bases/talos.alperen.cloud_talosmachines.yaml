@@ -122,6 +122,14 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              deletionPolicy:
+                default: reset
+                description: deletionPolicy specifies the deletion policy for the
+                  machine when deleting this Kubernetes resource (reset or preserve).
+                enum:
+                - reset
+                - preserve
+                type: string
               endpoint:
                 description: endpoint is the Talos API endpoint for this machine.
                 type: string
