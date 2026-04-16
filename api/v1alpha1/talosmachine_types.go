@@ -51,10 +51,11 @@ type TalosMachineSpec struct {
 	// +kubebuilder:validation:Optional
 	ConfigRef *corev1.ConfigMapKeySelector `json:"configRef,omitempty"`
 
-	// preserveMachineOnDeletion indicates whether the machine should be preserved (not reset) when deleting this Kubernetes resource
+	// deletionPolicy specifies the deletion policy for the machine when deleting this Kubernetes resource (reset or preserve).
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=false
-	PreserveMachineOnDeletion bool `json:"preserveMachineOnDeletion"`
+	// +kubebuilder:validation:Enum=reset;preserve
+	// +kubebuilder:default=reset
+	DeletionPolicy string `json:"deletionPolicy"`
 }
 
 type MachineSpec struct {

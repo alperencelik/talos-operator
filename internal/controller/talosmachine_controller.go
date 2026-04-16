@@ -428,8 +428,8 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 	if tm.Status.State == talosv1alpha1.StateOrphaned {
 		return ctrl.Result{}, nil
 	}
-	// Do not reset if the machine must be preserved on deletion:
-	if !tm.Spec.PreserveMachineOnDeletion {
+	// Only reset if requested by deletion policy:
+	if tm.Spec.DeletionPolicy == "reset" {
 		// Run talosctl reset command to reset the machine
 		config, err := r.GetBundleConfig(ctx, tm)
 		if err != nil {

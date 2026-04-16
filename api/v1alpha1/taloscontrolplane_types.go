@@ -98,10 +98,11 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:validation:Optional
 	CNI *CNIConfig `json:"cni,omitempty"`
 
-	// preserveMachinesOnDeletion indicates whether control plane machines should be preserved (not reset) when deleting this Kubernetes resource
+	// deletionPolicy specifies the deletion policy for control plane machines when deleting this Kubernetes resource (reset or preserve).
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=false
-	PreserveMachinesOnDeletion bool `json:"preserveMachinesOnDeletion"`
+	// +kubebuilder:validation:Enum=reset;preserve
+	// +kubebuilder:default=reset
+	DeletionPolicy string `json:"deletionPolicy"`
 }
 
 // CNIConfig represents the CNI configuration options.
