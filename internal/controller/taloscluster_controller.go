@@ -166,6 +166,7 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 				StorageClassName: tc.Spec.ControlPlane.StorageClassName,
 				PodCIDR:          tc.Spec.ControlPlane.PodCIDR,
 				ServiceCIDR:      tc.Spec.ControlPlane.ServiceCIDR,
+				DeletionPolicy:   tc.Spec.ControlPlane.DeletionPolicy,
 			}
 			// Optionally set ConfigRef if provided
 			if tc.Spec.ControlPlane.ConfigRef != nil {
@@ -249,6 +250,7 @@ func (r *TalosClusterReconciler) reconcileWorker(ctx context.Context, tc *talosv
 			MetalSpec:        tc.Spec.Worker.MetalSpec,
 			KubeVersion:      tc.Spec.Worker.KubeVersion,
 			StorageClassName: tc.Spec.Worker.StorageClassName,
+			DeletionPolicy:   tc.Spec.Worker.DeletionPolicy,
 			ControlPlaneRef: corev1.LocalObjectReference{
 				Name: controlPlaneRefName,
 			},
