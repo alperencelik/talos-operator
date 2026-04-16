@@ -9,6 +9,8 @@ spec:
     kind: TalosCluster
     listKind: TalosClusterList
     plural: talosclusters
+    shortNames:
+    - tc
     singular: taloscluster
   scope: Namespaced
   versions:
@@ -283,7 +285,10 @@ spec:
                     description: podCIDR is the list of CIDR ranges for pod IPs in
                       the cluster.
                     items:
+                      maxLength: 18
+                      pattern: ^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$
                       type: string
+                    maxItems: 4
                     type: array
                   preserveMachinesOnDeletion:
                     default: false
@@ -300,7 +305,10 @@ spec:
                     description: serviceCIDR is the list of CIDR ranges for service
                       IPs in the cluster.
                     items:
+                      maxLength: 18
+                      pattern: ^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$
                       type: string
+                    maxItems: 4
                     type: array
                   storageClassName:
                     description: storageClassName is the name of the storage class
@@ -320,9 +328,9 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - message: ClusterDomain is immutable
-                  rule: '!has(oldSelf.clusterDomain) || has(self.clusterDomain)'
+                  rule: '!has(oldSelf.clusterDomain) || self.clusterDomain == oldSelf.clusterDomain'
                 - message: Mode is immutable
-                  rule: '!has(oldSelf.mode) || has(self.mode)'
+                  rule: '!has(oldSelf.mode) || self.mode == oldSelf.mode'
                 - message: Machines is required when mode is 'metal'
                   rule: self.mode != 'metal' || size(self.metalSpec.machines) > 0
                 - message: replicas must be at least 1 when mode is 'container'
@@ -373,7 +381,6 @@ spec:
                   controlPlaneRef:
                     description: controlPlaneRef is a reference to the TalosControlPlane
                       that this worker belongs to.
-                    format: objectreference
                     properties:
                       name:
                         default: ""
@@ -586,6 +593,7 @@ spec:
                         after creation
                       rule: self == oldSelf
                   version:
+                    default: v1.12.1
                     description: version of Talos to use for the worker nodes -- e.g
                       "v1.12.1"
                     pattern: ^v\d+\.\d+\.\d+(-\w+)?$
@@ -597,7 +605,7 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - message: Mode is immutable
-                  rule: '!has(oldSelf.mode) || has(self.mode)'
+                  rule: '!has(oldSelf.mode) || self.mode == oldSelf.mode'
                 - message: MetalSpec is required when mode 'metal'
                   rule: self.mode!='metal' || has(self.metalSpec)
                 - message: replicas must be at least 1 when mode is 'container'
@@ -620,11 +628,9 @@ spec:
             type: object
             x-kubernetes-validations:
             - message: Specify either controlPlane or controlPlaneRef, but not both
-              rule: (has(self.controlPlane) && !has(self.controlPlaneRef)) || (!has(self.controlPlaneRef)
-                && has(self.controlPlane)) || (!has(self.controlPlane) && !has(self.controlPlaneRef))
+              rule: '!(has(self.controlPlane) && has(self.controlPlaneRef))'
             - message: Specify either worker or workerRef, but not both
-              rule: (has(self.worker) && !has(self.workerRef)) || (!has(self.workerRef)
-                && has(self.worker)) || (!has(self.worker) && !has(self.workerRef))
+              rule: '!(has(self.worker) && has(self.workerRef))'
           status:
             description: status defines the observed state of TalosCluster.
             properties:

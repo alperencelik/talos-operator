@@ -237,18 +237,9 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 	return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check the machine status again
 }
 
-// TODO: Fix this one
 func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	r.Recorder.Event(tm, corev1.EventTypeNormal, "Reconciling", "Handling worker machine")
-	// Get config from WorkerRef
-	tw := &talosv1alpha1.TalosWorker{}
-	if err := r.Get(ctx, client.ObjectKey{
-		Name:      tm.Spec.WorkerRef.Name,
-		Namespace: tm.Namespace,
-	}, tw); err != nil {
-		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
-	}
 	bc, err := r.GetBundleConfig(ctx, tm)
 	if err != nil {
 		logger.Error(err, "Failed to get BundleConfig for TalosMachine", "name", tm.Name)
@@ -366,8 +357,8 @@ func (r *TalosMachineReconciler) GetBundleConfig(ctx context.Context, tm *talosv
 	tcp, err := r.GetControlPlaneRef(ctx, tm)
 	if err != nil {
 		logger.Error(err, "Failed to get Control Plane reference for TalosMachine", "name", tm.Name)
+		return nil, fmt.Errorf("failed to get Control Plane reference for TalosMachine %s: %w", tm.Name, err)
 	}
-	// If the TalosControlPlane reference is nil, the machine is orphaned
 	if tcp == nil {
 		logger.Info("TalosControlPlane reference is nil, waiting for it to be ready", "name", tm.Name)
 		// Update the staus to Orphaned and don't reconcile
@@ -437,7 +428,7 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 		}
 		// Make the client for the machine
 		config.ClientEndpoint = &[]string{tm.Spec.Endpoint}
-		tc, err := talos.NewClient(config, false)
+		tc, err := talos.NewClient(ctx, config, false)
 		if err != nil {
 			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 		}
@@ -456,7 +447,7 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 		insecure = true // Use insecure mode for pending state
 	}
 	// If the mode is metal, we need to apply the metal-specific patches -- diskPatch
-	talosclient, err := talos.NewClient(config, insecure)
+	talosclient, err := talos.NewClient(ctx, config, insecure)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
@@ -519,13 +510,13 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 	}
 
 	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.Registries != nil {
-		var registries interface{}
+		var registries any
 		if err := yaml.Unmarshal(tm.Spec.MachineSpec.Registries.Raw, &registries); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal registries: %w", err)
 		}
 
-		patchMap := map[string]interface{}{
-			"machine": map[string]interface{}{
+		patchMap := map[string]any{
+			"machine": map[string]any{
 				"registries": registries,
 			},
 		}
@@ -597,7 +588,7 @@ func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talo
 	}
 	// Connect to the specific machines endpoint to check its readiness,
 	config.ClientEndpoint = &[]string{tm.Spec.Endpoint}
-	tc, err := talos.NewClient(config, false)
+	tc, err := talos.NewClient(ctx, config, false)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
@@ -628,7 +619,7 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 	// Check whether we need to construct maintenance mode or not
 	insecure := tm.Status.State == "" || tm.Status.State == talosv1alpha1.StatePending
 	// Create Talos client
-	tc, err := talos.NewClient(bc, insecure) // true for insecure TLS
+	tc, err := talos.NewClient(ctx, bc, insecure)
 	if err != nil {
 		return fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
@@ -746,7 +737,7 @@ func (r *TalosMachineReconciler) handleMetaKey(ctx context.Context, tm *talosv1a
 	// Check whether we need to construct maintenance mode or not
 	insecure := tm.Status.State == "" || tm.Status.State == talosv1alpha1.StatePending
 	// Create Talos client
-	tc, err := talos.NewClient(bc, insecure) // true for insecure TLS
+	tc, err := talos.NewClient(ctx, bc, insecure)
 	if err != nil {
 		return fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}

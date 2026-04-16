@@ -103,6 +103,12 @@ var _ = Describe("TalosEtcdBackupSchedule Controller", func() {
 			By("Creating the TalosEtcdBackupSchedule")
 			Expect(k8sClient.Create(ctx, schedule)).To(Succeed())
 
+			By("Waiting for finalizer to be added")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: scheduleName, Namespace: namespace}, schedule)).To(Succeed())
+				g.Expect(schedule.Finalizers).To(ContainElement(talosv1alpha1.TalosEtcdBackupScheduleFinalizer))
+			}, timeout, interval).Should(Succeed())
+
 			By("Deleting the TalosEtcdBackupSchedule")
 			Expect(k8sClient.Delete(ctx, schedule)).To(Succeed())
 

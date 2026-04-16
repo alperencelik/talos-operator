@@ -65,7 +65,7 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Finalizer logic
 	if tc.DeletionTimestamp.IsZero() {
 		// Add finalizer if not present
-		err := r.handleFinalizer(ctx, tc)
+		err := r.handleFinalizer(ctx, &tc)
 		if err != nil {
 			logger.Error(err, "failed to handle finalizer for TalosCluster", "name", tc.Name)
 			return ctrl.Result{}, err
@@ -105,18 +105,11 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Control Plane reconciliation
 	res, err := r.reconcileControlPlane(ctx, &tc)
-	if err != nil {
-		logger.Error(err, "failed to reconcile control plane", "name", tc.Name, "namespace", tc.Namespace)
-	}
-	if res != (ctrl.Result{}) {
-		return res, nil
+	if err != nil || res != (ctrl.Result{}) {
+		return res, err
 	}
 	// Worker reconciliation
-	res, err = r.reconcileWorker(ctx, &tc)
-	if err != nil {
-		logger.Error(err, "failed to reconcile worker", "name", tc.Name, "namespace", tc.Namespace)
-	}
-	return res, nil
+	return r.reconcileWorker(ctx, &tc)
 
 }
 
@@ -166,6 +159,7 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 				StorageClassName: tc.Spec.ControlPlane.StorageClassName,
 				PodCIDR:          tc.Spec.ControlPlane.PodCIDR,
 				ServiceCIDR:      tc.Spec.ControlPlane.ServiceCIDR,
+				DeletionPolicy:   tc.Spec.ControlPlane.DeletionPolicy,
 			}
 			// Optionally set ConfigRef if provided
 			if tc.Spec.ControlPlane.ConfigRef != nil {
@@ -249,6 +243,7 @@ func (r *TalosClusterReconciler) reconcileWorker(ctx context.Context, tc *talosv
 			MetalSpec:        tc.Spec.Worker.MetalSpec,
 			KubeVersion:      tc.Spec.Worker.KubeVersion,
 			StorageClassName: tc.Spec.Worker.StorageClassName,
+			DeletionPolicy:   tc.Spec.Worker.DeletionPolicy,
 			ControlPlaneRef: corev1.LocalObjectReference{
 				Name: controlPlaneRefName,
 			},
@@ -290,10 +285,10 @@ func (r *TalosClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *TalosClusterReconciler) handleFinalizer(ctx context.Context, tc talosv1alpha1.TalosCluster) error {
-	if !controllerutil.ContainsFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer) {
-		controllerutil.AddFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer)
-		if err := r.Update(ctx, &tc); err != nil {
+func (r *TalosClusterReconciler) handleFinalizer(ctx context.Context, tc *talosv1alpha1.TalosCluster) error {
+	if !controllerutil.ContainsFinalizer(tc, talosv1alpha1.TalosClusterFinalizer) {
+		controllerutil.AddFinalizer(tc, talosv1alpha1.TalosClusterFinalizer)
+		if err := r.Update(ctx, tc); err != nil {
 			return fmt.Errorf("failed to add finalizer to TalosCluster: %w", err)
 		}
 	}

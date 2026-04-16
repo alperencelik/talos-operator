@@ -22,21 +22,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // TalosMachineSpec defines the desired state of TalosMachine.
 type TalosMachineSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 
 	// endpoint is the Talos API endpoint for this machine.
 	// +kubebuilder:validation:Required
-	Endpoint string `json:"endpoint,omitempty"`
+	Endpoint string `json:"endpoint"`
 
 	// version is the desired version of Talos to run on this machine.
 	// +kubebuilder:validation:Required
-	Version string `json:"version,omitempty"`
+	Version string `json:"version"`
 
 	// machineSpec is the machine specification for this TalosMachine.
 	MachineSpec *MachineSpec `json:"machineSpec,omitempty"`
@@ -102,7 +97,6 @@ type MachineSpec struct {
 
 // TalosMachineStatus defines the observed state of TalosMachine.
 type TalosMachineStatus struct {
-
 	// observedVersion is the version of Talos running on this machine.
 	ObservedVersion string `json:"observedVersion,omitempty"`
 	// config is the base64 encoded Talos configuration.
@@ -120,6 +114,11 @@ type TalosMachineStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=tm
+// +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
+// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.version`
+// +kubebuilder:printcolumn:name="Endpoint",type=string,JSONPath=`.spec.endpoint`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // TalosMachine is the Schema for the talosmachines API.
 type TalosMachine struct {

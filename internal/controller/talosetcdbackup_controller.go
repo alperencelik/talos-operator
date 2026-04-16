@@ -222,7 +222,7 @@ func (r *TalosEtcdBackupReconciler) performBackup(ctx context.Context, teb *talo
 	bc.SecretsBundle = sb
 
 	// Create Talos client
-	talosClient, err := talos.NewClient(bc, false)
+	talosClient, err := talos.NewClient(ctx, bc, false)
 	if err != nil {
 		return fmt.Errorf("failed to create talos client: %w", err)
 	}
