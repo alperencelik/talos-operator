@@ -77,6 +77,14 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              deletionPolicy:
+                default: reset
+                description: deletionPolicy specifies the deletion policy for worker
+                  machines when deleting this Kubernetes resource (reset or preserve).
+                enum:
+                - reset
+                - preserve
+                type: string
               kubeVersion:
                 default: v1.35.0
                 description: kubeVersion is the version of Kubernetes to use for the
@@ -250,11 +258,6 @@ spec:
                 - metal
                 - cloud
                 type: string
-              preserveMachinesOnDeletion:
-                default: false
-                description: preserveMachinesOnDeletion indicates whether worker machines
-                  should be preserved (not reset) when deleting this Kubernetes resource
-                type: boolean
               replicas:
                 default: 1
                 description: replicas is the number of worker machines to maintain.
