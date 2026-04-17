@@ -21,16 +21,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// TalosEtcdBackupSpec defines the desired state of TalosEtcdBackup
+// TalosEtcdBackupSpec defines the desired state of TalosEtcdBackup.
 type TalosEtcdBackupSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
-
 	// talosControlPlaneRef is a reference to the TalosControlPlane this backup is associated with.
 	// +kubebuilder:validation:required
 	TalosControlPlaneRef *corev1.LocalObjectReference `json:"talosControlPlaneRef"`
@@ -64,25 +56,10 @@ type S3Storage struct {
 
 // TalosEtcdBackupStatus defines the observed state of TalosEtcdBackup.
 type TalosEtcdBackupStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	// filename is the name of the backup file in the storage backend.
 	// +optional
 	Filename string `json:"filename,omitempty"`
-
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
 	// conditions represent the current state of the TalosEtcdBackup resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
@@ -91,8 +68,11 @@ type TalosEtcdBackupStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=teb
+// +kubebuilder:printcolumn:name="Filename",type=string,JSONPath=`.status.filename`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// TalosEtcdBackup is the Schema for the talosetcdbackups API
+// TalosEtcdBackup is the Schema for the talosetcdbackups API.
 type TalosEtcdBackup struct {
 	metav1.TypeMeta `json:",inline"`
 

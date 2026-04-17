@@ -32,9 +32,7 @@ const (
 
 // NewClient constructs a Talos API client using the default talosconfig file
 // and context name. It returns an initialized client or an error.
-func NewClient(cfg *BundleConfig, insecure bool) (*TalosClient, error) {
-
-	ctx := context.Background()
+func NewClient(ctx context.Context, cfg *BundleConfig, insecure bool) (*TalosClient, error) {
 	bundle, err := NewCPBundle(cfg, nil)
 	if err != nil {
 		return nil, err
@@ -70,14 +68,14 @@ func NewClient(cfg *BundleConfig, insecure bool) (*TalosClient, error) {
 }
 
 // BootstrapNode replicates `talosctl bootstrap` by invoking the Bootstrap RPC on the node.
-func (tc *TalosClient) BootstrapNode(cfg *BundleConfig) error {
-	// Create a BootstrapRequest (no etcd recovery by default)
+func (tc *TalosClient) BootstrapNode(ctx context.Context) error {
 	req := &machineapi.BootstrapRequest{
 		RecoverEtcd:          false,
 		RecoverSkipHashCheck: false,
 	}
-	// TODO: Fix this one
-	_ = tc.Bootstrap(context.Background(), req)
+	if err := tc.Bootstrap(ctx, req); err != nil {
+		return fmt.Errorf("failed to bootstrap node: %w", err)
+	}
 	return nil
 }
 
@@ -89,15 +87,12 @@ func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte) er
 		DryRun:         false,
 		TryModeTimeout: durationpb.New(60 * time.Second),
 	}
-	resp, err := tc.ApplyConfiguration(ctx, applyRequest)
+	_, err := tc.ApplyConfiguration(ctx, applyRequest)
 	if err != nil {
 		if isGracefulStop(err) {
 			return nil
 		}
 		return fmt.Errorf("error applying new configuration: %w", err)
-	}
-	if len(resp.Messages) > 0 {
-		fmt.Printf("ApplyConfiguration response: %s\n", resp.Messages[0].String())
 	}
 	return nil
 }
@@ -110,6 +105,9 @@ func (tc *TalosClient) GetTalosVersion(ctx context.Context) (string, error) {
 	}
 	if len(resp.Messages) == 0 {
 		return "", fmt.Errorf("no version information found")
+	}
+	if resp.Messages[0].Version == nil {
+		return "", fmt.Errorf("version information is nil")
 	}
 	version := resp.Messages[0].Version.Tag
 	return version, nil
@@ -125,12 +123,10 @@ func (tc *TalosClient) UpgradeTalosVersion(ctx context.Context, image string) er
 		Force:      true,                              // force etcd checks etc
 		RebootMode: machineapi.UpgradeRequest_DEFAULT, // DEFAULT or POWERCYCLE
 	}
-	resp, err := tc.MachineClient.Upgrade(ctx, upgradeRequest)
+	_, err := tc.MachineClient.Upgrade(ctx, upgradeRequest)
 	if err != nil {
-		return fmt.Errorf("error upgrading machine: %s", err)
+		return fmt.Errorf("error upgrading machine: %w", err)
 	}
-	// Parse the response
-	fmt.Printf("Upgrade response: %s\n", resp.Messages[0].String())
 	return nil
 }
 
@@ -168,7 +164,7 @@ func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.Tal
 			}
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf("no suitable install disk found on machine %s", tm.Name)
 }
 
 func (tc *TalosClient) GetServiceStatus(ctx context.Context, svcName string) (*string, error) {

@@ -9,10 +9,22 @@ spec:
     kind: TalosClusterAddonRelease
     listKind: TalosClusterAddonReleaseList
     plural: talosclusteraddonreleases
+    shortNames:
+    - tcar
     singular: talosclusteraddonrelease
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.clusterRef.name
+      name: Cluster
+      type: string
+    - jsonPath: .spec.helmSpec.chartName
+      name: Chart
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: TalosClusterAddonRelease is the Schema for the talosclusteraddonreleases

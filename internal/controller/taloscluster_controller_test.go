@@ -55,16 +55,18 @@ var _ = Describe("TalosCluster Controller", func() {
 			},
 			Spec: talosv1alpha1.TalosClusterSpec{
 				ControlPlane: &talosv1alpha1.TalosControlPlaneSpec{
-					Replicas:    3,
-					Version:     "v1.10.4",
-					KubeVersion: "v1.31.0",
-					Mode:        "cloud",
+					Replicas:       3,
+					Version:        "v1.10.4",
+					KubeVersion:    "v1.31.0",
+					Mode:           "cloud",
+					DeletionPolicy: "reset",
 				},
 				Worker: &talosv1alpha1.TalosWorkerSpec{
-					Replicas:    3,
-					Version:     "v1.10.4",
-					KubeVersion: "v1.31.0",
-					Mode:        "cloud",
+					Replicas:       3,
+					Version:        "v1.10.4",
+					KubeVersion:    "v1.31.0",
+					Mode:           "cloud",
+					DeletionPolicy: "reset",
 				},
 			},
 		}

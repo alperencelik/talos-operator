@@ -9,13 +9,25 @@ spec:
     kind: TalosClusterAddon
     listKind: TalosClusterAddonList
     plural: talosclusteraddons
+    shortNames:
+    - tca
     singular: talosclusteraddon
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.helmSpec.chartName
+      name: Chart
+      type: string
+    - jsonPath: .spec.helmSpec.version
+      name: Version
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: TalosClusterAddon is the Schema for the talosclusteraddons API
+        description: TalosClusterAddon is the Schema for the talosclusteraddons API.
         properties:
           apiVersion:
             description: |-

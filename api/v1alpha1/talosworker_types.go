@@ -21,28 +21,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// +kubebuilder:validation:XValidation:rule="!has(oldSelf.mode) || has(self.mode)", message="Mode is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.mode) || self.mode == oldSelf.mode", message="Mode is immutable"
 // +kubebuilder:validation:XValidation:rule="self.mode!='metal' || has(self.metalSpec)", message="MetalSpec is required when mode 'metal'"
 // +kubebuilder:validation:XValidation:rule="self.mode != 'container' || self.replicas >= 1",message="replicas must be at least 1 when mode is 'container'"
 
 // TalosWorkerSpec defines the desired state of TalosWorker.
 type TalosWorkerSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 
 	// version of Talos to use for the worker nodes -- e.g "v1.12.1"
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
-	Version string `json:"version,omitempty"`
+	// +kubebuilder:default="v1.12.1"
+	Version string `json:"version"`
 
 	// mode specifies the deployment mode for the worker nodes (container, metal, or cloud).
 	// TODO: Add support for cloud mode
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=container;metal;cloud
-	Mode string `json:"mode,omitempty"`
+	Mode string `json:"mode"`
 
 	// replicas is the number of worker machines to maintain. Only applies when mode is 'container'.
 	// +kubebuilder:validation:Optional
@@ -56,7 +52,7 @@ type TalosWorkerSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	// +kubebuilder:default="v1.35.0"
-	KubeVersion string `json:"kubeVersion,omitempty"`
+	KubeVersion string `json:"kubeVersion"`
 
 	// storageClassName is the name of the storage class to use for persistent volumes.
 	// +kubebuilder:validation:Optional
@@ -66,7 +62,6 @@ type TalosWorkerSpec struct {
 
 	// controlPlaneRef is a reference to the TalosControlPlane that this worker belongs to.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Format=objectreference
 	ControlPlaneRef corev1.LocalObjectReference `json:"controlPlaneRef"`
 
 	// configRef is a reference to a ConfigMap containing the Talos cluster configuration.
@@ -82,9 +77,6 @@ type TalosWorkerSpec struct {
 
 // TalosWorkerStatus defines the observed state of TalosWorker.
 type TalosWorkerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	// conditions represent the current state of the TalosWorker resource.
 	// +listType=map
 	// +listMapKey=type
@@ -100,6 +92,11 @@ type TalosWorkerStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=tw
+// +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
+// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.version`
+// +kubebuilder:printcolumn:name="Mode",type=string,JSONPath=`.spec.mode`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // TalosWorker is the Schema for the talosworkers API.
 type TalosWorker struct {

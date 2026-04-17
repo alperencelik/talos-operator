@@ -56,10 +56,11 @@ var _ = Describe("TalosEtcdBackup Controller", func() {
 				Namespace: namespace,
 			},
 			Spec: talosv1alpha1.TalosControlPlaneSpec{
-				Replicas:    1,
-				Version:     "v1.10.4",
-				KubeVersion: "v1.33.1",
-				Mode:        "cloud",
+				Replicas:       1,
+				Version:        "v1.10.4",
+				KubeVersion:    "v1.33.1",
+				Mode:           "cloud",
+				DeletionPolicy: "reset",
 			},
 		}
 		Expect(k8sClient.Create(ctx, cp)).To(Succeed())

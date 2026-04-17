@@ -79,7 +79,7 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// Finalizer
 	var finErr error
 	if tw.DeletionTimestamp.IsZero() {
-		finErr = r.handleFinalizer(ctx, tw)
+		finErr = r.handleFinalizer(ctx, &tw)
 		if finErr != nil {
 			logger.Error(finErr, "failed to handle finalizer for TalosWorker", "name", tw.Name)
 			r.Recorder.Event(&tw, corev1.EventTypeWarning, "FinalizerFailed", "Failed to handle finalizer for TalosWorker")
@@ -104,12 +104,12 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	tcp, err := r.GetControlPlaneRef(ctx, &tw)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			// If the TalosControlPlane is not found, we can requeue the reconciliation
 			logger.Error(err, "TalosControlPlane not found", "name", tw.Spec.ControlPlaneRef.Name)
 			r.Recorder.Eventf(&tw, corev1.EventTypeWarning, "ControlPlaneNotFound",
 				"TalosControlPlane %s not found in namespace %s", tw.Spec.ControlPlaneRef.Name, tw.Namespace)
-			return ctrl.Result{Requeue: true}, nil // Requeue to retry
+			return ctrl.Result{Requeue: true}, nil
 		}
+		return ctrl.Result{}, fmt.Errorf("failed to get TalosControlPlane ref for TalosWorker %s: %w", tw.Name, err)
 	}
 	if tcp.Status.SecretBundle == "" {
 		// If the TalosControlPlane does not have a secret bundle, we can requeue the reconciliation
@@ -546,12 +546,11 @@ func (r *TalosWorkerReconciler) SetConfig(ctx context.Context, tw *talosv1alpha1
 
 }
 
-func (r *TalosWorkerReconciler) handleFinalizer(ctx context.Context, tw talosv1alpha1.TalosWorker) error {
+func (r *TalosWorkerReconciler) handleFinalizer(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
 	logger := log.FromContext(ctx)
-	if !controllerutil.ContainsFinalizer(&tw, talosv1alpha1.TalosWorkerFinalizer) {
-		// Add the finalizer if it doesn't exist
-		controllerutil.AddFinalizer(&tw, talosv1alpha1.TalosWorkerFinalizer)
-		if err := r.Update(ctx, &tw); err != nil {
+	if !controllerutil.ContainsFinalizer(tw, talosv1alpha1.TalosWorkerFinalizer) {
+		controllerutil.AddFinalizer(tw, talosv1alpha1.TalosWorkerFinalizer)
+		if err := r.Update(ctx, tw); err != nil {
 			logger.Error(err, "failed to add finalizer to TalosWorker", "name", tw.Name)
 			return err
 		}

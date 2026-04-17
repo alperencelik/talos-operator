@@ -52,10 +52,11 @@ var _ = Describe("TalosControlPlane Controller", func() {
 				Namespace: namespace,
 			},
 			Spec: talosv1alpha1.TalosControlPlaneSpec{
-				Replicas:    3,
-				Version:     "v1.10.4",
-				KubeVersion: "v1.33.1",
-				Mode:        "cloud",
+				Replicas:       3,
+				Version:        "v1.10.4",
+				KubeVersion:    "v1.33.1",
+				Mode:           "cloud",
+				DeletionPolicy: "reset",
 			},
 		}
 	})

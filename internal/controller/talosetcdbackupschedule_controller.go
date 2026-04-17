@@ -55,7 +55,6 @@ func (r *TalosEtcdBackupScheduleReconciler) Reconcile(ctx context.Context, req c
 	if err := r.Get(ctx, req.NamespacedName, &schedule); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-
 	// Finalizer logic
 	var err error
 	if schedule.DeletionTimestamp.IsZero() {
@@ -204,7 +203,7 @@ func (r *TalosEtcdBackupScheduleReconciler) handleDelete(ctx context.Context, sc
 	// List all backups owned by this schedule
 	var backupList talosv1alpha1.TalosEtcdBackupList
 	if err := r.List(ctx, &backupList, client.InNamespace(schedule.Namespace), client.MatchingLabels{
-		"talos.alperen.cloud/backup-schedule": schedule.Name,
+		talosv1alpha1.TalosEtcdBackupScheduleLabelKey: schedule.Name,
 	}); err != nil {
 		return fmt.Errorf("failed to list backups: %w", err)
 	}
@@ -262,7 +261,7 @@ func (r *TalosEtcdBackupScheduleReconciler) cleanupOldBackups(ctx context.Contex
 	// List all backups owned by this schedule
 	var backupList talosv1alpha1.TalosEtcdBackupList
 	if err := r.List(ctx, &backupList, client.InNamespace(schedule.Namespace), client.MatchingLabels{
-		"talos.alperen.cloud/backup-schedule": schedule.Name,
+		talosv1alpha1.TalosEtcdBackupScheduleLabelKey: schedule.Name,
 	}); err != nil {
 		return fmt.Errorf("failed to list backups: %w", err)
 	}

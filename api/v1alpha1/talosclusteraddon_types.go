@@ -21,16 +21,8 @@ import (
 	capiaddons "sigs.k8s.io/cluster-api-addon-provider-helm/api/v1alpha1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// TalosClusterAddonSpec defines the desired state of TalosClusterAddon
+// TalosClusterAddonSpec defines the desired state of TalosClusterAddon.
 type TalosClusterAddonSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
-
 	// clusterSelector is a label selector that matches the TalosCluster resources
 	// to which this TalosClusterAddon should be applied.
 	// It allows the addon to be associated with specific clusters based on their labels.
@@ -97,8 +89,12 @@ type TalosClusterAddonStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=tca
+// +kubebuilder:printcolumn:name="Chart",type=string,JSONPath=`.spec.helmSpec.chartName`
+// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.helmSpec.version`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// TalosClusterAddon is the Schema for the talosclusteraddons API
+// TalosClusterAddon is the Schema for the talosclusteraddons API.
 type TalosClusterAddon struct {
 	metav1.TypeMeta `json:",inline"`
 

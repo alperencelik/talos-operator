@@ -22,30 +22,25 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// +kubebuilder:validation:XValidation:rule="!has(oldSelf.clusterDomain) || has(self.clusterDomain)", message="ClusterDomain is immutable"
-// +kubebuilder:validation:XValidation:rule="!has(oldSelf.mode) || has(self.mode)", message="Mode is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.clusterDomain) || self.clusterDomain == oldSelf.clusterDomain", message="ClusterDomain is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.mode) || self.mode == oldSelf.mode", message="Mode is immutable"
 // +kubebuilder:validation:XValidation:rule="self.mode != 'metal' || size(self.metalSpec.machines) > 0",message="Machines is required when mode is 'metal'"
 // +kubebuilder:validation:XValidation:rule="self.mode != 'container' || self.replicas >= 1",message="replicas must be at least 1 when mode is 'container'"
 
 // TalosControlPlaneSpec defines the desired state of TalosControlPlane.
 type TalosControlPlaneSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 
 	// version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	// +kubebuilder:default="v1.12.1"
-	Version string `json:"version,omitempty"`
+	Version string `json:"version"`
 
 	// mode specifies the deployment mode for the control plane (container, metal, or cloud).
 	// TODO: Add support for cloud mode
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=container;metal;cloud
-	Mode string `json:"mode,omitempty"`
+	Mode string `json:"mode"`
 
 	// replicas is the number of control-plane machines to maintain. Only applies when mode is 'container'.
 	// +kubebuilder:validation:Optional
@@ -67,7 +62,7 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	// +kubebuilder:default="v1.35.0"
-	KubeVersion string `json:"kubeVersion,omitempty"`
+	KubeVersion string `json:"kubeVersion"`
 
 	// clusterDomain is the domain for the Kubernetes cluster.
 	// +kubebuilder:validation:Optional
@@ -82,12 +77,16 @@ type TalosControlPlaneSpec struct {
 
 	// podCIDR is the list of CIDR ranges for pod IPs in the cluster.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Items=pattern=`^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$`
+	// +kubebuilder:validation:MaxItems=4
+	// +kubebuilder:validation:items:MaxLength=18
+	// +kubebuilder:validation:items:Pattern=`^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$`
 	PodCIDR []string `json:"podCIDR,omitempty"`
 
 	// serviceCIDR is the list of CIDR ranges for service IPs in the cluster.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Items=pattern=`^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$`
+	// +kubebuilder:validation:MaxItems=4
+	// +kubebuilder:validation:items:MaxLength=18
+	// +kubebuilder:validation:items:Pattern=`^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$`
 	ServiceCIDR []string `json:"serviceCIDR,omitempty"`
 
 	// configRef is a reference to a ConfigMap containing the Talos controlplane configuration.
@@ -172,9 +171,6 @@ type META struct {
 
 // TalosControlPlaneStatus defines the observed state of TalosControlPlane.
 type TalosControlPlaneStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	// state is the current state of the control plane.
 	State string `json:"state,omitempty"`
 	// conditions is a list of conditions for the Talos control plane.
@@ -191,12 +187,18 @@ type TalosControlPlaneStatus struct {
 	// imported is only valid when ReconcileMode is 'import' and indicates whether the Talos control plane has been imported.
 	Imported *bool `json:"imported,omitempty"`
 	// observedKubeVersion is the observed version of Kubernetes.
-	// +kubebuilder:validation:Optional
+	// +optional
 	ObservedKubeVersion string `json:"observedKubeVersion,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=tcp
+// +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
+// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.version`
+// +kubebuilder:printcolumn:name="KubeVersion",type=string,JSONPath=`.spec.kubeVersion`
+// +kubebuilder:printcolumn:name="Mode",type=string,JSONPath=`.spec.mode`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // TalosControlPlane is the Schema for the taloscontrolplanes API.
 type TalosControlPlane struct {

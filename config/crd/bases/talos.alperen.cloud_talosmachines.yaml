@@ -11,10 +11,25 @@ spec:
     kind: TalosMachine
     listKind: TalosMachineList
     plural: talosmachines
+    shortNames:
+    - tm
     singular: talosmachine
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .spec.version
+      name: Version
+      type: string
+    - jsonPath: .spec.endpoint
+      name: Endpoint
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: TalosMachine is the Schema for the talosmachines API.

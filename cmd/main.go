@@ -267,7 +267,7 @@ func upgradeK8s(kubeClient client.Client) error {
 		return fmt.Errorf("failed to get config for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 
-	talosClient, err := talos.NewClient(config, false)
+	talosClient, err := talos.NewClient(context.Background(), config, false)
 	if err != nil {
 		setupLog.Error(err, "unable to create talos client")
 		return fmt.Errorf("failed to create Talos client for TalosControlPlane %s: %w", tcp.Name, err)
