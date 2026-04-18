@@ -24,6 +24,8 @@ github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 h1:nCYfg
 github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0/go.mod h1:ucUjca2JtSZboY8IoUqyQyuuXvwbMBVwFOm0vdQPNhA=
 github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c h1:udKWzYgxTojEKWjV8V+WSxDXJ4NFATAsZjh8iIbsQIg=
 github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c/go.mod h1:xomTg63KZ2rFqZQzSB4Vz2SUXa1BpHTVz9L5PTmPC4E=
+github.com/Azure/operatortrace/operatortrace-go v0.5.0 h1:veCwQ2ILt/4dRXscwkgKoNQN3Z080ze8cYizVRQPxms=
+github.com/Azure/operatortrace/operatortrace-go v0.5.0/go.mod h1:kzCe/UPMGO5O1bpp9SEZmqJeEptT0GCDSvuDrJtXvEg=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJTmL004Abzc5wDB5VtZG2PJk5ndYDgVacGqfirKxjM=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1/go.mod h1:tCcJZ0uHAmvjsVYzEFivsRTN00oz5BEsRgQHu5JZ9WE=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 h1:XRzhVemXdgvJqCH0sFfrBUTnUJSBrBf7++ypk+twtRs=
@@ -545,8 +547,8 @@ go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.8.0 h1:CHXNXwfKWfzS65yrlB
 go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.8.0/go.mod h1:zKU4zUgKiaRxrdovSS2amdM5gOc59slmo/zJwGX+YBg=
 go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.32.0 h1:SZmDnHcgp3zwlPBS2JX2urGYe/jBKEIT6ZedHRUyCz8=
 go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.32.0/go.mod h1:fdWW0HtZJ7+jNpTKUR0GpMEDP69nR8YBJQxNiVCE3jk=
-go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.32.0 h1:cC2yDI3IQd0Udsux7Qmq8ToKAx1XCilTQECZ0KDZyTw=
-go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.32.0/go.mod h1:2PD5Ex6z8CFzDbTdOlwyNIUywRr1DN0ospafJM1wJ+s=
+go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.34.0 h1:jBpDk4HAUsrnVO1FsfCfCOTEc/MkInJmvfCHYLFiT80=
+go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.34.0/go.mod h1:H9LUIM1daaeZaz91vZcfeM0fejXPmgCYE8ZhzqfJuiU=
 go.opentelemetry.io/otel/log v0.8.0 h1:egZ8vV5atrUWUbnSsHn6vB8R21G2wrKqNiDt3iWertk=
 go.opentelemetry.io/otel/log v0.8.0/go.mod h1:M9qvDdUTRCopJcGRKg57+JSQ9LgLBrwwfC32epk5NX8=
 go.opentelemetry.io/otel/metric v1.37.0 h1:mvwbQS5m0tbmqML4NqK+e3aDiO02vsf/WgbsdpcPoZE=

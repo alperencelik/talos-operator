@@ -43,6 +43,7 @@ import (
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/internal/controller"
 	"github.com/alperencelik/talos-operator/pkg/talos"
+	"github.com/alperencelik/talos-operator/pkg/tracing"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -84,6 +85,8 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var enableTracing bool
+	var otlpEndpoint string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -95,6 +98,10 @@ func main() {
 		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", true,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.BoolVar(&enableTracing, "enable-tracing", false,
+		"Enable distributed tracing via OpenTelemetry and operatortrace.")
+	flag.StringVar(&otlpEndpoint, "otlp-endpoint", "localhost:4318",
+		"OTLP HTTP endpoint for trace export (used when --enable-tracing is set).")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -165,8 +172,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Resolve which client to use — tracing-wrapped or plain.
+	var k8sClient client.Client
+	if enableTracing {
+		tracingClient, shutdownTracer, err := tracing.Setup(context.Background(),
+			otlpEndpoint, mgr.GetClient(), mgr.GetAPIReader(), mgr.GetScheme())
+		if err != nil {
+			setupLog.Error(err, "unable to setup tracing")
+			os.Exit(1)
+		}
+		defer shutdownTracer()
+		k8sClient = tracingClient
+		setupLog.Info("tracing enabled", "otlp-endpoint", otlpEndpoint)
+	} else {
+		k8sClient = mgr.GetClient()
+	}
+
 	if err = (&controller.TalosClusterReconciler{
-		Client:   mgr.GetClient(),
+		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("taloscluster-controller"),
 	}).SetupWithManager(mgr); err != nil {
@@ -174,7 +197,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controller.TalosControlPlaneReconciler{
-		Client:   mgr.GetClient(),
+		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("taloscontrolplane-controller"),
 	}).SetupWithManager(mgr); err != nil {
@@ -182,7 +205,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controller.TalosWorkerReconciler{
-		Client:   mgr.GetClient(),
+		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("talosworker-controller"),
 	}).SetupWithManager(mgr); err != nil {
@@ -190,7 +213,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controller.TalosMachineReconciler{
-		Client:   mgr.GetClient(),
+		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("talosmachine-controller"),
 	}).SetupWithManager(mgr); err != nil {
@@ -198,21 +221,21 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (&controller.TalosEtcdBackupReconciler{
-		Client: mgr.GetClient(),
+		Client: k8sClient,
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosEtcdBackup")
 		os.Exit(1)
 	}
 	if err := (&controller.TalosEtcdBackupScheduleReconciler{
-		Client: mgr.GetClient(),
+		Client: k8sClient,
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosEtcdBackupSchedule")
 		os.Exit(1)
 	}
 	if err := (&controller.TalosClusterAddonReconciler{
-		Client:   mgr.GetClient(),
+		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("talosclusteraddon-controller"),
 	}).SetupWithManager(mgr); err != nil {
@@ -220,7 +243,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (&controller.TalosClusterAddonReleaseReconciler{
-		Client:   mgr.GetClient(),
+		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("talosclusteraddonrelease-controller"),
 	}).SetupWithManager(mgr); err != nil {
