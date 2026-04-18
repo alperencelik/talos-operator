@@ -16,11 +16,27 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
-env: [] 
+env: []
 
-featureFlags: 
-  enableMetaKey: true # This feature allows you to handle the meta key in the reconciliation logic but requires a custom Talos ISO image with the necessary changes. 
+featureFlags:
+  enableMetaKey: true # This feature allows you to handle the meta key in the reconciliation logic but requires a custom Talos ISO image with the necessary changes.
   # More information can be found here: https://github.com/siderolabs/talos/discussions/11648#discussioncomment-14253477
+
+# Prometheus metrics scraping configuration.
+metrics:
+  serviceMonitor:
+    # Create a ServiceMonitor targeting the operator metrics endpoint.
+    # Requires the Prometheus Operator CRDs to be installed in the cluster.
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+# Distributed tracing via OpenTelemetry + operatortrace.
+tracing:
+  enabled: false
+  # OTLP HTTP endpoint the operator exports spans to.
+  otlpEndpoint: "otel-collector.tracing.svc.cluster.local:4318"
 
 ui:
   enabled: true 
