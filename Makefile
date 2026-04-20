@@ -216,7 +216,7 @@ chart: manifests ## Copies and cleans CRDs for the Helm chart.
 custom-dashboard: ## Run the custom dashboard generator. For more information check out https://kubebuilder.io/plugins/available/grafana-v1-alpha
 	kubebuilder edit --plugins grafana.kubebuilder.io/v1-alpha
 
-.PHONY: build-ui 
+.PHONY: build-ui
 build-ui: ## Build the UI for the operator
 	@echo "--- Building UI"
 	@docker build -t talos-operator-ui:latest -f Dockerfile.ui .
@@ -231,6 +231,150 @@ push-ui: build-ui ## Push the UI for the operator
 run-ui: build-ui ## Run the UI for the operator
 	@echo "--- Running UI"
 	@docker run -p 8080:8080 -v ~/.kube/config:/root/.kube/config talos-operator-ui:latest
+
+##@ Dev Environment
+
+KIND_CLUSTER_NAME ?= talos-operator-dev
+KIND_CONFIG ?= hack/kind-config.yaml
+KIND_NODE_IMAGE ?= kindest/node:v1.34.0
+DEV_HELM_VALUES ?= hack/observability/dev-values.yaml
+
+# Images to pre-pull and cache for the dev environment
+DEV_IMAGES ?= \
+	docker.io/grafana/grafana:12.4.2 \
+	quay.io/kiwigrid/k8s-sidecar:2.5.4 \
+	quay.io/prometheus-operator/prometheus-operator:v0.89.0 \
+	quay.io/prometheus-operator/prometheus-config-reloader:v0.89.0 \
+	quay.io/prometheus/prometheus:v3.11.0 \
+	docker.io/otel/opentelemetry-collector-contrib:0.120.0 \
+	docker.io/grafana/tempo:2.7.2
+
+.PHONY: dev-cluster
+dev-cluster: ## Create Kind cluster for local development
+	@if kind get clusters 2>/dev/null | grep -q $(KIND_CLUSTER_NAME); then \
+		echo "Cluster $(KIND_CLUSTER_NAME) already exists"; \
+	else \
+		kind create cluster --name $(KIND_CLUSTER_NAME) --image $(KIND_NODE_IMAGE) --config $(KIND_CONFIG); \
+	fi
+	@echo "Pre-loading dev images into Kind..."
+	@for img in $(DEV_IMAGES); do \
+		$(CONTAINER_TOOL) pull $$img 2>/dev/null || true; \
+	done
+	@kind load docker-image $(DEV_IMAGES) --name $(KIND_CLUSTER_NAME) 2>/dev/null || true
+
+.PHONY: dev-cluster-delete
+dev-cluster-delete: ## Delete Kind development cluster
+	kind delete cluster --name $(KIND_CLUSTER_NAME)
+
+.PHONY: dev-observability
+dev-observability: ## Install Prometheus + Grafana observability stack
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
+	helm repo update
+	helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+		--namespace monitoring --create-namespace \
+		-f hack/observability/prometheus-values.yaml \
+		--wait --timeout 5m
+
+.PHONY: dev-tracing
+dev-tracing: ## Install OpenTelemetry Collector + Grafana Tempo for distributed tracing
+	@echo "Deploying Tempo..."
+	$(KUBECTL) apply -f hack/observability/tempo.yaml
+	$(KUBECTL) rollout status deployment/tempo -n tracing --timeout=3m
+	@echo "Deploying OpenTelemetry Collector..."
+	$(KUBECTL) apply -f hack/observability/otel-collector.yaml
+	$(KUBECTL) rollout status deployment/otel-collector -n tracing --timeout=3m
+	@echo "Tracing stack ready — view traces in Grafana Explore (Tempo datasource)"
+
+.PHONY: dev-grafana-dashboard
+dev-grafana-dashboard: ## Install Grafana dashboards (controller-runtime)
+	sed 's/$${DS_PROMETHEUS}/Prometheus/g' grafana/controller-runtime-metrics.json > /tmp/talos-operator-controller-runtime.json
+	$(KUBECTL) create configmap talos-operator-controller-runtime-dashboard \
+		--from-file=controller-runtime.json=/tmp/talos-operator-controller-runtime.json \
+		-n monitoring --dry-run=client -o yaml | \
+		$(KUBECTL) label --local -f - grafana_dashboard=1 -o yaml | \
+		$(KUBECTL) annotate --local -f - grafana_folder=TalosOperator -o yaml | \
+		$(KUBECTL) apply -f -
+
+.PHONY: docker-build-dev
+docker-build-dev: ## Build docker image without running tests (for dev/e2e use)
+	$(CONTAINER_TOOL) build -t ${IMG} .
+
+.PHONY: dev-deploy
+dev-deploy: docker-build-dev ## Build, load into Kind, and deploy operator with dev settings
+	kind load docker-image $(IMG) --name $(KIND_CLUSTER_NAME)
+	helm upgrade --install talos-operator deploy/talos-operator \
+		-f $(DEV_HELM_VALUES) \
+		--set image.repository=$(firstword $(subst :, ,$(IMG))) \
+		--set image.tag=$(lastword $(subst :, ,$(IMG))) \
+		--wait --timeout 3m
+
+.PHONY: dev-setup
+dev-setup: dev-cluster dev-observability dev-grafana-dashboard dev-tracing ## Full dev environment setup (cluster + observability + dashboards + tracing)
+	@echo ""
+	@echo "=== Dev environment is ready ==="
+	@echo "Grafana:    http://localhost:30300 (admin/admin)"
+	@echo "Prometheus: http://localhost:30900"
+	@echo "Traces:     Grafana > Explore > Tempo datasource"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  make dev-deploy    # Build and deploy operator"
+	@echo "  make test-e2e      # Run e2e tests"
+
+.PHONY: dev-all
+dev-all: dev-setup dev-deploy ## Full dev environment: cluster + observability + operator
+	@echo ""
+	@echo "================================================="
+	@echo "  Talos-Operator Dev Environment is fully running!"
+	@echo "================================================="
+	@echo ""
+	@echo "  Grafana:    http://localhost:30300 (admin/admin)"
+	@echo "  Prometheus: http://localhost:30900"
+	@echo "  Traces:     Grafana > Explore > Tempo datasource"
+	@echo ""
+	@echo "  Run 'make dev-status' to verify the stack."
+	@echo ""
+
+.PHONY: dev-status
+dev-status: ## Verify the dev environment stack is healthy
+	@echo "=== Kind Cluster ==="
+	@kind get clusters 2>/dev/null | grep -q $(KIND_CLUSTER_NAME) && echo "  ✓ Cluster $(KIND_CLUSTER_NAME) exists" || echo "  ✗ Cluster not found"
+	@echo ""
+	@echo "=== Operator ==="
+	@$(KUBECTL) get pods -l app.kubernetes.io/name=talos-operator -o wide 2>/dev/null || echo "  ✗ Operator not deployed"
+	@echo ""
+	@echo "=== Metrics Endpoint ==="
+	@$(KUBECTL) get servicemonitor -A 2>/dev/null | grep -i talos-operator && echo "  ✓ ServiceMonitor found" || echo "  ✗ No ServiceMonitor"
+	@echo ""
+	@echo "=== Observability Stack ==="
+	@$(KUBECTL) get pods -n monitoring -l app.kubernetes.io/name=grafana -o wide 2>/dev/null | head -5 || echo "  ✗ Grafana not running"
+	@$(KUBECTL) get pods -n monitoring -l app.kubernetes.io/name=prometheus -o wide 2>/dev/null | head -5 || echo "  ✗ Prometheus not running"
+	@echo ""
+	@echo "=== Grafana Dashboards ==="
+	@$(KUBECTL) get configmap -n monitoring -l grafana_dashboard=1 --no-headers 2>/dev/null || echo "  ✗ No dashboards installed"
+	@echo ""
+	@echo "=== Tracing (OTel Collector + Tempo) ==="
+	@$(KUBECTL) get pods -n tracing -l app=otel-collector -o wide 2>/dev/null | head -5 || echo "  ✗ OTel Collector not running"
+	@$(KUBECTL) get pods -n tracing -l app=tempo -o wide 2>/dev/null | head -5 || echo "  ✗ Tempo not running"
+	@echo ""
+	@echo "=== Access URLs ==="
+	@echo "  Grafana:    http://localhost:30300"
+	@echo "  Prometheus: http://localhost:30900"
+	@echo "  Traces:     Grafana > Explore > Tempo"
+
+.PHONY: dev-teardown
+dev-teardown: ## Tear down full dev environment
+	-kind delete cluster --name $(KIND_CLUSTER_NAME)
+
+##@ E2E Testing
+
+E2E_TIMEOUT ?= 30m
+GINKGO_TIMEOUT ?= 25m
+
+.PHONY: test-e2e-local
+test-e2e-local: dev-setup dev-deploy ## Full local e2e: setup, deploy, test, teardown
+	go test ./test/e2e/ -v -timeout $(E2E_TIMEOUT) -count=1 \
+		-ginkgo.v -ginkgo.timeout=$(GINKGO_TIMEOUT)
+	$(MAKE) dev-teardown
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary

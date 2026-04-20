@@ -1,0 +1,72 @@
+name: Update and Publish Helm Chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'deploy/talos-operator/**'
+
+jobs:
+  update-chart:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Talos Operator Repo
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          fetch-depth: 0
+
+      - name: Install yq
+        run: |
+          sudo wget https://github.com/mikefarah/yq/releases/download/v4.34.1/yq_linux_amd64 -O /usr/bin/yq
+          sudo chmod +x /usr/bin/yq
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get Chart Version
+        id: get_version
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(yq '.version' deploy/talos-operator/Chart.yaml)
+          echo "Current version: $CURRENT_VERSION"
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Checkout Helm Charts Repo
+        uses: actions/checkout@v3
+        with:
+          repository: alperencelik/helm-charts
+          token: ${{ secrets.RELEASE_TOKEN }}
+          path: helm-charts-repo
+
+      - name: Sync Chart to Helm Charts Repo
+        run: |
+          # Ensure target directory exists
+          mkdir -p helm-charts-repo/charts/talos-operator
+
+          # Remove old content to ensure clean sync (optional, but good for removing deleted files)
+          rm -rf helm-charts-repo/charts/talos-operator/*
+
+          # Copy new content
+          cp -R deploy/talos-operator/* helm-charts-repo/charts/talos-operator/
+
+      - name: Push to Helm Charts Repo
+        run: |
+          cd helm-charts-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .
+
+          # Check if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit in helm-charts repo"
+          else
+            VERSION="${{ steps.get_version.outputs.version }}"
+            git commit -m "feat: update talos-operator chart to version $VERSION"
+            git tag "talos-operator-$VERSION"
+            git push origin main --tags
+          fi
