@@ -23,6 +23,22 @@ featureFlags:
   # More information can be found here: https://github.com/siderolabs/talos/discussions/11648#discussioncomment-14253477
   enablePxeBootStack: true # This feature allows you to boot Talos using PXE by installing a DHCP+TFTP and Matchbox servers to send Talos images to clients.
 
+# Prometheus metrics scraping configuration.
+metrics:
+  serviceMonitor:
+    # Create a ServiceMonitor targeting the operator metrics endpoint.
+    # Requires the Prometheus Operator CRDs to be installed in the cluster.
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+# Distributed tracing via OpenTelemetry + operatortrace.
+tracing:
+  enabled: false
+  # OTLP HTTP endpoint the operator exports spans to.
+  otlpEndpoint: "otel-collector.tracing.svc.cluster.local:4318"
+
 ui:
   enabled: true
   image:
