@@ -1,0 +1,7 @@
+{{- if .Values.featureFlags.enablePxeBootStack }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matchbox-groups
+# Empty by default, populated by the operator
+{{- end }}

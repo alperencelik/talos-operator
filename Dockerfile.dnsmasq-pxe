@@ -1,0 +1,5 @@
+from docker.io/dockurr/dnsmasq
+
+run mkdir -p /var/lib/tftp
+
+run wget https://boot.ipxe.org/x86_64-efi/ipxe.efi -O /var/lib/tftp/ipxe.efi

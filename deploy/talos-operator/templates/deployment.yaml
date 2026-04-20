@@ -45,6 +45,8 @@ spec:
                   fieldPath: spec.serviceAccountName
             - name: ENABLE_META_KEY
               value: "{{ .Values.featureFlags.enableMetaKey | default "false" }}"
+            - name: ENABLE_PXE_BOOT_STACK
+              value: "{{ .Values.featureFlags.enablePxeBootStack | default "false" }}"
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -54,10 +56,14 @@ spec:
               protocol: TCP
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- with .Values.volumeMounts }}
           volumeMounts:
+            {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
+            {{- if .Values.featureFlags.enablePxeBootStack }}
+            - name: matchbox-assets-vol
+              mountPath: /matchbox-assets
+            {{- end }}
         {{- if .Values.ui.enabled }}
         - name: {{ .Chart.Name }}-ui
           securityContext:

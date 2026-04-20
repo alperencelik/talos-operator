@@ -6,24 +6,25 @@
 replicaCount: 1
 
 # This will install the CRDs for the Talos Operator.
-installCRDs: true 
+installCRDs: true
 
 # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
-  repository: alperencelik/talos-operator 
+  repository: "ghcr.io/antux18/talos-operator"
   # This sets the pull policy for images.
-  pullPolicy: Always 
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
-env: [] 
+env: []
 
-featureFlags: 
-  enableMetaKey: true # This feature allows you to handle the meta key in the reconciliation logic but requires a custom Talos ISO image with the necessary changes. 
+featureFlags:
+  enableMetaKey: true # This feature allows you to handle the meta key in the reconciliation logic but requires a custom Talos ISO image with the necessary changes.
   # More information can be found here: https://github.com/siderolabs/talos/discussions/11648#discussioncomment-14253477
+  enablePxeBootStack: true # This feature allows you to boot Talos using PXE by installing a DHCP+TFTP and Matchbox servers to send Talos images to clients.
 
 ui:
-  enabled: true 
+  enabled: true
   image:
     repository: alperencelik/talos-operator-ui
     pullPolicy: Always
@@ -43,6 +44,38 @@ ui:
           - path: /
             pathType: ImplementationSpecific
     tls: []
+
+pxeBootStack:
+  # dnsmasq is used as a DHCP+TFTP server for PXE boot
+  dnsmasq:
+    image:
+      repository: "ghcr.io/antux18/dnsmasq-pxe"
+      pullPolicy: Always
+      tag: "latest"
+    volumeMounts:
+      - name: dnsmasq-vol
+        mountPath: /etc/dnsmasq.conf
+        subPath: dnsmasq.conf
+    securityContext:
+      capabilities:
+        add:
+          - NET_ADMIN
+  # Matchbox is used as an HTTP server to deliver Talos images and optional kernel command line arguments to each machine depending on their MAC address
+  matchbox:
+    image:
+      repository: "quay.io/poseidon/matchbox"
+      pullPolicy: Always
+      tag: "latest"
+    args: ["-address=0.0.0.0:8080"]
+    # Assets persistent volume is used to store Talos boot images delivered by Matchbox
+    assetsPvPath: /mnt/talos-operator-matchbox-assets-pv
+    volumeMounts:
+      - name: matchbox-groups-vol
+        mountPath: /var/lib/matchbox/groups
+      - name: matchbox-profiles-vol
+        mountPath: /var/lib/matchbox/profiles
+      - name: matchbox-assets-vol
+        mountPath: /var/lib/matchbox/assets
 
 # This is for the secretes for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
@@ -124,12 +157,22 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   # targetMemoryUtilizationPercentage: 80
 
-# Additional volumes on the output Deployment definition.
-volumes: []
-# - name: foo
-#   secret:
-#     secretName: mysecret
-#     optional: false
+volumes:
+  - name: dnsmasq-vol
+    configMap:
+      name: dnsmasq-config
+      items:
+        - key: dnsmasq-config
+          path: dnsmasq.conf
+  - name: matchbox-groups-vol
+    configMap:
+      name: matchbox-groups
+  - name: matchbox-profiles-vol
+    configMap:
+      name: matchbox-profiles
+  - name: matchbox-assets-vol
+    persistentVolumeClaim:
+      claimName: matchbox-assets-pvc
 
 # Additional volumeMounts on the output Deployment definition.
 volumeMounts: []
@@ -148,7 +191,7 @@ extraObjects: []
   # - apiVersion: "external-secrets.io/v1beta1"
   #   kind: ExternalSecret
   #   metadata:
-  #     name: talos-secrets 
+  #     name: talos-secrets
   #   spec:
   #     secretStoreRef: secret-store
   #     target:

@@ -1,0 +1,9 @@
+{{- if .Values.featureFlags.enablePxeBootStack }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dnsmasq-config
+data:
+  # Empty by default, populated by the operator
+  dnsmasq-config: ""
+{{- end }}

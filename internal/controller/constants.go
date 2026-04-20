@@ -25,4 +25,7 @@ const (
 
 	// For tests
 	DefaultNamespace = "default"
+
+	// Talos boot images download URL
+	TalosBootImageBaseUrl = "https://github.com/siderolabs/talos/releases/download"
 )

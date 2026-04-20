@@ -1,0 +1,13 @@
+{{- if .Values.featureFlags.enablePxeBootStack }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: matchbox-assets-pvc
+spec:
+  volumeName: matchbox-assets-pv
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+{{- end }}
