@@ -26,6 +26,18 @@ const (
 	// For tests
 	DefaultNamespace = "default"
 
+	// PXE boot stack
+
+	// PXE boot stack enabled value
+	PxeBootStackEnabled = "true"
+
+	// PXE boot stack pods annotation
+	PxeBootStackPodsAnnotation      = "talos.alperen.cloud/deployment-name"
+	PxeBootStackPodsAnnotationValue = "pxe-boot"
+
+	// Matchbox assets directory mount point in the talos-operator container
+	MatchboxAssetsPath = "/matchbox-assets"
+
 	// Talos boot images download URL
 	TalosBootImageBaseUrl = "https://github.com/siderolabs/talos/releases/download"
 )

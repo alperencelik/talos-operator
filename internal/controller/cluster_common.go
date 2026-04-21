@@ -12,9 +12,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func updatePxeBootStackConfig(ctx context.Context, r *TalosClusterReconciler, namespace string, machines map[*talosv1alpha1.Machine]string) error {
+	logger := log.FromContext(ctx)
+
 	// Retrieving all TalosCluster resources
 	var tcList talosv1alpha1.TalosClusterList
 	if err := r.List(ctx, &tcList, client.InNamespace(namespace)); err != nil {
@@ -122,12 +125,16 @@ dhcp-boot=tag:if_%s,tag:ipxe,http://%s:8080/boot.ipxe`,
 			Namespace: namespace,
 		},
 	}
-	controllerutil.CreateOrUpdate(ctx, r.Client, dnsmasqConfigMap, func() error {
+	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, dnsmasqConfigMap, func() error {
 		dnsmasqConfigMap.Data = map[string]string{
 			"dnsmasq-config": dnsmasqConfigString,
 		}
 		return nil
 	})
+	if err != nil {
+		logger.Error(err, "failed to update PXE boot stack configuration", "operation", op, "namespace", namespace)
+		return err
+	}
 	// Matchbox groups
 	matchboxGroupsConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -135,10 +142,14 @@ dhcp-boot=tag:if_%s,tag:ipxe,http://%s:8080/boot.ipxe`,
 			Namespace: namespace,
 		},
 	}
-	controllerutil.CreateOrUpdate(ctx, r.Client, matchboxGroupsConfigMap, func() error {
+	op, err = controllerutil.CreateOrUpdate(ctx, r.Client, matchboxGroupsConfigMap, func() error {
 		matchboxGroupsConfigMap.Data = matchboxGroupsMap
 		return nil
 	})
+	if err != nil {
+		logger.Error(err, "failed to update PXE boot stack configuration", "operation", op, "namespace", namespace)
+		return err
+	}
 	// Matchbox profiles
 	matchboxProfilesConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -146,22 +157,26 @@ dhcp-boot=tag:if_%s,tag:ipxe,http://%s:8080/boot.ipxe`,
 			Namespace: namespace,
 		},
 	}
-	controllerutil.CreateOrUpdate(ctx, r.Client, matchboxProfilesConfigMap, func() error {
+	op, err = controllerutil.CreateOrUpdate(ctx, r.Client, matchboxProfilesConfigMap, func() error {
 		matchboxProfilesConfigMap.Data = matchboxProfilesMap
 		return nil
 	})
+	if err != nil {
+		logger.Error(err, "failed to update PXE boot stack configuration", "operation", op, "namespace", namespace)
+		return err
+	}
 
 	return nil
 }
 
-func downloadTalosBootImages(ctx context.Context, r *TalosClusterReconciler, namespace string, machines map[*talosv1alpha1.Machine]string) error {
+func downloadTalosBootImages(machines map[*talosv1alpha1.Machine]string) error {
 	// Parsing the machines array to determine every combination of Talos version + CPU architecture to take into account when downloading boot images
 	var downloadList = make(map[string]string) // Maps a download URL to a destination path
 	for m, version := range machines {
 		// Kernel
-		downloadList[fmt.Sprintf("%s/%s/vmlinuz-%s", TalosBootImageBaseUrl, version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("/matchbox-assets/vmlinuz-%s-%s", version, *m.PxeClientSpec.CpuArchitecture)
+		downloadList[fmt.Sprintf("%s/%s/vmlinuz-%s", TalosBootImageBaseUrl, version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/vmlinuz-%s-%s", MatchboxAssetsPath, version, *m.PxeClientSpec.CpuArchitecture)
 		// initramfs
-		downloadList[fmt.Sprintf("%s/%s/initramfs-%s.xz", TalosBootImageBaseUrl, version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("/matchbox-assets/initramfs-%s-%s.xz", version, *m.PxeClientSpec.CpuArchitecture)
+		downloadList[fmt.Sprintf("%s/%s/initramfs-%s.xz", TalosBootImageBaseUrl, version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/initramfs-%s-%s.xz", MatchboxAssetsPath, version, *m.PxeClientSpec.CpuArchitecture)
 	}
 
 	// Downloading files
@@ -180,14 +195,14 @@ func downloadFile(url string, path string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck
 
 	// Download file
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	// Write downloaded file
 	if resp.StatusCode == 200 {

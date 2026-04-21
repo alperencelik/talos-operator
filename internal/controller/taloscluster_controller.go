@@ -64,7 +64,7 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
 	}
 	// PXE boot stack
-	if os.Getenv("ENABLE_PXE_BOOT_STACK") == "true" {
+	if os.Getenv("ENABLE_PXE_BOOT_STACK") == PxeBootStackEnabled {
 		if err := r.handlePxeBootStack(ctx, tc); err != nil {
 			logger.Error(err, "failed to handle PXE boot stack for TalosCluster", "name", tc.Name)
 			return ctrl.Result{}, err
@@ -310,12 +310,12 @@ func (r *TalosClusterReconciler) handlePxeBootStack(ctx context.Context, tc talo
 		return err
 	}
 	// Download Talos boot images to Matchbox assets directory
-	if err := downloadTalosBootImages(ctx, r, tc.Namespace, machines); err != nil {
+	if err := downloadTalosBootImages(machines); err != nil {
 		return err
 	}
 	// Retrieve PXE boot stack associated pods
 	var podList corev1.PodList
-	if err := r.List(ctx, &podList, client.InNamespace(tc.Namespace), client.MatchingLabels{"talos.alperen.cloud/deployment-name": "pxe-boot"}); err != nil {
+	if err := r.List(ctx, &podList, client.InNamespace(tc.Namespace), client.MatchingLabels{PxeBootStackPodsAnnotation: PxeBootStackPodsAnnotationValue}); err != nil {
 		return err
 	}
 	// Restart pods
@@ -373,7 +373,7 @@ func (r *TalosClusterReconciler) handleDelete(ctx context.Context, tc talosv1alp
 		return ctrl.Result{}, err
 	}
 	// Remove TalosCluster from PXE boot stack configuration
-	if os.Getenv("ENABLE_PXE_BOOT_STACK") == "true" {
+	if os.Getenv("ENABLE_PXE_BOOT_STACK") == PxeBootStackEnabled {
 		if err := r.handlePxeBootStack(ctx, tc); err != nil {
 			logger.Error(err, "failed to handle PXE boot stack during TalosCluster deletion", "name", tc.Name)
 			return ctrl.Result{}, err
