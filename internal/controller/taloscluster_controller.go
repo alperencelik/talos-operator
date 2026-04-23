@@ -334,8 +334,8 @@ func (r *TalosClusterReconciler) handlePxeBootStack(ctx context.Context, tc talo
 		return err
 	}
 
-	// Download Talos boot images to Matchbox assets directory
-	if err := downloadTalosBootImages(clusters); err != nil {
+	// Download iPXE and Talos boot images to TFTP and Matchbox assets directory
+	if err := downloadBootImages(clusters); err != nil {
 		return err
 	}
 

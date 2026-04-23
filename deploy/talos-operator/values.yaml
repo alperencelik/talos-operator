@@ -64,15 +64,19 @@ ui:
 pxeBootStack:
   # URL to download Talos boot images
   talosBootImagesBaseUrl: "https://github.com/siderolabs/talos/releases/download"
+  # URL to download iPXE
+  ipxeBaseUrl: "https://boot.ipxe.org"
   # dnsmasq is used as a DHCP+TFTP server for PXE boot
   dnsmasq:
     image:
-      repository: "ghcr.io/antux18/dnsmasq-pxe"
+      repository: dockurr/dnsmasq
       pullPolicy: Always
       tag: "latest"
     volumeMounts:
       - name: dnsmasq-vol
         mountPath: /etc/dnsmasq.d
+      - name: tftp-vol
+        mountPath: /var/lib/tftp
   # Matchbox is used as an HTTP server to deliver Talos images and optional kernel command line arguments to each machine depending on their MAC address
   matchbox:
     image:
@@ -169,6 +173,9 @@ volumes:
   - name: dnsmasq-vol
     emptyDir:
       sizeLimit: 1Mi
+  - name: tftp-vol
+    emptyDir:
+      sizeLimit: 2Mi
   - name: matchbox-vol
     emptyDir:
       sizeLimit: 10Gi

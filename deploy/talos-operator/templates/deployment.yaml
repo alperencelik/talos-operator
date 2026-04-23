@@ -59,6 +59,8 @@ spec:
               value: "{{ .Values.pxeBootStack.matchbox.port }}"
             - name: TALOS_IMAGES_BASE_URL
               value: "{{ .Values.pxeBootStack.talosBootImagesBaseUrl }}"
+            - name: IPXE_BASE_URL
+              value: "{{ .Values.pxeBootStack.ipxeBaseUrl }}"
             {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}

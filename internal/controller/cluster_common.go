@@ -170,7 +170,7 @@ func generateConfiguration(tmplString string, destPath string, data any) error {
 	return nil
 }
 
-func downloadTalosBootImages(clusters []Cluster) error {
+func downloadBootImages(clusters []Cluster) error {
 	// Determining every combination of Talos version + CPU architecture to take into account when downloading boot images
 	var downloadList = make(map[string]string) // Maps a download URL to a destination path
 	for _, c := range clusters {
@@ -187,6 +187,20 @@ func downloadTalosBootImages(clusters []Cluster) error {
 			)] = fmt.Sprintf("%s/%s/initramfs-%s-%s.xz",
 				MatchboxConfigPath, MatchboxAssetsDir, m.TalosVersion, m.CpuArchitecture,
 			)
+			// iPXE
+			var ipxeArch = ""
+			var ipxeFile = ""
+			switch m.CpuArchitecture {
+			case "amd64":
+				ipxeArch = IpxeEfiX8664Arch
+				ipxeFile = IpxeEfiX8664File
+			case "arm64":
+				ipxeArch = IpxeEfiArm64Arch
+				ipxeFile = IpxeEfiArm64File
+			}
+			downloadList[fmt.Sprintf("%s/%s/%s",
+				os.Getenv("IPXE_BASE_URL"), ipxeArch, IpxeDownloadFile,
+			)] = fmt.Sprintf("%s/%s", TftpDir, ipxeFile)
 		}
 	}
 
