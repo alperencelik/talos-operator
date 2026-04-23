@@ -139,9 +139,9 @@ func downloadTalosBootImages(machines map[*talosv1alpha1.Machine]string) error {
 	var downloadList = make(map[string]string) // Maps a download URL to a destination path
 	for m, version := range machines {
 		// Kernel
-		downloadList[fmt.Sprintf("%s/%s/vmlinuz-%s", TalosBootImageBaseUrl, version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/%s/vmlinuz-%s-%s", MatchboxConfigPath, MatchboxAssetsDir, version, *m.PxeClientSpec.CpuArchitecture)
+		downloadList[fmt.Sprintf("%s/%s/vmlinuz-%s", os.Getenv("TALOS_IMAGES_BASE_URL"), version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/%s/vmlinuz-%s-%s", MatchboxConfigPath, MatchboxAssetsDir, version, *m.PxeClientSpec.CpuArchitecture)
 		// initramfs
-		downloadList[fmt.Sprintf("%s/%s/initramfs-%s.xz", TalosBootImageBaseUrl, version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/%s/initramfs-%s-%s.xz", MatchboxConfigPath, MatchboxAssetsDir, version, *m.PxeClientSpec.CpuArchitecture)
+		downloadList[fmt.Sprintf("%s/%s/initramfs-%s.xz", os.Getenv("TALOS_IMAGES_BASE_URL"), version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/%s/initramfs-%s-%s.xz", MatchboxConfigPath, MatchboxAssetsDir, version, *m.PxeClientSpec.CpuArchitecture)
 	}
 
 	// Downloading files if they do not exist yet

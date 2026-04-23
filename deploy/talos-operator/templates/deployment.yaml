@@ -57,6 +57,8 @@ spec:
             {{- if .Values.featureFlags.enablePxeBootStack }}
             - name: MATCHBOX_PORT
               value: "{{ .Values.pxeBootStack.matchbox.port }}"
+            - name: TALOS_IMAGES_BASE_URL
+              value: "{{ .Values.pxeBootStack.talosBootImagesBaseUrl }}"
             {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}

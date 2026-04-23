@@ -62,6 +62,8 @@ ui:
     tls: []
 
 pxeBootStack:
+  # URL to download Talos boot images
+  talosBootImagesBaseUrl: "https://github.com/siderolabs/talos/releases/download"
   # dnsmasq is used as a DHCP+TFTP server for PXE boot
   dnsmasq:
     image:

@@ -63,7 +63,4 @@ dhcp-userclass=set:ipxe,iPXE`
 	MatchboxAssetsDir   = "assets"
 	MatchboxGroupsDir   = "groups"
 	MatchboxProfilesDir = "profiles"
-
-	// Talos boot images download URL
-	TalosBootImageBaseUrl = "https://github.com/siderolabs/talos/releases/download"
 )
