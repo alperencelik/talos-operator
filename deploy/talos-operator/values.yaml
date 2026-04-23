@@ -70,28 +70,18 @@ pxeBootStack:
       tag: "latest"
     volumeMounts:
       - name: dnsmasq-vol
-        mountPath: /etc/dnsmasq.conf
-        subPath: dnsmasq.conf
-    securityContext:
-      capabilities:
-        add:
-          - NET_ADMIN
+        mountPath: /etc/dnsmasq.d
   # Matchbox is used as an HTTP server to deliver Talos images and optional kernel command line arguments to each machine depending on their MAC address
   matchbox:
     image:
       repository: "quay.io/poseidon/matchbox"
       pullPolicy: Always
       tag: "latest"
-    args: ["-address=0.0.0.0:8080"]
-    # Assets persistent volume is used to store Talos boot images delivered by Matchbox
-    assetsPvPath: /mnt/talos-operator-matchbox-assets-pv
+    port: 8000
+    args: ["-address=0.0.0.0:8000"]
     volumeMounts:
-      - name: matchbox-groups-vol
-        mountPath: /var/lib/matchbox/groups
-      - name: matchbox-profiles-vol
-        mountPath: /var/lib/matchbox/profiles
-      - name: matchbox-assets-vol
-        mountPath: /var/lib/matchbox/assets
+      - name: matchbox-vol
+        mountPath: /var/lib/matchbox
 
 # This is for the secretes for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
@@ -118,8 +108,8 @@ podAnnotations: {}
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {}
 
-podSecurityContext:
-  runAsUser: 0
+podSecurityContext: {}
+  # fsGroup: 2000
 
 securityContext: {}
   # capabilities:
@@ -175,20 +165,11 @@ autoscaling:
 
 volumes:
   - name: dnsmasq-vol
-    configMap:
-      name: dnsmasq-config
-      items:
-        - key: dnsmasq-config
-          path: dnsmasq.conf
-  - name: matchbox-groups-vol
-    configMap:
-      name: matchbox-groups
-  - name: matchbox-profiles-vol
-    configMap:
-      name: matchbox-profiles
-  - name: matchbox-assets-vol
-    persistentVolumeClaim:
-      claimName: matchbox-assets-pvc
+    emptyDir:
+      sizeLimit: 1Mi
+  - name: matchbox-vol
+    emptyDir:
+      sizeLimit: 10Gi
 
 # Additional volumeMounts on the output Deployment definition.
 volumeMounts: []

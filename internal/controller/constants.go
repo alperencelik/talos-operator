@@ -31,12 +31,38 @@ const (
 	// PXE boot stack enabled value
 	PxeBootStackEnabled = "true"
 
-	// PXE boot stack pods annotation
-	PxeBootStackPodsAnnotation      = "talos.alperen.cloud/deployment-name"
-	PxeBootStackPodsAnnotationValue = "pxe-boot"
+	// proc related paths
+	ProcPath        = "/proc"
+	ProcCmdlineFile = "cmdline"
+	DnsmasqCmdline  = "/sbin/tini\u0000--\u0000/usr/bin/dnsmasq.sh\u0000"
 
-	// Matchbox assets directory mount point in the talos-operator container
-	MatchboxAssetsPath = "/matchbox-assets"
+	// dnsmasq configuration directory mount point in the talos-operator container
+	DnsmasqConfigPath = "/etc/dnsmasq.d"
+	// dnsmasq configuration file name
+	DnsmasqConfigFile = "dnsmasq.conf"
+	// Base dnsmasq configuration that disables DNS, enables TFTP, sets PXE boot file name and tags iPXE clients
+	BaseDnsmasqConfig = `bind-interfaces
+
+# Disable DNS
+port=0
+
+# TFTP server:
+enable-tftp
+tftp-root=/var/lib/tftp
+
+# UEFI iPXE boot file:
+dhcp-match=set:efi,option:client-arch,7
+dhcp-boot=tag:efi,ipxe.efi
+
+# Tagging iPXE clients:
+dhcp-userclass=set:ipxe,iPXE`
+
+	// Matchbox configuration directory mount point in the talos-operator container
+	MatchboxConfigPath = "/var/lib/matchbox"
+	// Matchbox configuration subdirectories
+	MatchboxAssetsDir   = "assets"
+	MatchboxGroupsDir   = "groups"
+	MatchboxProfilesDir = "profiles"
 
 	// Talos boot images download URL
 	TalosBootImageBaseUrl = "https://github.com/siderolabs/talos/releases/download"

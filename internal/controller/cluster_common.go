@@ -1,55 +1,51 @@
 package controller
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path"
+	"path/filepath"
+	"strconv"
+	"syscall"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func updatePxeBootStackConfig(ctx context.Context, r *TalosClusterReconciler, namespace string, machines map[*talosv1alpha1.Machine]string) error {
-	logger := log.FromContext(ctx)
-
-	// Retrieving all TalosCluster resources
-	var tcList talosv1alpha1.TalosClusterList
-	if err := r.List(ctx, &tcList, client.InNamespace(namespace)); err != nil {
-		return err
+func updatePxeBootStackConfig(tcList talosv1alpha1.TalosClusterList, machines map[*talosv1alpha1.Machine]string) error {
+	// Cleaning up previous configuration
+	// Matchbox
+	for _, dir := range []string{MatchboxGroupsDir, MatchboxProfilesDir} {
+		dirPath := path.Join(MatchboxConfigPath, dir)
+		files, err := os.ReadDir(dirPath)
+		if err != nil {
+			return err
+		}
+		for _, f := range files {
+			if err := os.Remove(path.Join(dirPath, f.Name())); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Generating dnsmasq and Matchbox configurations
-	// Base dnsmasq configuration : enable TFTP, set PXE boot file name and tag iPXE clients
-	var dnsmasqConfigString = `bind-interfaces
-
-# TFTP server:
-enable-tftp
-tftp-root=/var/lib/tftp
-
-# UEFI iPXE boot file:
-dhcp-match=set:efi,option:client-arch,7
-dhcp-boot=tag:efi,ipxe.efi
-
-# Tagging iPXE clients:
-dhcp-userclass=set:ipxe,iPXE`
+	// Base dnsmasq configuration
+	var dnsmasqConfigString = BaseDnsmasqConfig
+	// These variables map a file name with its content
 	var matchboxGroupsMap = make(map[string]string)
 	var matchboxProfilesMap = make(map[string]string)
 	for _, tc := range tcList.Items {
 		if tc.Spec.PxeServerSpec != nil {
-			// Global cluster config : tag hosts depending on the interface receiving the request, enable static IP assignment set iPXE boot file name
+			// Global cluster config : tag hosts depending on the interface receiving the request, enable static IP assignment and set iPXE boot file name
 			dnsmasqConfigString = fmt.Sprintf(`%s
 
 # %s
 tag-if=set:if_%s,tag:%s
 dhcp-range=tag:if_%s,%s,static
-dhcp-boot=tag:if_%s,tag:ipxe,http://%s:8080/boot.ipxe`,
-				dnsmasqConfigString, tc.Name, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Address, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Address,
+dhcp-boot=tag:if_%s,tag:ipxe,http://%s:%s/boot.ipxe`,
+				dnsmasqConfigString, tc.Name, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Address, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Address, os.Getenv("MATCHBOX_PORT"),
 			)
 
 			// Machines specific config
@@ -117,53 +113,22 @@ dhcp-boot=tag:if_%s,tag:ipxe,http://%s:8080/boot.ipxe`,
 		}
 	}
 
-	// Creating ConfigMaps
+	// Saving configs to files
 	// dnsmasq
-	dnsmasqConfigMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "dnsmasq-config",
-			Namespace: namespace,
-		},
-	}
-	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, dnsmasqConfigMap, func() error {
-		dnsmasqConfigMap.Data = map[string]string{
-			"dnsmasq-config": dnsmasqConfigString,
-		}
-		return nil
-	})
-	if err != nil {
-		logger.Error(err, "failed to update PXE boot stack configuration", "operation", op, "namespace", namespace)
+	if err := os.WriteFile(path.Join(DnsmasqConfigPath, DnsmasqConfigFile), []byte(dnsmasqConfigString), os.ModePerm); err != nil {
 		return err
 	}
 	// Matchbox groups
-	matchboxGroupsConfigMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "matchbox-groups",
-			Namespace: namespace,
-		},
-	}
-	op, err = controllerutil.CreateOrUpdate(ctx, r.Client, matchboxGroupsConfigMap, func() error {
-		matchboxGroupsConfigMap.Data = matchboxGroupsMap
-		return nil
-	})
-	if err != nil {
-		logger.Error(err, "failed to update PXE boot stack configuration", "operation", op, "namespace", namespace)
-		return err
+	for file, content := range matchboxGroupsMap {
+		if err := os.WriteFile(path.Join(MatchboxConfigPath, MatchboxGroupsDir, file), []byte(content), os.ModePerm); err != nil {
+			return err
+		}
 	}
 	// Matchbox profiles
-	matchboxProfilesConfigMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "matchbox-profiles",
-			Namespace: namespace,
-		},
-	}
-	op, err = controllerutil.CreateOrUpdate(ctx, r.Client, matchboxProfilesConfigMap, func() error {
-		matchboxProfilesConfigMap.Data = matchboxProfilesMap
-		return nil
-	})
-	if err != nil {
-		logger.Error(err, "failed to update PXE boot stack configuration", "operation", op, "namespace", namespace)
-		return err
+	for file, content := range matchboxProfilesMap {
+		if err := os.WriteFile(path.Join(MatchboxConfigPath, MatchboxProfilesDir, file), []byte(content), os.ModePerm); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -174,15 +139,17 @@ func downloadTalosBootImages(machines map[*talosv1alpha1.Machine]string) error {
 	var downloadList = make(map[string]string) // Maps a download URL to a destination path
 	for m, version := range machines {
 		// Kernel
-		downloadList[fmt.Sprintf("%s/%s/vmlinuz-%s", TalosBootImageBaseUrl, version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/vmlinuz-%s-%s", MatchboxAssetsPath, version, *m.PxeClientSpec.CpuArchitecture)
+		downloadList[fmt.Sprintf("%s/%s/vmlinuz-%s", TalosBootImageBaseUrl, version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/%s/vmlinuz-%s-%s", MatchboxConfigPath, MatchboxAssetsDir, version, *m.PxeClientSpec.CpuArchitecture)
 		// initramfs
-		downloadList[fmt.Sprintf("%s/%s/initramfs-%s.xz", TalosBootImageBaseUrl, version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/initramfs-%s-%s.xz", MatchboxAssetsPath, version, *m.PxeClientSpec.CpuArchitecture)
+		downloadList[fmt.Sprintf("%s/%s/initramfs-%s.xz", TalosBootImageBaseUrl, version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/%s/initramfs-%s-%s.xz", MatchboxConfigPath, MatchboxAssetsDir, version, *m.PxeClientSpec.CpuArchitecture)
 	}
 
-	// Downloading files
+	// Downloading files if they do not exist yet
 	for url, path := range downloadList {
-		if err := downloadFile(url, path); err != nil {
-			return err
+		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+			if err := downloadFile(url, path); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -214,4 +181,43 @@ func downloadFile(url string, path string) error {
 	}
 
 	return nil
+}
+
+func restartPxeBootStack() error {
+	// Restart dnsmasq
+	// Retrieving PID of process
+	var pid = -1
+	procs, err := os.ReadDir(ProcPath)
+	if err != nil {
+		return err
+	}
+	for _, proc := range procs {
+		currentPid, err := strconv.Atoi(proc.Name())
+		// If there is an error, then it is not a PID
+		if err == nil {
+			cmdlinePath := filepath.Join(ProcPath, proc.Name(), ProcCmdlineFile)
+			content, err := os.ReadFile(cmdlinePath)
+			if err != nil {
+				return err
+			} else {
+				if string(content) == DnsmasqCmdline {
+					pid = currentPid
+				}
+			}
+		}
+	}
+	if pid != -1 {
+		// Retrieving process object from PID
+		p, err := os.FindProcess(pid)
+		if err != nil {
+			return err
+		}
+		// Sending SIGTERM to restart dnsmasq
+		if err := p.Signal(syscall.SIGTERM); err != nil {
+			return err
+		}
+		return nil
+	} else {
+		return fmt.Errorf("could not find dnsmasq process")
+	}
 }
