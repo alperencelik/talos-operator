@@ -1,0 +1,17 @@
+{
+	"id": "{{ .Id }}",
+	"name": "{{ .Id }}",
+	"boot": {
+		"kernel": "/assets/vmlinuz-{{ .TalosVersion }}-{{ .CpuArchitecture }}",
+		"initrd": ["/assets/initramfs-{{ .TalosVersion }}-{{ .CpuArchitecture }}.xz"],
+		"args": [
+			"initrd=initramfs.xz",
+			"slab_nomerge",
+			"pti=on",
+			"console=tty0",
+			"printk.devkmsg=on",
+			"talos.platform=metal",
+			"{{ .KernelCmdlineArgs }}"
+		]
+	}
+}

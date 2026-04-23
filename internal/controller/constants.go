@@ -36,26 +36,10 @@ const (
 	ProcCmdlineFile = "cmdline"
 	DnsmasqCmdline  = "/sbin/tini\u0000--\u0000/usr/bin/dnsmasq.sh\u0000"
 
-	// dnsmasq configuration directory mount point in the talos-operator container
-	DnsmasqConfigPath = "/etc/dnsmasq.d"
-	// dnsmasq configuration file name
-	DnsmasqConfigFile = "dnsmasq.conf"
-	// Base dnsmasq configuration that disables DNS, enables TFTP, sets PXE boot file name and tags iPXE clients
-	BaseDnsmasqConfig = `bind-interfaces
-
-# Disable DNS
-port=0
-
-# TFTP server:
-enable-tftp
-tftp-root=/var/lib/tftp
-
-# UEFI iPXE boot file:
-dhcp-match=set:efi,option:client-arch,7
-dhcp-boot=tag:efi,ipxe.efi
-
-# Tagging iPXE clients:
-dhcp-userclass=set:ipxe,iPXE`
+	// dnsmasq configuration path
+	DnsmasqConfigPath = "/etc/dnsmasq.d/dnsmasq.conf"
+	// Default dnsmasq configuration that disables DNS
+	DefaultDnsmasqConfig = "port=0"
 
 	// Matchbox configuration directory mount point in the talos-operator container
 	MatchboxConfigPath = "/var/lib/matchbox"

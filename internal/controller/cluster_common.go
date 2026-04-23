@@ -1,8 +1,10 @@
 package controller
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"os"
@@ -14,9 +16,102 @@ import (
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 )
 
-func updatePxeBootStackConfig(tcList talosv1alpha1.TalosClusterList, machines map[*talosv1alpha1.Machine]string) error {
-	// Cleaning up previous configuration
-	// Matchbox
+// Represents a Talos machine's PXE specifications
+type Machine struct {
+	Id                string
+	MacAddress        string
+	IpAddress         string
+	TalosVersion      string
+	CpuArchitecture   string
+	KernelCmdlineArgs string
+}
+
+// Represents a Talos cluster's PXE specifications
+type Cluster struct {
+	Name         string
+	PxeInterface string
+	PxeIpAddress string
+	MatchboxPort string
+	Machines     []Machine
+}
+
+// Loading configuration templates
+//
+//go:embed templates/dnsmasq-config.conf
+var dnsmasqConfigTmpl string
+
+//go:embed templates/matchbox-group.json
+var matchboxGroupTmpl string
+
+//go:embed templates/matchbox-profile.json
+var matchboxProfileTmpl string
+
+func getClustersPxeSpecs(tcList talosv1alpha1.TalosClusterList) []Cluster {
+	var clusters []Cluster
+	for i, tc := range tcList.Items {
+		if tc.Spec.PxeServerSpec != nil {
+			// Creating a structure for this cluster
+			clusters = append(clusters, Cluster{
+				tc.Name,
+				*tc.Spec.PxeServerSpec.Interface,
+				*tc.Spec.PxeServerSpec.Address,
+				os.Getenv("MATCHBOX_PORT"),
+				make([]Machine, 0),
+			})
+			// Adding machines in the cluster's structure
+			var machineIndex = 0
+			// Control plane machines
+			if tc.Spec.ControlPlane != nil && tc.Spec.ControlPlane.Mode == TalosModeMetal {
+				for _, m := range tc.Spec.ControlPlane.MetalSpec.Machines {
+					if m.PxeClientSpec != nil && m.Address != nil {
+						var kernelCmdline string
+						if m.PxeClientSpec.KernelCmdlineArgs != nil {
+							kernelCmdline = *m.PxeClientSpec.KernelCmdlineArgs
+						} else {
+							kernelCmdline = ""
+						}
+						clusters[i].Machines = append(clusters[i].Machines, Machine{
+							fmt.Sprintf("%s-%d", tc.Name, machineIndex),
+							*m.PxeClientSpec.MacAddress,
+							*m.Address,
+							tc.Spec.ControlPlane.Version,
+							*m.PxeClientSpec.CpuArchitecture,
+							kernelCmdline,
+						})
+						machineIndex++
+					}
+				}
+			}
+			// Worker machines
+			if tc.Spec.Worker != nil && tc.Spec.Worker.Mode == TalosModeMetal {
+				for _, m := range tc.Spec.Worker.MetalSpec.Machines {
+					if m.PxeClientSpec != nil && m.Address != nil {
+						var kernelCmdline string
+						if m.PxeClientSpec.KernelCmdlineArgs != nil {
+							kernelCmdline = *m.PxeClientSpec.KernelCmdlineArgs
+						} else {
+							kernelCmdline = ""
+						}
+						clusters[i].Machines = append(clusters[i].Machines, Machine{
+							fmt.Sprintf("%s-%d", tc.Name, machineIndex),
+							*m.PxeClientSpec.MacAddress,
+							*m.Address,
+							tc.Spec.Worker.Version,
+							*m.PxeClientSpec.CpuArchitecture,
+							kernelCmdline,
+						})
+						machineIndex++
+					}
+				}
+			}
+		}
+	}
+
+	return clusters
+}
+
+func updatePxeBootStackConfig(clusters []Cluster) error {
+	// Cleaning up previous Matchbox configuration
 	for _, dir := range []string{MatchboxGroupsDir, MatchboxProfilesDir} {
 		dirPath := path.Join(MatchboxConfigPath, dir)
 		files, err := os.ReadDir(dirPath)
@@ -30,118 +125,69 @@ func updatePxeBootStackConfig(tcList talosv1alpha1.TalosClusterList, machines ma
 		}
 	}
 
-	// Generating dnsmasq and Matchbox configurations
-	// Base dnsmasq configuration
-	var dnsmasqConfigString = BaseDnsmasqConfig
-	// These variables map a file name with its content
-	var matchboxGroupsMap = make(map[string]string)
-	var matchboxProfilesMap = make(map[string]string)
-	for _, tc := range tcList.Items {
-		if tc.Spec.PxeServerSpec != nil {
-			// Global cluster config : tag hosts depending on the interface receiving the request, enable static IP assignment and set iPXE boot file name
-			dnsmasqConfigString = fmt.Sprintf(`%s
-
-# %s
-tag-if=set:if_%s,tag:%s
-dhcp-range=tag:if_%s,%s,static
-dhcp-boot=tag:if_%s,tag:ipxe,http://%s:%s/boot.ipxe`,
-				dnsmasqConfigString, tc.Name, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Address, *tc.Spec.PxeServerSpec.Interface, *tc.Spec.PxeServerSpec.Address, os.Getenv("MATCHBOX_PORT"),
-			)
-
-			// Machines specific config
-			// Combining control plane and worker machines in a single array and mapping machines with the version of Talos they require
-			if tc.Spec.ControlPlane != nil && tc.Spec.ControlPlane.Mode == TalosModeMetal {
-				for _, m := range tc.Spec.ControlPlane.MetalSpec.Machines {
-					if m.PxeClientSpec != nil && m.Address != nil {
-						machines[&m] = tc.Spec.ControlPlane.Version
-					}
-				}
-			}
-			if tc.Spec.Worker != nil && tc.Spec.Worker.Mode == TalosModeMetal {
-				for _, m := range tc.Spec.Worker.MetalSpec.Machines {
-					if m.PxeClientSpec != nil && m.Address != nil {
-						machines[&m] = tc.Spec.Worker.Version
-					}
-				}
-			}
-			var machineIndex = 0
-			for m, version := range machines {
-				// dnsmasq config : static IP addresses assignment
-				dnsmasqConfigString = fmt.Sprintf("%s\ndhcp-host=tag:if_%s,%s,%s",
-					dnsmasqConfigString, *tc.Spec.PxeServerSpec.Interface, *m.PxeClientSpec.MacAddress, *m.Address,
-				)
-				// Matchbox config : matching hosts with their MAC address
-				var matchboxId = fmt.Sprintf("%s-%d", tc.Name, machineIndex)
-				var matchboxFileName = fmt.Sprintf("%s.json", matchboxId)
-				matchboxGroupsMap[matchboxFileName] = fmt.Sprintf(`{
-	"id": "%s",
-	"name": "%s",
-	"profile": "%s",
-	"selector": {
-		"mac": "%s"
-	}
-}`,
-					matchboxId, matchboxId, matchboxId, *m.PxeClientSpec.MacAddress,
-				)
-				var kernelCmdline string // Additional kernel command line arguments
-				if m.PxeClientSpec.KernelCmdlineArgs != nil {
-					kernelCmdline = *m.PxeClientSpec.KernelCmdlineArgs
-				} else {
-					kernelCmdline = ""
-				}
-				matchboxProfilesMap[matchboxFileName] = fmt.Sprintf(`{
-	"id": "%s",
-	"name": "%s",
-	"boot": {
-		"kernel": "/assets/vmlinuz-%s-%s",
-		"initrd": ["/assets/initramfs-%s-%s.xz"],
-		"args": [
-			"initrd=initramfs.xz",
-			"slab_nomerge",
-			"pti=on",
-			"console=tty0",
-			"printk.devkmsg=on",
-			"talos.platform=metal",
-			"%s"
-		]
-	}
-}`,
-					matchboxId, matchboxId, version, *m.PxeClientSpec.CpuArchitecture, version, *m.PxeClientSpec.CpuArchitecture, kernelCmdline,
-				)
-				machineIndex++
-			}
-		}
-	}
-
-	// Saving configs to files
+	// Generating configurations from templates and saving to files
 	// dnsmasq
-	if err := os.WriteFile(path.Join(DnsmasqConfigPath, DnsmasqConfigFile), []byte(dnsmasqConfigString), os.ModePerm); err != nil {
+	if err := generateConfiguration(dnsmasqConfigTmpl, DnsmasqConfigPath, clusters); err != nil {
 		return err
 	}
-	// Matchbox groups
-	for file, content := range matchboxGroupsMap {
-		if err := os.WriteFile(path.Join(MatchboxConfigPath, MatchboxGroupsDir, file), []byte(content), os.ModePerm); err != nil {
-			return err
-		}
-	}
-	// Matchbox profiles
-	for file, content := range matchboxProfilesMap {
-		if err := os.WriteFile(path.Join(MatchboxConfigPath, MatchboxProfilesDir, file), []byte(content), os.ModePerm); err != nil {
-			return err
+	// Matchbox
+	for _, c := range clusters {
+		for _, m := range c.Machines {
+			// Groups
+			if err := generateConfiguration(matchboxGroupTmpl,
+				path.Join(MatchboxConfigPath, MatchboxGroupsDir, fmt.Sprintf("%s.json", m.Id)), m,
+			); err != nil {
+				return err
+			}
+			// Profiles
+			if err := generateConfiguration(matchboxProfileTmpl,
+				path.Join(MatchboxConfigPath, MatchboxProfilesDir, fmt.Sprintf("%s.json", m.Id)), m,
+			); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func downloadTalosBootImages(machines map[*talosv1alpha1.Machine]string) error {
-	// Parsing the machines array to determine every combination of Talos version + CPU architecture to take into account when downloading boot images
+func generateConfiguration(tmplString string, destPath string, data any) error {
+	file, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	tmpl, err := template.New("").Parse(tmplString)
+	if err != nil {
+		return err
+	}
+	if err := tmpl.Execute(file, data); err != nil {
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func downloadTalosBootImages(clusters []Cluster) error {
+	// Determining every combination of Talos version + CPU architecture to take into account when downloading boot images
 	var downloadList = make(map[string]string) // Maps a download URL to a destination path
-	for m, version := range machines {
-		// Kernel
-		downloadList[fmt.Sprintf("%s/%s/vmlinuz-%s", os.Getenv("TALOS_IMAGES_BASE_URL"), version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/%s/vmlinuz-%s-%s", MatchboxConfigPath, MatchboxAssetsDir, version, *m.PxeClientSpec.CpuArchitecture)
-		// initramfs
-		downloadList[fmt.Sprintf("%s/%s/initramfs-%s.xz", os.Getenv("TALOS_IMAGES_BASE_URL"), version, *m.PxeClientSpec.CpuArchitecture)] = fmt.Sprintf("%s/%s/initramfs-%s-%s.xz", MatchboxConfigPath, MatchboxAssetsDir, version, *m.PxeClientSpec.CpuArchitecture)
+	for _, c := range clusters {
+		for _, m := range c.Machines {
+			// Kernel
+			downloadList[fmt.Sprintf("%s/%s/vmlinuz-%s",
+				os.Getenv("TALOS_IMAGES_BASE_URL"), m.TalosVersion, m.CpuArchitecture,
+			)] = fmt.Sprintf("%s/%s/vmlinuz-%s-%s",
+				MatchboxConfigPath, MatchboxAssetsDir, m.TalosVersion, m.CpuArchitecture,
+			)
+			// initramfs
+			downloadList[fmt.Sprintf("%s/%s/initramfs-%s.xz",
+				os.Getenv("TALOS_IMAGES_BASE_URL"), m.TalosVersion, m.CpuArchitecture,
+			)] = fmt.Sprintf("%s/%s/initramfs-%s-%s.xz",
+				MatchboxConfigPath, MatchboxAssetsDir, m.TalosVersion, m.CpuArchitecture,
+			)
+		}
 	}
 
 	// Downloading files if they do not exist yet

@@ -276,8 +276,8 @@ func main() {
 			}
 		}
 		// Writing base configuration for dnsmasq
-		if err := os.WriteFile(path.Join(controller.DnsmasqConfigPath, controller.DnsmasqConfigFile),
-			[]byte(controller.BaseDnsmasqConfig), os.ModePerm,
+		if err := os.WriteFile(controller.DnsmasqConfigPath,
+			[]byte(controller.DefaultDnsmasqConfig), os.ModePerm,
 		); err != nil {
 			setupLog.Error(err, "unable to create dnsmasq base configuration")
 		}

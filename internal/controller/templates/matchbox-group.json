@@ -1,0 +1,8 @@
+{
+	"id": "{{ .Id }}",
+	"name": "{{ .Id }}",
+	"profile": "{{ .Id }}",
+	"selector": {
+		"mac": "{{ .MacAddress }}"
+	}
+}

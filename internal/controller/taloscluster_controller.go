@@ -326,19 +326,24 @@ func (r *TalosClusterReconciler) handlePxeBootStack(ctx context.Context, tc talo
 			}
 		}
 	}
+
+	clusters := getClustersPxeSpecs(tcList)
+
 	// Update PXE boot stack configuration
-	var machines = make(map[*talosv1alpha1.Machine]string) // Maps a machine with the version of Talos it requires
-	if err := updatePxeBootStackConfig(tcList, machines); err != nil {
+	if err := updatePxeBootStackConfig(clusters); err != nil {
 		return err
 	}
+
 	// Download Talos boot images to Matchbox assets directory
-	if err := downloadTalosBootImages(machines); err != nil {
+	if err := downloadTalosBootImages(clusters); err != nil {
 		return err
 	}
+
 	// Restart PXE boot stack to apply the new configuration
 	if err := restartPxeBootStack(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
