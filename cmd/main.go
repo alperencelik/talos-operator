@@ -265,7 +265,9 @@ func main() {
 
 	if os.Getenv("ENABLE_PXE_BOOT_STACK") == controller.PxeBootStackEnabled {
 		// Create Matchbox configuration directories if they don't exist already
-		for _, dir := range []string{controller.MatchboxAssetsDir, controller.MatchboxGroupsDir, controller.MatchboxProfilesDir} {
+		for _, dir := range []string{
+			controller.MatchboxAssetsDir, controller.MatchboxGroupsDir, controller.MatchboxProfilesDir,
+		} {
 			var path = path.Join(controller.MatchboxConfigPath, dir)
 			if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 				if err := os.Mkdir(path, os.ModePerm); err != nil {
@@ -274,7 +276,9 @@ func main() {
 			}
 		}
 		// Writing base configuration for dnsmasq
-		if err := os.WriteFile(path.Join(controller.DnsmasqConfigPath, controller.DnsmasqConfigFile), []byte(controller.BaseDnsmasqConfig), os.ModePerm); err != nil {
+		if err := os.WriteFile(path.Join(controller.DnsmasqConfigPath, controller.DnsmasqConfigFile),
+			[]byte(controller.BaseDnsmasqConfig), os.ModePerm,
+		); err != nil {
 			setupLog.Error(err, "unable to create dnsmasq base configuration")
 		}
 	}
