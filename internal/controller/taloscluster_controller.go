@@ -74,7 +74,13 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	} else {
 		// Object is being deleted
 		if controllerutil.ContainsFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer) {
-
+			// Remove TalosCluster from PXE boot stack configuration
+			if os.Getenv("ENABLE_PXE_BOOT_STACK") == PxeBootStackEnabled {
+				if err := r.handlePxeBootStack(ctx, tc, true); err != nil {
+					logger.Error(err, "failed to handle PXE boot stack during TalosCluster deletion", "name", tc.Name)
+					return ctrl.Result{}, err
+				}
+			}
 			res, err := r.handleDelete(ctx, tc)
 			if err != nil {
 				return res, fmt.Errorf("failed to handle delete for TalosCluster %s: %w", tc.Name, err)
@@ -83,13 +89,6 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			controllerutil.RemoveFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer)
 			if err := r.Update(ctx, &tc); err != nil {
 				logger.Error(err, "failed to remove finalizer from TalosCluster", "name", tc.Name)
-				return ctrl.Result{}, err
-			}
-		}
-		// Remove TalosCluster from PXE boot stack configuration
-		if os.Getenv("ENABLE_PXE_BOOT_STACK") == PxeBootStackEnabled {
-			if err := r.handlePxeBootStack(ctx, tc, true); err != nil {
-				logger.Error(err, "failed to handle PXE boot stack during TalosCluster deletion", "name", tc.Name)
 				return ctrl.Result{}, err
 			}
 		}
