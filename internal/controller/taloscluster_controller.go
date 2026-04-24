@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -73,7 +74,13 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	} else {
 		// Object is being deleted
 		if controllerutil.ContainsFinalizer(&tc, talosv1alpha1.TalosClusterFinalizer) {
-
+			// Remove TalosCluster from PXE boot stack configuration
+			if os.Getenv("ENABLE_PXE_BOOT_STACK") == PxeBootStackEnabled {
+				if err := r.handlePxeBootStack(ctx, tc, true); err != nil {
+					logger.Error(err, "failed to handle PXE boot stack during TalosCluster deletion", "name", tc.Name)
+					return ctrl.Result{}, err
+				}
+			}
 			res, err := r.handleDelete(ctx, tc)
 			if err != nil {
 				return res, fmt.Errorf("failed to handle delete for TalosCluster %s: %w", tc.Name, err)
@@ -101,6 +108,14 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	case ReconcileModeNormal:
 		// Do nothing, proceed with reconciliation
+	}
+
+	// PXE boot stack
+	if os.Getenv("ENABLE_PXE_BOOT_STACK") == PxeBootStackEnabled {
+		if err := r.handlePxeBootStack(ctx, tc, false); err != nil {
+			logger.Error(err, "failed to handle PXE boot stack for TalosCluster", "name", tc.Name)
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Control Plane reconciliation
@@ -292,6 +307,42 @@ func (r *TalosClusterReconciler) handleFinalizer(ctx context.Context, tc *talosv
 			return fmt.Errorf("failed to add finalizer to TalosCluster: %w", err)
 		}
 	}
+	return nil
+}
+
+func (r *TalosClusterReconciler) handlePxeBootStack(ctx context.Context, tc talosv1alpha1.TalosCluster, delete bool) error {
+	// Retrieving all TalosCluster resources
+	var tcList talosv1alpha1.TalosClusterList
+	if err := r.List(ctx, &tcList, client.InNamespace(tc.Namespace)); err != nil {
+		return err
+	}
+
+	// If this cluster is being deleted, setting PxeServerSpec to "nil" to ignore it when updating configuration
+	if delete {
+		for i, tcli := range tcList.Items {
+			if tcli.Name == tc.Name {
+				tcList.Items[i].Spec.PxeServerSpec = nil
+			}
+		}
+	}
+
+	clusters := getClustersPxeSpecs(tcList)
+
+	// Update PXE boot stack configuration
+	if err := updatePxeBootStackConfig(clusters); err != nil {
+		return err
+	}
+
+	// Download iPXE and Talos boot images to TFTP and Matchbox assets directory
+	if err := downloadBootImages(clusters); err != nil {
+		return err
+	}
+
+	// Restart PXE boot stack to apply the new configuration
+	if err := restartPxeBootStack(); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -25,4 +25,33 @@ const (
 
 	// For tests
 	DefaultNamespace = "default"
+
+	// PXE boot stack
+
+	// PXE boot stack enabled value
+	PxeBootStackEnabled = "true"
+
+	// proc related paths
+	ProcPath        = "/proc"
+	ProcCmdlineFile = "cmdline"
+	DnsmasqCmdline  = "/sbin/tini\u0000--\u0000/usr/bin/dnsmasq.sh\u0000"
+
+	// dnsmasq configuration path
+	DnsmasqConfigPath = "/etc/dnsmasq.d/dnsmasq.conf"
+	// Default dnsmasq configuration that disables DNS
+	DefaultDnsmasqConfig = "port=0"
+	// TFTP files
+	TftpDir          = "/var/lib/tftp"
+	IpxeEfiX8664File = "ipxe-efi-x86_64.efi"
+	IpxeEfiArm64File = "ipxe-efi-arm64.efi"
+	IpxeEfiX8664Arch = "x86_64-efi"
+	IpxeEfiArm64Arch = "arm64-efi"
+	IpxeDownloadFile = "ipxe.efi"
+
+	// Matchbox configuration directory mount point in the talos-operator container
+	MatchboxConfigPath = "/var/lib/matchbox"
+	// Matchbox configuration subdirectories
+	MatchboxAssetsDir   = "assets"
+	MatchboxGroupsDir   = "groups"
+	MatchboxProfilesDir = "profiles"
 )

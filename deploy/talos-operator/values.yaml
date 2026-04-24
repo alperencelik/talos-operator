@@ -6,13 +6,13 @@
 replicaCount: 1
 
 # This will install the CRDs for the Talos Operator.
-installCRDs: true 
+installCRDs: true
 
 # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
-  repository: alperencelik/talos-operator 
+  repository: alperencelik/talos-operator
   # This sets the pull policy for images.
-  pullPolicy: Always 
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
@@ -21,6 +21,7 @@ env: []
 featureFlags:
   enableMetaKey: true # This feature allows you to handle the meta key in the reconciliation logic but requires a custom Talos ISO image with the necessary changes.
   # More information can be found here: https://github.com/siderolabs/talos/discussions/11648#discussioncomment-14253477
+  enablePxeBootStack: false # This feature allows you to boot Talos using PXE by installing a DHCP+TFTP and Matchbox servers to send Talos images to clients.
 
 # Prometheus metrics scraping configuration.
 metrics:
@@ -39,7 +40,7 @@ tracing:
   otlpEndpoint: "otel-collector.tracing.svc.cluster.local:4318"
 
 ui:
-  enabled: true 
+  enabled: true
   image:
     repository: alperencelik/talos-operator-ui
     pullPolicy: Always
@@ -59,6 +60,34 @@ ui:
           - path: /
             pathType: ImplementationSpecific
     tls: []
+
+pxeBootStack:
+  # URL to download Talos boot images
+  talosBootImagesBaseUrl: "https://github.com/siderolabs/talos/releases/download"
+  # URL to download iPXE
+  ipxeBaseUrl: "https://boot.ipxe.org"
+  # dnsmasq is used as a DHCP+TFTP server for PXE boot
+  dnsmasq:
+    image:
+      repository: dockurr/dnsmasq
+      pullPolicy: Always
+      tag: "latest"
+    volumeMounts:
+      - name: dnsmasq-vol
+        mountPath: /etc/dnsmasq.d
+      - name: tftp-vol
+        mountPath: /var/lib/tftp
+  # Matchbox is used as an HTTP server to deliver Talos images and optional kernel command line arguments to each machine depending on their MAC address
+  matchbox:
+    image:
+      repository: "quay.io/poseidon/matchbox"
+      pullPolicy: Always
+      tag: "latest"
+    port: 8000
+    args: ["-address=0.0.0.0:8000"]
+    volumeMounts:
+      - name: matchbox-vol
+        mountPath: /var/lib/matchbox
 
 # This is for the secretes for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
@@ -140,12 +169,16 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   # targetMemoryUtilizationPercentage: 80
 
-# Additional volumes on the output Deployment definition.
-volumes: []
-# - name: foo
-#   secret:
-#     secretName: mysecret
-#     optional: false
+volumes:
+  - name: dnsmasq-vol
+    emptyDir:
+      sizeLimit: 1Mi
+  - name: tftp-vol
+    emptyDir:
+      sizeLimit: 2Mi
+  - name: matchbox-vol
+    emptyDir:
+      sizeLimit: 10Gi
 
 # Additional volumeMounts on the output Deployment definition.
 volumeMounts: []
@@ -164,7 +197,7 @@ extraObjects: []
   # - apiVersion: "external-secrets.io/v1beta1"
   #   kind: ExternalSecret
   #   metadata:
-  #     name: talos-secrets 
+  #     name: talos-secrets
   #   spec:
   #     secretStoreRef: secret-store
   #     target:

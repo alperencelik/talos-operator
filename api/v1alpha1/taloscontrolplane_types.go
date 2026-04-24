@@ -142,6 +142,9 @@ type Machine struct {
 	// address is the IP address of the Talos machine.
 	// +kubebuilder:validation:Pattern=`^(\d{1,3}\.){3}\d{1,3}$`
 	Address *string `json:"address,omitempty"`
+	// pxeClientSpec defines the specifications of the machines relevant for PXE boot.
+	// +kubebuilder:validation:Optional
+	PxeClientSpec *PxeClientSpec `json:"pxeClientSpec,omitempty"`
 	// machineRef is a reference to a Kubernetes object from which the machine IP address can be extracted.
 	// +kubebuilder:validation:Optional
 	MachineRef *corev1.ObjectReference `json:"machineRef,omitempty"`
@@ -153,6 +156,19 @@ type Machine struct {
 	// When set, it appends the root machineSpec.additionalConfig for this machine.
 	// +kubebuilder:validation:Optional
 	AdditionalConfig []runtime.RawExtension `json:"additionalConfig,omitempty"`
+}
+
+type PxeClientSpec struct {
+	// macAddress is the MAC address of the network interface used by the PXE firmware of the machine to boot Talos.
+	// +kubebuilder:validation:Required
+	MacAddress *string `json:"macAddress,omitempty"`
+	// cpuArchitecture is the CPU architecture of the machine.
+	// +kubebuilder:validation:Enum=amd64;arm64
+	// +kubebuilder:validation:Required
+	CpuArchitecture *string `json:"cpuArchitecture,omitempty"`
+	// kernelCmdlineArgs specifies the additional kernel command line arguments to inject during PXE boot. These arguments are not preserved after installation.
+	// +kubebuilder:validation:Optional
+	KernelCmdlineArgs *string `json:"kernelCmdlineArgs,omitempty"`
 }
 
 // META is network metadata for Talos machines

@@ -33,7 +33,9 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- if .Values.featureFlags.enablePxeBootStack }}
+            runAsUser: 0
+            {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- if .Values.tracing.enabled }}
@@ -50,6 +52,16 @@ spec:
                   fieldPath: spec.serviceAccountName
             - name: ENABLE_META_KEY
               value: "{{ .Values.featureFlags.enableMetaKey | default "false" }}"
+            - name: ENABLE_PXE_BOOT_STACK
+              value: "{{ .Values.featureFlags.enablePxeBootStack | default "false" }}"
+            {{- if .Values.featureFlags.enablePxeBootStack }}
+            - name: MATCHBOX_PORT
+              value: "{{ .Values.pxeBootStack.matchbox.port }}"
+            - name: TALOS_IMAGES_BASE_URL
+              value: "{{ .Values.pxeBootStack.talosBootImagesBaseUrl }}"
+            - name: IPXE_BASE_URL
+              value: "{{ .Values.pxeBootStack.ipxeBaseUrl }}"
+            {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -59,10 +71,18 @@ spec:
               protocol: TCP
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- with .Values.volumeMounts }}
           volumeMounts:
+            {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
+            {{- if .Values.featureFlags.enablePxeBootStack }}
+            {{- with .Values.pxeBootStack.dnsmasq.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.pxeBootStack.matchbox.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- end }}
         {{- if .Values.ui.enabled }}
         - name: {{ .Chart.Name }}-ui
           securityContext:
@@ -83,6 +103,31 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
         {{- end }}
+      {{- if .Values.featureFlags.enablePxeBootStack }}
+        - name: {{ .Chart.Name }}-dnsmasq
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          image: "{{ .Values.pxeBootStack.dnsmasq.image.repository }}:{{ .Values.pxeBootStack.dnsmasq.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.pxeBootStack.dnsmasq.image.pullPolicy }}
+          {{- with .Values.pxeBootStack.dnsmasq.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        - name: {{ .Chart.Name }}-matchbox
+          image: "{{ .Values.pxeBootStack.matchbox.image.repository }}:{{ .Values.pxeBootStack.matchbox.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.pxeBootStack.matchbox.image.pullPolicy }}
+          {{- with .Values.pxeBootStack.matchbox.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          args: {{ .Values.pxeBootStack.matchbox.args }}
+      # hostNetwork is required in order for dnsmasq to work.
+      hostNetwork: true
+      # shareProcessNamespace is required to restart dnsmasq when the configuration has changed
+      shareProcessNamespace: true
+      {{- end }}
       {{- with .Values.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}

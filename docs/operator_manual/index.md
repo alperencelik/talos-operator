@@ -7,6 +7,7 @@ This is the operator manual for Talos Operator. It provides detailed information
 ## Table of Contents
 - [Operator Manual](#operator-manual)
   - [Table of Contents](#table-of-contents)
+  - [Booting Talos Automatically](talos_auto_boot.md)
   - [Reconciliation Modes](reconciliation_modes.md)
   - [Modes](modes.md)
   - [Upgrading Versions](upgrade_versions.md)
