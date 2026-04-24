@@ -204,7 +204,29 @@ func downloadBootImages(clusters []Cluster) error {
 		}
 	}
 
-	// Downloading files if they do not exist yet
+	// Cleaning up unused Talos and iPXE images
+	for _, dir := range []string{path.Join(MatchboxConfigPath, MatchboxAssetsDir), TftpDir} {
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			return err
+		}
+		for _, f := range files {
+			absPath := path.Join(dir, f.Name())
+			found := false
+			for _, p := range downloadList {
+				if absPath == p {
+					found = true
+				}
+			}
+			if !found {
+				if err := os.Remove(absPath); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// Downloading images if they do not exist yet
 	for url, path := range downloadList {
 		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 			if err := downloadFile(url, path); err != nil {
