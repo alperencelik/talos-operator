@@ -13,6 +13,32 @@ Then, create a `TalosCluster` resource and fill the property `spec.pxeServerSpec
 
 You also need to fill the property `spec.[controlPlane/worker].metalSpec.machines.pxeClientSpec` for every machine that needs to be booted automatically with the MAC address used by its PXE firmware, its CPU architecture, and optional kernel command line arguments to inject on boot.
 
+Here is an example of such a `TalosCluster` resource:
+```yaml
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosCluster
+metadata:
+  name: auto-boot-cluster
+spec:
+  pxeServerSpec:
+    address: "10.0.0.1"
+    interface: enp0s1
+  controlPlane:
+    version: "v1.12.6"
+    mode: metal
+    metalSpec:
+      machines:
+        - address: "10.0.0.2"
+          pxeClientSpec:
+            macAddress: "aa:aa:aa:aa:aa:aa"
+            cpuArchitecture: "amd64"
+        - address: "10.0.0.3"
+          pxeClientSpec:
+            macAddress: "bb:bb:bb:bb:bb:bb"
+            cpuArchitecture: "amd64"
+            kernelCmdlineArgs: "net.ifnames=0 nomodeset"
+```
+
 Finally, boot your machines in PXE mode.
 
 ## How it works
