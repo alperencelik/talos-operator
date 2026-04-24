@@ -21,7 +21,7 @@ env: []
 featureFlags:
   enableMetaKey: true # This feature allows you to handle the meta key in the reconciliation logic but requires a custom Talos ISO image with the necessary changes.
   # More information can be found here: https://github.com/siderolabs/talos/discussions/11648#discussioncomment-14253477
-  enablePxeBootStack: true # This feature allows you to boot Talos using PXE by installing a DHCP+TFTP and Matchbox servers to send Talos images to clients.
+  enablePxeBootStack: false # This feature allows you to boot Talos using PXE by installing a DHCP+TFTP and Matchbox servers to send Talos images to clients.
 
 # Prometheus metrics scraping configuration.
 metrics:
