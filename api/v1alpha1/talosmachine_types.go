@@ -51,6 +51,10 @@ type TalosMachineSpec struct {
 	// +kubebuilder:validation:Enum=reset;preserve
 	// +kubebuilder:default=reset
 	DeletionPolicy string `json:"deletionPolicy"`
+
+	// pxeClientSpec defines the specifications of the machines relevant for PXE boot.
+	// +kubebuilder:validation:Optional
+	PxeClientSpec *PxeClientSpec `json:"pxeClientSpec,omitempty"`
 }
 
 type MachineSpec struct {

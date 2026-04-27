@@ -472,6 +472,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 				MachineSpec:    mergeMachineSpec(tcp.Spec.MetalSpec.MachineSpec, &machine),
 				ConfigRef:      tcp.Spec.ConfigRef,
 				DeletionPolicy: tcp.Spec.DeletionPolicy,
+				PxeClientSpec:  machine.PxeClientSpec,
 			}
 			return nil
 		})
