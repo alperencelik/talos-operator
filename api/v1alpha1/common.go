@@ -11,7 +11,6 @@ const (
 	ConditionKubernetesUpgradeFailed     = "KubernetesUpgradeFailed"
 
 	// State of the Talos control plane
-	StatePending                 = "Pending"                 // Control plane is being created
 	StateAvailable               = "Available"               // Control plane is ready to bootstrap the cluster
 	StateInstalling              = "Installing"              // Machine is being installed
 	StateUpgrading               = "Upgrading"               // Machine is being upgraded
@@ -22,6 +21,9 @@ const (
 	StateKubernetesUpgradeFailed = "KubernetesUpgradeFailed" // Kubernetes upgrade failed
 	// State for TalosMachine
 	StateOrphaned = "Orphaned" // Machine is not managed by any TalosCluster or TalosControlPlane
+	StateBooting  = "Booting"  // Machine is booting into Talos
+	// State for TalosControlPlane and TalosMachine
+	StatePending = "Pending" // Control plane is being created / Machine has finished booting into Talos
 
 	// Finalizers
 	TalosClusterFinalizer             = "taloscluster.talos.alperen.cloud/finalizer"
