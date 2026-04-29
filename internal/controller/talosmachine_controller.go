@@ -118,6 +118,32 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	case ReconcileModeNormal:
 		// Do nothing, proceed with reconciliation
 	}
+
+	if talosMachine.Spec.PxeClientSpec != nil {
+		// If the state is empty update it to Booting
+		if talosMachine.Status.State == "" {
+			// Update .status.state to Booting
+			if err := r.updateState(ctx, &talosMachine, talosv1alpha1.StateBooting); err != nil {
+				logger.Error(err, "Failed to update TalosMachine status to Booting", "name", talosMachine.Name)
+				return ctrl.Result{}, err
+			}
+		}
+		// Check whether we should wait for machine to finish booting
+		if talosMachine.Status.State == talosv1alpha1.StateBooting {
+			// If the machine is in the booting state, we should wait for it to finish booting
+			res, err := r.CheckMachineBootStatus(ctx, &talosMachine)
+			if err != nil {
+				logger.Error(err, "Error checking machine boot status", "name", talosMachine.Name)
+				return ctrl.Result{}, err
+			}
+			if res != (ctrl.Result{}) {
+				logger.Info("Requeuing reconciliation to check machine boot status", "name", talosMachine.Name)
+				r.Recorder.Event(&talosMachine, corev1.EventTypeNormal, "Requeuing", "Requeuing reconciliation to check machine boot status")
+				return res, nil // Requeue the reconciliation to check the machine boot status again
+			}
+		}
+	}
+
 	// Check whether we should wait for machine to be ready
 	if talosMachine.Status.State == talosv1alpha1.StateInstalling || talosMachine.Status.State == talosv1alpha1.StateUpgrading {
 		// If the machine is in the installing state, we should wait for it to be ready
@@ -576,6 +602,34 @@ func (r *TalosMachineReconciler) configMapToTalosMachines(ctx context.Context, o
 		}
 	}
 	return requests
+}
+
+func (r *TalosMachineReconciler) CheckMachineBootStatus(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	// Create Talos client
+	config, err := r.GetBundleConfig(ctx, tm)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
+	}
+	// Connect to the specific machine's endpoint to check its boot status
+	config.ClientEndpoint = &[]string{tm.Spec.Endpoint}
+	tc, err := talos.NewClient(ctx, config, true)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
+	}
+	defer tc.Close() //nolint:errcheck
+	// Get disks to check if the machine has finished booting
+	if _, err := tc.Disks(ctx); err != nil {
+		logger.Info("Checking boot status resulted in an error as machine probably didn't finish booting, requeuing reconciliation", "name", tm.Name, "error", err)
+		return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
+	}
+	// If the machine has finished booting, update the state to "Pending"
+	if tm.Status.State != talosv1alpha1.StatePending {
+		if err := r.updateState(ctx, tm, talosv1alpha1.StatePending); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to update TalosMachine %s status to Pending: %w", tm.Name, err)
+		}
+	}
+	return ctrl.Result{}, nil
 }
 
 func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {

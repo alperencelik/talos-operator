@@ -19,9 +19,11 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"path"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -259,6 +261,26 @@ func main() {
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
+	}
+
+	if os.Getenv("ENABLE_PXE_BOOT_STACK") == controller.PxeBootStackEnabled {
+		// Create Matchbox configuration directories if they don't exist already
+		for _, dir := range []string{
+			controller.MatchboxAssetsDir, controller.MatchboxGroupsDir, controller.MatchboxProfilesDir,
+		} {
+			var path = path.Join(controller.MatchboxConfigPath, dir)
+			if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+				if err := os.Mkdir(path, os.ModePerm); err != nil {
+					setupLog.Error(err, "unable to create Matchbox configuration directory", "directory", path)
+				}
+			}
+		}
+		// Writing base configuration for dnsmasq
+		if err := os.WriteFile(controller.DnsmasqConfigPath,
+			[]byte(controller.DefaultDnsmasqConfig), os.ModePerm,
+		); err != nil {
+			setupLog.Error(err, "unable to create dnsmasq base configuration")
+		}
 	}
 
 	setupLog.Info("starting manager")

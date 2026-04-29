@@ -111,6 +111,15 @@ spec:
                 - key
                 type: object
                 x-kubernetes-map-type: atomic
+              deletionPolicy:
+                default: reset
+                description: deletionPolicy specifies the deletion policy for control
+                  plane machines when deleting this Kubernetes resource (reset or
+                  preserve).
+                enum:
+                - reset
+                - preserve
+                type: string
               endpoint:
                 description: endpoint is the endpoint for the Kubernetes API Server.
                 pattern: ^https?://[a-zA-Z0-9.-]+(:\d+)?$
@@ -273,6 +282,31 @@ spec:
                               type: string
                           type: object
                           x-kubernetes-map-type: atomic
+                        pxeClientSpec:
+                          description: pxeClientSpec defines the specifications of
+                            the machines relevant for PXE boot.
+                          properties:
+                            cpuArchitecture:
+                              description: cpuArchitecture is the CPU architecture
+                                of the machine.
+                              enum:
+                              - amd64
+                              - arm64
+                              type: string
+                            kernelCmdlineArgs:
+                              description: kernelCmdlineArgs specifies the additional
+                                kernel command line arguments to inject during PXE
+                                boot. These arguments are not preserved after installation.
+                              type: string
+                            macAddress:
+                              description: macAddress is the MAC address of the network
+                                interface used by the PXE firmware of the machine
+                                to boot Talos.
+                              type: string
+                          required:
+                          - cpuArchitecture
+                          - macAddress
+                          type: object
                       type: object
                       x-kubernetes-validations:
                       - message: address and machineRef are mutually exclusive
@@ -297,12 +331,6 @@ spec:
                   type: string
                 maxItems: 4
                 type: array
-              preserveMachinesOnDeletion:
-                default: false
-                description: preserveMachinesOnDeletion indicates whether control
-                  plane machines should be preserved (not reset) when deleting this
-                  Kubernetes resource
-                type: boolean
               replicas:
                 description: replicas is the number of control-plane machines to maintain.
                   Only applies when mode is 'container'.

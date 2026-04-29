@@ -42,6 +42,20 @@ type TalosClusterSpec struct {
 	// workerRef references the TalosWorker resource that manages the worker nodes.
 	// +kubebuilder:validation:Optional
 	WorkerRef *corev1.LocalObjectReference `json:"workerRef,omitempty"`
+
+	// pxeServerSpec defines the specifications of the server used for booting Talos using PXE.
+	// +kubebuilder:validation:Optional
+	PxeServerSpec *PxeServerSpec `json:"pxeServerSpec,omitempty"`
+}
+
+type PxeServerSpec struct {
+	// address is the IP address of the PXE server.
+	// +kubebuilder:validation:Pattern=`^(\d{1,3}\.){3}\d{1,3}$`
+	// +kubebuilder:validation:Required
+	Address *string `json:"address,omitempty"`
+	// interface is the interface connected to the network used for PXE boot (as given by Linux).
+	// +kubebuilder:validation:Required
+	Interface *string `json:"interface,omitempty"`
 }
 
 // TalosClusterStatus defines the observed state of TalosCluster.

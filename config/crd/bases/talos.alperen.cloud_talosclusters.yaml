@@ -277,6 +277,32 @@ spec:
                                   type: string
                               type: object
                               x-kubernetes-map-type: atomic
+                            pxeClientSpec:
+                              description: pxeClientSpec defines the specifications
+                                of the machines relevant for PXE boot.
+                              properties:
+                                cpuArchitecture:
+                                  description: cpuArchitecture is the CPU architecture
+                                    of the machine.
+                                  enum:
+                                  - amd64
+                                  - arm64
+                                  type: string
+                                kernelCmdlineArgs:
+                                  description: kernelCmdlineArgs specifies the additional
+                                    kernel command line arguments to inject during
+                                    PXE boot. These arguments are not preserved after
+                                    installation.
+                                  type: string
+                                macAddress:
+                                  description: macAddress is the MAC address of the
+                                    network interface used by the PXE firmware of
+                                    the machine to boot Talos.
+                                  type: string
+                              required:
+                              - cpuArchitecture
+                              - macAddress
+                              type: object
                           type: object
                           x-kubernetes-validations:
                           - message: address and machineRef are mutually exclusive
@@ -355,6 +381,22 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              pxeServerSpec:
+                description: pxeServerSpec defines the specifications of the server
+                  used for booting Talos using PXE.
+                properties:
+                  address:
+                    description: address is the IP address of the PXE server.
+                    pattern: ^(\d{1,3}\.){3}\d{1,3}$
+                    type: string
+                  interface:
+                    description: interface is the interface connected to the network
+                      used for PXE boot (as given by Linux).
+                    type: string
+                required:
+                - address
+                - interface
+                type: object
               worker:
                 description: worker defines the worker configuration for the Talos
                   cluster.
@@ -570,6 +612,32 @@ spec:
                                   type: string
                               type: object
                               x-kubernetes-map-type: atomic
+                            pxeClientSpec:
+                              description: pxeClientSpec defines the specifications
+                                of the machines relevant for PXE boot.
+                              properties:
+                                cpuArchitecture:
+                                  description: cpuArchitecture is the CPU architecture
+                                    of the machine.
+                                  enum:
+                                  - amd64
+                                  - arm64
+                                  type: string
+                                kernelCmdlineArgs:
+                                  description: kernelCmdlineArgs specifies the additional
+                                    kernel command line arguments to inject during
+                                    PXE boot. These arguments are not preserved after
+                                    installation.
+                                  type: string
+                                macAddress:
+                                  description: macAddress is the MAC address of the
+                                    network interface used by the PXE firmware of
+                                    the machine to boot Talos.
+                                  type: string
+                              required:
+                              - cpuArchitecture
+                              - macAddress
+                              type: object
                           type: object
                           x-kubernetes-validations:
                           - message: address and machineRef are mutually exclusive

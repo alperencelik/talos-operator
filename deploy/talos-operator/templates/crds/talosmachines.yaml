@@ -120,6 +120,14 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              deletionPolicy:
+                default: reset
+                description: deletionPolicy specifies the deletion policy for the
+                  machine when deleting this Kubernetes resource (reset or preserve).
+                enum:
+                - reset
+                - preserve
+                type: string
               endpoint:
                 description: endpoint is the Talos API endpoint for this machine.
                 type: string
@@ -201,11 +209,29 @@ spec:
                     description: wipe indicates whether to wipe the disk before installation.
                     type: boolean
                 type: object
-              preserveMachineOnDeletion:
-                default: false
-                description: preserveMachineOnDeletion indicates whether the machine
-                  should be preserved (not reset) when deleting this Kubernetes resource
-                type: boolean
+              pxeClientSpec:
+                description: pxeClientSpec defines the specifications of the machines
+                  relevant for PXE boot.
+                properties:
+                  cpuArchitecture:
+                    description: cpuArchitecture is the CPU architecture of the machine.
+                    enum:
+                    - amd64
+                    - arm64
+                    type: string
+                  kernelCmdlineArgs:
+                    description: kernelCmdlineArgs specifies the additional kernel
+                      command line arguments to inject during PXE boot. These arguments
+                      are not preserved after installation.
+                    type: string
+                  macAddress:
+                    description: macAddress is the MAC address of the network interface
+                      used by the PXE firmware of the machine to boot Talos.
+                    type: string
+                required:
+                - cpuArchitecture
+                - macAddress
+                type: object
               version:
                 description: version is the desired version of Talos to run on this
                   machine.
