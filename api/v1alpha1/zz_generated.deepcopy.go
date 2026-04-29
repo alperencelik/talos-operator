@@ -150,6 +150,11 @@ func (in *Machine) DeepCopyInto(out *Machine) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.Image != nil {
+		in, out := &in.Image, &out.Image
+		*out = new(string)
+		**out = **in
+	}
 	if in.PxeClientSpec != nil {
 		in, out := &in.PxeClientSpec, &out.PxeClientSpec
 		*out = new(PxeClientSpec)

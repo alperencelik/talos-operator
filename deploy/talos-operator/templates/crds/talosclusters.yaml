@@ -231,6 +231,10 @@ spec:
                                 type: object
                                 x-kubernetes-preserve-unknown-fields: true
                               type: array
+                            image:
+                              description: image is the Talos image to use for this
+                                machine
+                              type: string
                             machineRef:
                               description: machineRef is a reference to a Kubernetes
                                 object from which the machine IP address can be extracted.
@@ -301,6 +305,12 @@ spec:
                               - cpuArchitecture
                               - macAddress
                               type: object
+                            version:
+                              description: version of Talos to use for this machine
+                                (controller-manager, scheduler, kube-apiserver, etcd)
+                                -- e.g "v1.12.1"
+                              pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                              type: string
                           type: object
                           x-kubernetes-validations:
                           - message: address and machineRef are mutually exclusive
@@ -566,6 +576,10 @@ spec:
                                 type: object
                                 x-kubernetes-preserve-unknown-fields: true
                               type: array
+                            image:
+                              description: image is the Talos image to use for this
+                                machine
+                              type: string
                             machineRef:
                               description: machineRef is a reference to a Kubernetes
                                 object from which the machine IP address can be extracted.
@@ -636,6 +650,12 @@ spec:
                               - cpuArchitecture
                               - macAddress
                               type: object
+                            version:
+                              description: version of Talos to use for this machine
+                                (controller-manager, scheduler, kube-apiserver, etcd)
+                                -- e.g "v1.12.1"
+                              pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                              type: string
                           type: object
                           x-kubernetes-validations:
                           - message: address and machineRef are mutually exclusive

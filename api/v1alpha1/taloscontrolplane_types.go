@@ -142,6 +142,13 @@ type Machine struct {
 	// address is the IP address of the Talos machine.
 	// +kubebuilder:validation:Pattern=`^(\d{1,3}\.){3}\d{1,3}$`
 	Address *string `json:"address,omitempty"`
+	// version of Talos to use for this machine (controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
+	Version string `json:"version,omitempty"`
+	// image is the Talos image to use for this machine
+	// +kubebuilder:validation:Optional
+	Image *string `json:"image,omitempty"`
 	// pxeClientSpec defines the specifications of the machines relevant for PXE boot.
 	// +kubebuilder:validation:Optional
 	PxeClientSpec *PxeClientSpec `json:"pxeClientSpec,omitempty"`
