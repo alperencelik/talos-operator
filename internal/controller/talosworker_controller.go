@@ -265,6 +265,11 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 			if err := controllerutil.SetControllerReference(tw, tm, r.Scheme); err != nil {
 				return fmt.Errorf("failed to set controller reference for TalosMachine %s: %w", tm.Name, err)
 			}
+			version := tw.Spec.Version
+			// Using machine specific version if specified
+			if machine.Version != "" {
+				version = machine.Version
+			}
 			tm.Spec = talosv1alpha1.TalosMachineSpec{
 				WorkerRef: &corev1.ObjectReference{
 					Kind:       talosv1alpha1.GroupKindWorker,
@@ -273,7 +278,7 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 					APIVersion: talosv1alpha1.GroupVersion.String(),
 				},
 				Endpoint:       ip,
-				Version:        tw.Spec.Version,
+				Version:        version,
 				MachineSpec:    mergeMachineSpec(tw.Spec.MetalSpec.MachineSpec, &machine),
 				ConfigRef:      tw.Spec.ConfigRef,
 				DeletionPolicy: tw.Spec.DeletionPolicy,
