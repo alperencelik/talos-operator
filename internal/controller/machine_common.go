@@ -164,14 +164,17 @@ func getMachinesResolved(ctx context.Context, c client.Client, machines *[]talos
 }
 
 // mergeMachineSpec returns a MachineSpec that starts from the global spec and appends any
-// machine-specific ConfigPatches and AdditionalConfig on top.
+// machine-specific ConfigPatches, AdditionalConfig and installer image on top.
 func mergeMachineSpec(global *talosv1alpha1.MachineSpec, machine *talosv1alpha1.Machine) *talosv1alpha1.MachineSpec {
-	if len(machine.ConfigPatches) == 0 && machine.AdditionalConfig == nil {
+	if len(machine.ConfigPatches) == 0 && machine.AdditionalConfig == nil && machine.Image == nil {
 		return global
 	}
 	var merged talosv1alpha1.MachineSpec
 	if global != nil {
 		global.DeepCopyInto(&merged)
+	}
+	if machine.Image != nil {
+		merged.Image = machine.Image
 	}
 	if len(machine.ConfigPatches) > 0 {
 		merged.ConfigPatches = append(merged.ConfigPatches, machine.ConfigPatches...)

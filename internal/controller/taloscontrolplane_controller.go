@@ -460,6 +460,11 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 			if err := controllerutil.SetControllerReference(tcp, tm, r.Scheme); err != nil {
 				return fmt.Errorf("failed to set controller reference for TalosMachine %s: %w", tm.Name, err)
 			}
+			version := tcp.Spec.Version
+			// Using machine specific version if specified
+			if machine.Version != "" {
+				version = machine.Version
+			}
 			tm.Spec = talosv1alpha1.TalosMachineSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
 					Kind:       talosv1alpha1.GroupKindControlPlane,
@@ -468,7 +473,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 					APIVersion: talosv1alpha1.GroupVersion.String(),
 				},
 				Endpoint:       ip,
-				Version:        tcp.Spec.Version,
+				Version:        version,
 				MachineSpec:    mergeMachineSpec(tcp.Spec.MetalSpec.MachineSpec, &machine),
 				ConfigRef:      tcp.Spec.ConfigRef,
 				DeletionPolicy: tcp.Spec.DeletionPolicy,
