@@ -51,7 +51,7 @@ type TalosControlPlaneSpec struct {
 
 	// endpoint is the endpoint for the Kubernetes API Server.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^https?://[a-zA-Z0-9.-]+(:\d+)?$`
+	// +kubebuilder:validation:Pattern=`^https?://(([a-zA-Z0-9.-]+)|(\[(((([0-9A-Fa-f]{1,4}:){1,7}):([0-9A-Fa-f]{1,4}:){0,6}([0-9A-Fa-f]{1,4}){0,1})|((([0-9A-Fa-f]{1,4}):){7}([0-9A-Fa-f]{1,4})))\]))(:\d+)?$`
 	Endpoint string `json:"endpoint,omitempty"`
 
 	// Can't force the decrease CEL validation as it would prevent downgrades in some scenarios, eventhough the operator doesn't support downgrades
