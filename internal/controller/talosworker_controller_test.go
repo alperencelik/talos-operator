@@ -57,10 +57,10 @@ var _ = Describe("TalosWorker Controller", func() {
 			},
 			Spec: talosv1alpha1.TalosControlPlaneSpec{
 				Replicas:       1,
-				Version:        "v1.10.4",
-				KubeVersion:    "v1.33.1",
-				Mode:           "cloud",
-				DeletionPolicy: "reset",
+				Version:        testTalosVersion,
+				KubeVersion:    testKubeVersion,
+				Mode:           testModeCloud,
+				DeletionPolicy: testDeletionPolicyReset,
 			},
 		}
 		Expect(k8sClient.Create(ctx, cp)).To(Succeed())
@@ -72,10 +72,10 @@ var _ = Describe("TalosWorker Controller", func() {
 			},
 			Spec: talosv1alpha1.TalosWorkerSpec{
 				Replicas:       3,
-				Version:        "v1.10.4",
-				KubeVersion:    "v1.33.1",
-				Mode:           "cloud",
-				DeletionPolicy: "reset",
+				Version:        testTalosVersion,
+				KubeVersion:    testKubeVersion,
+				Mode:           testModeCloud,
+				DeletionPolicy: testDeletionPolicyReset,
 				ControlPlaneRef: corev1.LocalObjectReference{
 					Name: controlPlaneName,
 				},

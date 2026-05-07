@@ -3,9 +3,9 @@ kind: TalosWorker
 metadata:
   name: talosworker-sample
 spec:
-  version: v1.10.3
-  mode: container 
+  version: v1.12.1
+  mode: container
   replicas: 2
-  kubeVersion: v1.33.0 
+  kubeVersion: v1.35.0
   controlPlaneRef:
     name: taloscontrolplane-sample

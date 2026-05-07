@@ -215,6 +215,10 @@ spec:
                 description: filename is the name of the backup file in the storage
                   backend.
                 type: string
+              stateFilename:
+                description: stateFilename is the name of the paired state-secret
+                  backup in the storage backend.
+                type: string
             type: object
         required:
         - spec

@@ -226,7 +226,7 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 	// List existing ones
 	existing := &talosv1alpha1.TalosMachineList{}
 	if err := r.List(ctx, existing, client.InNamespace(tw.Namespace),
-		client.MatchingFields{"spec.workerRef.name": tw.Name},
+		client.MatchingFields{IndexWorkerRefName: tw.Name},
 	); err != nil {
 		return fmt.Errorf("failed to list TalosMachines: %w", err)
 	}
@@ -363,7 +363,7 @@ func (r *TalosWorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		context.Background(),
 		&talosv1alpha1.TalosMachine{},
 		// Index by the worker reference name
-		"spec.workerRef.name",
+		IndexWorkerRefName,
 		func(rawObj client.Object) []string {
 			tm := rawObj.(*talosv1alpha1.TalosMachine)
 			if tm.Spec.WorkerRef != nil {
@@ -572,7 +572,7 @@ func (r *TalosWorkerReconciler) handleDeletion(ctx context.Context, tw *talosv1a
 		meta.SetStatusCondition(&tw.Status.Conditions, metav1.Condition{
 			Type:    talosv1alpha1.ConditionDeleting,
 			Status:  metav1.ConditionTrue,
-			Reason:  "Deleting",
+			Reason:  ConditionReasonDeleting,
 			Message: "TalosWorker is being deleted",
 		})
 		if err := r.Status().Update(ctx, tw); err != nil {
@@ -589,7 +589,7 @@ func (r *TalosWorkerReconciler) handleDeletion(ctx context.Context, tw *talosv1a
 		talosMachineList := &talosv1alpha1.TalosMachineList{}
 		opts := []client.ListOption{
 			client.InNamespace(tw.Namespace),
-			client.MatchingFields{"spec.workerRef.name": tw.Name},
+			client.MatchingFields{IndexWorkerRefName: tw.Name},
 		}
 		if err := r.List(ctx, talosMachineList, opts...); err != nil {
 			logger.Error(err, "failed to list TalosMachines for deletion", "name", tw.Name)
@@ -629,7 +629,7 @@ func (r *TalosWorkerReconciler) CheckWorkerMachinesReady(ctx context.Context, tw
 	machines := &talosv1alpha1.TalosMachineList{}
 	opts := []client.ListOption{
 		client.InNamespace(tw.Namespace),
-		client.MatchingFields{"spec.workerRef.name": tw.Name},
+		client.MatchingFields{IndexWorkerRefName: tw.Name},
 	}
 	var allAvailable bool
 	for i := 0; i < maxRetries; i++ {

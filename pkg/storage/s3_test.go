@@ -5,13 +5,20 @@ import (
 	"testing"
 )
 
+const (
+	testBucket    = "test-bucket"
+	testRegion    = "us-west-2"
+	testAccessKey = "test-key"
+	testSecretKey = "test-secret"
+)
+
 func TestNewS3Client_ValidConfig(t *testing.T) {
 	ctx := context.Background()
 	cfg := &S3Config{
-		Bucket:          "test-bucket",
-		Region:          "us-west-2",
-		AccessKeyID:     "test-key",
-		SecretAccessKey: "test-secret",
+		Bucket:          testBucket,
+		Region:          testRegion,
+		AccessKeyID:     testAccessKey,
+		SecretAccessKey: testSecretKey,
 	}
 
 	client, err := NewS3Client(ctx, cfg)
@@ -23,17 +30,17 @@ func TestNewS3Client_ValidConfig(t *testing.T) {
 		t.Fatal("Expected client to be non-nil")
 	}
 
-	if client.bucket != "test-bucket" {
-		t.Errorf("Expected bucket to be 'test-bucket', got '%s'", client.bucket)
+	if client.bucket != testBucket {
+		t.Errorf("Expected bucket to be '%s', got '%s'", testBucket, client.bucket)
 	}
 }
 
 func TestNewS3Client_MissingBucket(t *testing.T) {
 	ctx := context.Background()
 	cfg := &S3Config{
-		Region:          "us-west-2",
-		AccessKeyID:     "test-key",
-		SecretAccessKey: "test-secret",
+		Region:          testRegion,
+		AccessKeyID:     testAccessKey,
+		SecretAccessKey: testSecretKey,
 	}
 
 	_, err := NewS3Client(ctx, cfg)
@@ -50,9 +57,9 @@ func TestNewS3Client_MissingBucket(t *testing.T) {
 func TestNewS3Client_MissingRegion(t *testing.T) {
 	ctx := context.Background()
 	cfg := &S3Config{
-		Bucket:          "test-bucket",
-		AccessKeyID:     "test-key",
-		SecretAccessKey: "test-secret",
+		Bucket:          testBucket,
+		AccessKeyID:     testAccessKey,
+		SecretAccessKey: testSecretKey,
 	}
 
 	_, err := NewS3Client(ctx, cfg)

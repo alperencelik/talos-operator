@@ -7,10 +7,10 @@ import (
 func TestGenerateControlPlaneConfig(t *testing.T) {
 
 	cfg := &BundleConfig{
-		ClusterName: "test-cluster",
+		ClusterName: testClusterName,
 		Endpoint:    "https://10.0.0.1:6443",
-		Version:     "v1.10.3",
-		KubeVersion: "v1.31.0",
+		Version:     testTalosVersion,
+		KubeVersion: testKubernetesVersion,
 		// SecretsBundle: nil, // For testing purposes, we can set this to nil
 		Sans:        []string{"example.com", "api.example.com"},
 		PodCIDR:     &[]string{""},

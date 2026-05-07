@@ -16,7 +16,7 @@ import (
 func BuildServiceSpec(name string, i *int32) corev1.ServiceSpec {
 	// If the index is nil, we assume it's a headless service for the StatefulSet.
 	selectors := map[string]string{
-		"app": name,
+		AppLabelKey: name,
 	}
 	var svcType corev1.ServiceType
 	if i != nil {
@@ -90,13 +90,13 @@ func BuildStsSpec(name string, replicas int32, version string, machineType strin
 		Replicas:    &replicas,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				"app": name,
+				AppLabelKey: name,
 			},
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
-					"app": name,
+					AppLabelKey: name,
 				},
 			},
 			Spec: corev1.PodSpec{

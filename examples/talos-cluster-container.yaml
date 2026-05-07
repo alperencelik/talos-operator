@@ -4,12 +4,12 @@ metadata:
   name: taloscluster-sample
 spec:
   controlPlane:
-    version: v1.10.3
+    version: v1.12.1
     mode: container
     replicas: 2
-    kubeVersion: v1.33.0
+    kubeVersion: v1.35.0
   worker:
-    version: v1.10.3
-    mode: container 
+    version: v1.12.1
+    mode: container
     replicas: 2
-    kubeVersion: v1.33.0 
+    kubeVersion: v1.35.0
