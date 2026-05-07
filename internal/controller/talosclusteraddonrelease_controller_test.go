@@ -57,10 +57,10 @@ var _ = Describe("TalosClusterAddonRelease Controller", func() {
 			},
 			Spec: talosv1alpha1.TalosControlPlaneSpec{
 				Replicas:       1,
-				Version:        "v1.10.4",
-				KubeVersion:    "v1.33.1",
-				Mode:           "cloud",
-				DeletionPolicy: "reset",
+				Version:        testTalosVersion,
+				KubeVersion:    testKubeVersion,
+				Mode:           testModeCloud,
+				DeletionPolicy: testDeletionPolicyReset,
 			},
 		}
 		Expect(k8sClient.Create(ctx, cp)).To(Succeed())
@@ -94,7 +94,7 @@ var _ = Describe("TalosClusterAddonRelease Controller", func() {
 					RepoURL:          "https://charts.bitnami.com/bitnami",
 					Version:          "1.0.0",
 					ReleaseName:      "my-nginx",
-					ReleaseNamespace: "default",
+					ReleaseNamespace: DefaultNamespace,
 				},
 			},
 		}

@@ -363,7 +363,7 @@ func (r *TalosClusterReconciler) handleDelete(ctx context.Context, tc talosv1alp
 		meta.SetStatusCondition(&tc.Status.Conditions, metav1.Condition{
 			Type:    talosv1alpha1.ConditionDeleting,
 			Status:  metav1.ConditionUnknown,
-			Reason:  "Deleting",
+			Reason:  ConditionReasonDeleting,
 			Message: "TalosCluster is being deleted",
 		})
 		if err := r.Status().Update(ctx, &tc); err != nil {

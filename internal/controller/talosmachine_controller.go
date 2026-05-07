@@ -63,7 +63,7 @@ type TalosMachineReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
-func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { // nolint:gocyclo
 	logger := log.FromContext(ctx)
 
 	// Get the machine object and decide whether it's a control plane or worker machine
@@ -462,7 +462,7 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 		return ctrl.Result{}, nil
 	}
 	// Only reset if requested by deletion policy:
-	if tm.Spec.DeletionPolicy == "reset" {
+	if tm.Spec.DeletionPolicy == DeletionPolicyReset {
 		// Run talosctl reset command to reset the machine
 		config, err := r.GetBundleConfig(ctx, tm)
 		if err != nil {

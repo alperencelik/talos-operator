@@ -56,17 +56,17 @@ var _ = Describe("TalosCluster Controller", func() {
 			Spec: talosv1alpha1.TalosClusterSpec{
 				ControlPlane: &talosv1alpha1.TalosControlPlaneSpec{
 					Replicas:       3,
-					Version:        "v1.10.4",
+					Version:        testTalosVersion,
 					KubeVersion:    "v1.31.0",
-					Mode:           "cloud",
-					DeletionPolicy: "reset",
+					Mode:           testModeCloud,
+					DeletionPolicy: testDeletionPolicyReset,
 				},
 				Worker: &talosv1alpha1.TalosWorkerSpec{
 					Replicas:       3,
-					Version:        "v1.10.4",
+					Version:        testTalosVersion,
 					KubeVersion:    "v1.31.0",
-					Mode:           "cloud",
-					DeletionPolicy: "reset",
+					Mode:           testModeCloud,
+					DeletionPolicy: testDeletionPolicyReset,
 				},
 			},
 		}
@@ -85,7 +85,7 @@ var _ = Describe("TalosCluster Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			Expect(createdControlPlane.Spec.Replicas).To(Equal(int32(3)))
-			Expect(createdControlPlane.Spec.Version).To(Equal("v1.10.4"))
+			Expect(createdControlPlane.Spec.Version).To(Equal(testTalosVersion))
 
 			By("Checking for TalosWorker creation")
 			workerName := talosClusterName + "-worker"

@@ -27,9 +27,9 @@ func TestGetMachineIPAddress(t *testing.T) {
 		{
 			name: "Direct Address",
 			machine: &talosv1alpha1.Machine{
-				Address: func() *string { s := "192.168.1.10"; return &s }(),
+				Address: func() *string { s := testMachineIP; return &s }(),
 			},
-			expectedIP:    "192.168.1.10",
+			expectedIP:    testMachineIP,
 			expectedError: false,
 		},
 		{
@@ -37,20 +37,20 @@ func TestGetMachineIPAddress(t *testing.T) {
 			machine: &talosv1alpha1.Machine{
 				MachineRef: &corev1.ObjectReference{
 					APIVersion: "v1",
-					Kind:       "Pod",
-					Name:       "test-pod",
-					Namespace:  "default",
-					FieldPath:  "status.podIP",
+					Kind:       testPodKind,
+					Name:       testPodName,
+					Namespace:  DefaultNamespace,
+					FieldPath:  testPodFieldIP,
 				},
 			},
 			existingObjs: []client.Object{
 				&unstructured.Unstructured{
 					Object: map[string]interface{}{
 						"apiVersion": "v1",
-						"kind":       "Pod",
+						"kind":       testPodKind,
 						"metadata": map[string]interface{}{
-							"name":      "test-pod",
-							"namespace": "default",
+							"name":      testPodName,
+							"namespace": DefaultNamespace,
 						},
 						"status": map[string]interface{}{
 							"podIP": "10.244.0.5",
@@ -66,20 +66,20 @@ func TestGetMachineIPAddress(t *testing.T) {
 			machine: &talosv1alpha1.Machine{
 				MachineRef: &corev1.ObjectReference{
 					APIVersion: "v1",
-					Kind:       "Pod",
+					Kind:       testPodKind,
 					Name:       "invalid-pod",
-					Namespace:  "default",
-					FieldPath:  "status.podIP",
+					Namespace:  DefaultNamespace,
+					FieldPath:  testPodFieldIP,
 				},
 			},
 			existingObjs: []client.Object{
 				&unstructured.Unstructured{
 					Object: map[string]interface{}{
 						"apiVersion": "v1",
-						"kind":       "Pod",
+						"kind":       testPodKind,
 						"metadata": map[string]interface{}{
 							"name":      "invalid-pod",
-							"namespace": "default",
+							"namespace": DefaultNamespace,
 						},
 						"status": map[string]interface{}{
 							"podIP": "not-an-ip",
@@ -94,9 +94,9 @@ func TestGetMachineIPAddress(t *testing.T) {
 			machine: &talosv1alpha1.Machine{
 				MachineRef: &corev1.ObjectReference{
 					APIVersion: "v1",
-					Kind:       "Pod",
-					Name:       "test-pod",
-					Namespace:  "default",
+					Kind:       testPodKind,
+					Name:       testPodName,
+					Namespace:  DefaultNamespace,
 					FieldPath:  "",
 				},
 			},
@@ -107,10 +107,10 @@ func TestGetMachineIPAddress(t *testing.T) {
 			machine: &talosv1alpha1.Machine{
 				MachineRef: &corev1.ObjectReference{
 					APIVersion: "v1",
-					Kind:       "Pod",
+					Kind:       testPodKind,
 					Name:       "missing-pod",
-					Namespace:  "default",
-					FieldPath:  "status.podIP",
+					Namespace:  DefaultNamespace,
+					FieldPath:  testPodFieldIP,
 				},
 			},
 			expectedError: true, // Client Get error

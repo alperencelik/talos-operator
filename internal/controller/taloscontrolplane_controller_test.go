@@ -53,10 +53,10 @@ var _ = Describe("TalosControlPlane Controller", func() {
 			},
 			Spec: talosv1alpha1.TalosControlPlaneSpec{
 				Replicas:       3,
-				Version:        "v1.10.4",
-				KubeVersion:    "v1.33.1",
-				Mode:           "cloud",
-				DeletionPolicy: "reset",
+				Version:        testTalosVersion,
+				KubeVersion:    testKubeVersion,
+				Mode:           testModeCloud,
+				DeletionPolicy: testDeletionPolicyReset,
 			},
 		}
 	})
@@ -73,7 +73,7 @@ var _ = Describe("TalosControlPlane Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			Expect(createdResource.Spec.Replicas).To(Equal(int32(3)))
-			Expect(createdResource.Spec.Mode).To(Equal("cloud"))
+			Expect(createdResource.Spec.Mode).To(Equal(testModeCloud))
 		})
 
 		It("Should handle updates", func() {

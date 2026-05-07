@@ -13,26 +13,26 @@ metadata:
   name: taloscluster-sample
 spec:
   controlPlane:
-    version: v1.10.3
+    version: v1.12.1
     mode: container
     replicas: 2
-    kubeVersion: v1.33.0
+    kubeVersion: v1.35.0
   worker:
-    version: v1.10.3
-    mode: container 
+    version: v1.12.1
+    mode: container
     replicas: 2
-    kubeVersion: v1.33.0 
+    kubeVersion: v1.35.0
 ```
 
 This manifest defines a `TalosCluster` named `taloscluster-sample` with the following specifications:
 
 - **Control Plane**:
-  - Version: `v1.10.3` (Talos version)
+  - Version: `v1.12.1` (Talos version)
   - Mode: `container` (running Talos as a container in Kubernetes)
   - Replicas: `2` (two control plane nodes)
   - Kubernetes Version: `v1.33.0`
 - **Worker Nodes**:
-  - Version: `v1.10.3` (Talos version)
+  - Version: `v1.12.1` (Talos version)
   - Mode: `container` (running Talos as a container in Kubernetes)
   - Replicas: `2` (two worker nodes)
   - Kubernetes Version: `v1.33.0`

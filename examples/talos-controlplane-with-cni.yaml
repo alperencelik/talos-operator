@@ -3,18 +3,18 @@ kind: TalosControlPlane
 metadata:
   name: taloscontrolplane-with-cni
 spec:
-  version: v1.10.3 # Talos version
+  version: v1.12.1 # Talos version
   mode: metal # Deployment mode -- can be 'metal' or 'container'
-  kubeVersion: v1.33.0 # Kubernetes version
+  kubeVersion: v1.35.0 # Kubernetes version
   metalSpec:
-    # List of Talos machines(IP Addresses) in the control plane 
+    # List of Talos machines(IP Addresses) in the control plane
     machines:
       - address: "10.0.153.207"
       - address: "10.0.153.232"
   # Kubernetes API server endpoint
   endpoint: "https://10.0.153.207:6443"
   # Pod and Service CIDRs -- optional, can be omitted if not needed
-  podCIDR: 
+  podCIDR:
   - 10.100.0.0/16
   serviceCIDR:
   - 10.200.0.0/12
@@ -32,9 +32,9 @@ kind: TalosControlPlane
 metadata:
   name: taloscontrolplane-custom-cni
 spec:
-  version: v1.10.3
+  version: v1.12.1
   mode: metal
-  kubeVersion: v1.33.0
+  kubeVersion: v1.35.0
   metalSpec:
     machines:
       - address: "10.0.153.207"
@@ -51,9 +51,9 @@ kind: TalosControlPlane
 metadata:
   name: taloscontrolplane-no-cni
 spec:
-  version: v1.10.3
+  version: v1.12.1
   mode: metal
-  kubeVersion: v1.33.0
+  kubeVersion: v1.35.0
   metalSpec:
     machines:
       - address: "10.0.153.207"

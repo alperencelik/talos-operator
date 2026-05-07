@@ -6,15 +6,15 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: taloscontrolplane-sample
 spec:
-  version: v1.10.3
-  mode: container 
+  version: v1.12.1
+  mode: container
   replicas: 2
   kubeVersion: v1.33.0
-# podCIDR: 
+# podCIDR:
 # - 10.100.0.0/16
 # - 10.150.0.0/16
 # serviceCIDR:
 # - 10.200.0.0/12
-#  configRef: 
+#  configRef:
 #    name: taloscontrolplane-sample-config
 #    key: controlplane.yaml

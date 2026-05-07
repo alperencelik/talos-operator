@@ -4,14 +4,14 @@ kind: TalosWorker
 metadata:
   name: talosworker-sample
 spec:
-  version: v1.10.3 # Talos version
+  version: v1.12.1 # Talos version
   mode: metal # Deployment mode -- can be 'metal' or 'container'
-  kubeVersion: v1.33.0 # Kubernetes version
+  kubeVersion: v1.35.0 # Kubernetes version
   # Reference to the Talos control plane to which this worker will connect
   controlPlaneRef:
     name: taloscontrolplane-sample
   metalSpec:
-    # List of Talos machines(IP Addresses) in the control plane 
+    # List of Talos machines(IP Addresses) in the control plane
     machines:
     - address: "10.0.153.58"
     - address: "10.0.153.59"

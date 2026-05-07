@@ -256,7 +256,7 @@ func (r *TalosControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		context.Background(),
 		&talosv1alpha1.TalosMachine{},
 		// Index by the control plane reference name
-		"spec.controlPlaneRef.name",
+		IndexControlPlaneRefName,
 		func(rawObj client.Object) []string {
 			tm := rawObj.(*talosv1alpha1.TalosMachine)
 			if tm.Spec.ControlPlaneRef != nil {
@@ -428,7 +428,7 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 	// List existing ones
 	existing := &talosv1alpha1.TalosMachineList{}
 	if err := r.List(ctx, existing, client.InNamespace(tcp.Namespace),
-		client.MatchingFields{"spec.controlPlaneRef.name": tcp.Name},
+		client.MatchingFields{IndexControlPlaneRefName: tcp.Name},
 	); err != nil {
 		return fmt.Errorf("failed to list TalosMachines: %w", err)
 	}
@@ -515,7 +515,7 @@ func (r *TalosControlPlaneReconciler) checkMetalModeReady(ctx context.Context, t
 	machines := &talosv1alpha1.TalosMachineList{}
 	opts := []client.ListOption{
 		client.InNamespace(tcp.Namespace),
-		client.MatchingFields{"spec.controlPlaneRef.name": tcp.Name},
+		client.MatchingFields{IndexControlPlaneRefName: tcp.Name},
 	}
 	var allavailable bool
 	for i := 0; i < maxRetries; i++ {
@@ -1049,7 +1049,7 @@ func (r *TalosControlPlaneReconciler) handleDelete(ctx context.Context, tcp *tal
 		meta.SetStatusCondition(&tcp.Status.Conditions, metav1.Condition{
 			Type:    talosv1alpha1.ConditionDeleting,
 			Status:  metav1.ConditionUnknown,
-			Reason:  "Deleting",
+			Reason:  ConditionReasonDeleting,
 			Message: "Deleting TalosControlPlane",
 		})
 		if err := r.Status().Update(ctx, tcp); err != nil {
@@ -1071,7 +1071,7 @@ func (r *TalosControlPlaneReconciler) handleDelete(ctx context.Context, tcp *tal
 		machines := &talosv1alpha1.TalosMachineList{}
 		opts := []client.ListOption{
 			client.InNamespace(tcp.Namespace),
-			client.MatchingFields{"spec.controlPlaneRef.name": tcp.Name},
+			client.MatchingFields{IndexControlPlaneRefName: tcp.Name},
 		}
 		if err := r.List(ctx, machines, opts...); err != nil {
 			logger.Error(err, "Failed to list TalosMachines for TalosControlPlane", "name", tcp.Name)

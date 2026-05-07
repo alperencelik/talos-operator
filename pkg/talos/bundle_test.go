@@ -7,6 +7,12 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
 )
 
+const (
+	testTalosVersion      = "v1.12.1"
+	testKubernetesVersion = "v1.35.0"
+	testClusterName       = "test-cluster"
+)
+
 func TestParseBundleConfig(t *testing.T) {
 	// 1. Valid JSON input
 	validJSON := `{
@@ -69,10 +75,10 @@ func TestGenerateConfigs(t *testing.T) {
 
 	// Create a BundleConfig
 	cfg := &BundleConfig{
-		ClusterName:   "test-cluster",
+		ClusterName:   testClusterName,
 		Endpoint:      "https://1.2.3.4:6443",
-		Version:       "v1.10.3",
-		KubeVersion:   "v1.31.0",
+		Version:       testTalosVersion,
+		KubeVersion:   testKubernetesVersion,
 		SecretsBundle: (*secrets.Bundle)(sb),
 	}
 

@@ -9,7 +9,7 @@ spec:
   clusterSelector:
     matchLabels:
       zort: hort
-  helmSpec: 
+  helmSpec:
     repoURL: https://metallb.github.io/metallb
     chartName: metallb
     releaseName: metallb
