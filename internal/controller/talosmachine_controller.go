@@ -119,6 +119,22 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Do nothing, proceed with reconciliation
 	}
 
+	// If state is lost (e.g. CR was re-applied), probe the node to see if it's already
+	// provisioned.
+	if talosMachine.Status.State == "" {
+		provisioned, err := r.probeProvisioned(ctx, &talosMachine)
+		if err != nil {
+			logger.Info("Probe failed, falling through to normal flow", "name", talosMachine.Name, "error", err)
+		}
+		if provisioned {
+			if err := r.updateState(ctx, &talosMachine, talosv1alpha1.StateAvailable); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to restore TalosMachine %s state: %w", talosMachine.Name, err)
+			}
+			r.Recorder.Event(&talosMachine, corev1.EventTypeNormal, "StatusRestored", "Node responded to secure connection; state restored to Available")
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
+
 	if talosMachine.Spec.PxeClientSpec != nil {
 		// If the state is empty update it to Booting
 		if talosMachine.Status.State == "" {
@@ -602,6 +618,29 @@ func (r *TalosMachineReconciler) configMapToTalosMachines(ctx context.Context, o
 		}
 	}
 	return requests
+}
+
+// probeProvisioned attempts a secure mtls connection to the node
+func (r *TalosMachineReconciler) probeProvisioned(ctx context.Context, tm *talosv1alpha1.TalosMachine) (bool, error) {
+	bc, err := r.GetBundleConfig(ctx, tm)
+	if err != nil {
+		return false, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
+	}
+	if bc == nil {
+		return false, nil
+	}
+	bc.ClientEndpoint = &[]string{tm.Spec.Endpoint}
+	tc, err := talos.NewClient(ctx, bc, false)
+	if err != nil {
+		return false, nil
+	}
+	defer tc.Close() //nolint:errcheck
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := tc.GetTalosVersion(probeCtx); err != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (r *TalosMachineReconciler) CheckMachineBootStatus(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {

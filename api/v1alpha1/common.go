@@ -25,6 +25,10 @@ const (
 	// State for TalosControlPlane and TalosMachine
 	StatePending = "Pending" // Control plane is being created / Machine has finished booting into Talos
 
+	// State secret labels — used to identify per-control-plane state backup Secrets
+	StateSecretLabelKey   = "talos.alperen.cloud/type"
+	StateSecretLabelValue = "state"
+
 	// Finalizers
 	TalosClusterFinalizer             = "taloscluster.talos.alperen.cloud/finalizer"
 	TalosControlPlaneFinalizer        = "taloscontrolplane.talos.alperen.cloud/finalizer"
