@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,7 +44,7 @@ import (
 type TalosClusterReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosclusters,verbs=get;list;watch;create;update;patch;delete
@@ -194,11 +194,11 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 		// Based on the op generate an event
 		switch op {
 		case controllerutil.OperationResultCreated:
-			r.Recorder.Event(tc, corev1.EventTypeNormal, "Created", "TalosControlPlane created successfully")
+			r.Recorder.Eventf(tc, nil, corev1.EventTypeNormal, "Created", "Created", "TalosControlPlane created successfully")
 			// Requeue the request to ensure that talosWorker is created after control plane is ready
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		case controllerutil.OperationResultUpdated:
-			r.Recorder.Event(tc, corev1.EventTypeNormal, "Updated", "TalosControlPlane updated successfully")
+			r.Recorder.Eventf(tc, nil, corev1.EventTypeNormal, "Updated", "Updated", "TalosControlPlane updated successfully")
 			// If it's only a update then requeue immediately
 			return ctrl.Result{Requeue: true}, nil
 		}
@@ -281,9 +281,9 @@ func (r *TalosClusterReconciler) reconcileWorker(ctx context.Context, tc *talosv
 	// Based on the op generate an event
 	switch op {
 	case controllerutil.OperationResultCreated:
-		r.Recorder.Event(tc, corev1.EventTypeNormal, "Created", "TalosWorker created successfully")
+		r.Recorder.Eventf(tc, nil, corev1.EventTypeNormal, "Created", "Created", "TalosWorker created successfully")
 	case controllerutil.OperationResultUpdated:
-		r.Recorder.Event(tc, corev1.EventTypeNormal, "Updated", "TalosWorker updated successfully")
+		r.Recorder.Eventf(tc, nil, corev1.EventTypeNormal, "Updated", "Updated", "TalosWorker updated successfully")
 	}
 	logger.Info("Reconciled TalosWorker", "operation", op, "name", tw.Name)
 	return ctrl.Result{}, nil
