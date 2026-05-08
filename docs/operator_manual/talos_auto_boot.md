@@ -24,7 +24,7 @@ spec:
     address: "10.0.0.1"
     interface: enp0s1
   controlPlane:
-    version: "v1.12.6"
+    version: "v1.13.0"
     mode: metal
     metalSpec:
       machines:

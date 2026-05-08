@@ -5,7 +5,7 @@ metadata:
 spec:
   # Control plane configuration
   controlPlane:
-    version: v1.12.1 # Talos version
+    version: v1.13.0 # Talos version
     mode: metal # Deployment mode -- can be 'metal' or 'container'
     kubeVersion: v1.33.0 # Kubernetes version
     metalSpec:
@@ -17,7 +17,7 @@ spec:
     endpoint: "https://10.0.153.207:6443"
   # Worker nodes configuration
   worker:
-    version: v1.12.1 # Talos version
+    version: v1.13.0 # Talos version
     mode: metal # Deployment mode -- can be 'metal' or 'container'
     kubeVersion: v1.33.0 # Kubernetes version
     # Reference to the Talos control plane to which this worker will connect

@@ -310,7 +310,7 @@ spec:
                             version:
                               description: version of Talos to use for this machine
                                 (controller-manager, scheduler, kube-apiserver, etcd)
-                                -- e.g "v1.12.1"
+                                -- e.g "v1.13.0"
                               pattern: ^v\d+\.\d+\.\d+(-\w+)?$
                               type: string
                           type: object
@@ -357,9 +357,9 @@ spec:
                     pattern: ^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$
                     type: string
                   version:
-                    default: v1.12.1
+                    default: v1.13.0
                     description: version of Talos to use for the control plane(controller-manager,
-                      scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
+                      scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
                     pattern: ^v\d+\.\d+\.\d+(-\w+)?$
                     type: string
                 required:
@@ -655,7 +655,7 @@ spec:
                             version:
                               description: version of Talos to use for this machine
                                 (controller-manager, scheduler, kube-apiserver, etcd)
-                                -- e.g "v1.12.1"
+                                -- e.g "v1.13.0"
                               pattern: ^v\d+\.\d+\.\d+(-\w+)?$
                               type: string
                           type: object
@@ -689,9 +689,9 @@ spec:
                         after creation
                       rule: self == oldSelf
                   version:
-                    default: v1.12.1
+                    default: v1.13.0
                     description: version of Talos to use for the worker nodes -- e.g
-                      "v1.12.1"
+                      "v1.13.0"
                     pattern: ^v\d+\.\d+\.\d+(-\w+)?$
                     type: string
                 required:

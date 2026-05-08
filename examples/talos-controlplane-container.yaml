@@ -3,7 +3,7 @@ kind: TalosControlPlane
 metadata:
   name: taloscontrolplane-sample
 spec:
-  version: v1.12.1
+  version: v1.13.0
   mode: container
   replicas: 2
   kubeVersion: v1.33.0

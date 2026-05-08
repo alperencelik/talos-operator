@@ -24,10 +24,11 @@ Documentation is also available at [https://alperencelik.github.io/talos-operato
 
 talos-operator's versions are compatible with the following versions of Talos:
 
-|                         | v1.8  | v1.9  | v1.10 | v1.11 | v1.12 |
-| ----------------------- | ----- | ----- | ----- | ----- | ----- |
-| talos-operator (v0.3.x) | ✓     | ✓     | ✓     | ✓     |       |
-| talos-operator (v0.4.0) |       |       |       |       | ✓     |
+|                         | v1.8  | v1.9  | v1.10 | v1.11 | v1.12 | v1.13 |
+| ----------------------- | ----- | ----- | ----- | ----- | ----- | ----- |
+| talos-operator (v0.3.x) | ✓     | ✓     | ✓     | ✓     |       |       |
+| talos-operator (v0.4.x) |       |       |       |       | ✓     |       |
+| talos-operator (v0.5.0) |       |       |       |       | ✓     | ✓     |
 
 ## Motivation
 
