@@ -101,28 +101,28 @@ var _ = BeforeSuite(func() {
 	err = (&TalosClusterReconciler{
 		Client:   k8sManager.GetClient(),
 		Scheme:   k8sManager.GetScheme(),
-		Recorder: k8sManager.GetEventRecorderFor("taloscluster-controller"),
+		Recorder: k8sManager.GetEventRecorder("taloscluster-controller"),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&TalosControlPlaneReconciler{
 		Client:   k8sManager.GetClient(),
 		Scheme:   k8sManager.GetScheme(),
-		Recorder: k8sManager.GetEventRecorderFor("taloscontrolplane-controller"),
+		Recorder: k8sManager.GetEventRecorder("taloscontrolplane-controller"),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&TalosWorkerReconciler{
 		Client:   k8sManager.GetClient(),
 		Scheme:   k8sManager.GetScheme(),
-		Recorder: k8sManager.GetEventRecorderFor("talosworker-controller"),
+		Recorder: k8sManager.GetEventRecorder("talosworker-controller"),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&TalosMachineReconciler{
 		Client:   k8sManager.GetClient(),
 		Scheme:   k8sManager.GetScheme(),
-		Recorder: k8sManager.GetEventRecorderFor("talosmachine-controller"),
+		Recorder: k8sManager.GetEventRecorder("talosmachine-controller"),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -141,14 +141,14 @@ var _ = BeforeSuite(func() {
 	err = (&TalosClusterAddonReconciler{
 		Client:   k8sManager.GetClient(),
 		Scheme:   k8sManager.GetScheme(),
-		Recorder: k8sManager.GetEventRecorderFor("talosclusteraddon-controller"),
+		Recorder: k8sManager.GetEventRecorder("talosclusteraddon-controller"),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&TalosClusterAddonReleaseReconciler{
 		Client:   k8sManager.GetClient(),
 		Scheme:   k8sManager.GetScheme(),
-		Recorder: k8sManager.GetEventRecorderFor("talosclusteraddonrelease-controller"),
+		Recorder: k8sManager.GetEventRecorder("talosclusteraddonrelease-controller"),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

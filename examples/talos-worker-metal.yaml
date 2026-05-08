@@ -4,7 +4,7 @@ kind: TalosWorker
 metadata:
   name: talosworker-sample
 spec:
-  version: v1.12.1 # Talos version
+  version: v1.13.0 # Talos version
   mode: metal # Deployment mode -- can be 'metal' or 'container'
   kubeVersion: v1.35.0 # Kubernetes version
   # Reference to the Talos control plane to which this worker will connect

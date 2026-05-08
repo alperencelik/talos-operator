@@ -3,7 +3,7 @@
 A Kubernetes operator to manage Talos Linux–based clusters declaratively.
 
 [![GitHub release](https://img.shields.io/github/v/release/alperencelik/talos-operator)](https://github.com/alperencelik/talos-operator/releases)
-[![Go Version](https://img.shields.io/badge/go-1.25-blue)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/go-1.26-blue)](https://golang.org/)
 [![License](https://img.shields.io/github/license/alperencelik/talos-operator)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/alperencelik/talos-operator)](https://github.com/alperencelik/talos-operator/stargazers)
 [![Documentation](https://img.shields.io/badge/docs-online-brightgreen)](https://alperencelik.github.io/talos-operator/)
@@ -24,10 +24,11 @@ Documentation is also available at [https://alperencelik.github.io/talos-operato
 
 talos-operator's versions are compatible with the following versions of Talos:
 
-|                         | v1.8  | v1.9  | v1.10 | v1.11 | v1.12 |
-| ----------------------- | ----- | ----- | ----- | ----- | ----- |
-| talos-operator (v0.3.x) | ✓     | ✓     | ✓     | ✓     |       |
-| talos-operator (v0.4.0) |       |       |       |       | ✓     |
+|                         | v1.8  | v1.9  | v1.10 | v1.11 | v1.12 | v1.13 |
+| ----------------------- | ----- | ----- | ----- | ----- | ----- | ----- |
+| talos-operator (v0.3.x) | ✓     | ✓     | ✓     | ✓     |       |       |
+| talos-operator (v0.4.x) |       |       |       |       | ✓     |       |
+| talos-operator (v0.5.0) |       |       |       |       | ✓     | ✓     |
 
 ## Motivation
 

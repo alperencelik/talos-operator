@@ -28,10 +28,10 @@ import (
 // TalosWorkerSpec defines the desired state of TalosWorker.
 type TalosWorkerSpec struct {
 
-	// version of Talos to use for the worker nodes -- e.g "v1.12.1"
+	// version of Talos to use for the worker nodes -- e.g "v1.13.0"
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
-	// +kubebuilder:default="v1.12.1"
+	// +kubebuilder:default="v1.13.0"
 	Version string `json:"version"`
 
 	// mode specifies the deployment mode for the worker nodes (container, metal, or cloud).

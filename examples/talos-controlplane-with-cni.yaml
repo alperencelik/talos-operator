@@ -3,7 +3,7 @@ kind: TalosControlPlane
 metadata:
   name: taloscontrolplane-with-cni
 spec:
-  version: v1.12.1 # Talos version
+  version: v1.13.0 # Talos version
   mode: metal # Deployment mode -- can be 'metal' or 'container'
   kubeVersion: v1.35.0 # Kubernetes version
   metalSpec:
@@ -32,7 +32,7 @@ kind: TalosControlPlane
 metadata:
   name: taloscontrolplane-custom-cni
 spec:
-  version: v1.12.1
+  version: v1.13.0
   mode: metal
   kubeVersion: v1.35.0
   metalSpec:
@@ -51,7 +51,7 @@ kind: TalosControlPlane
 metadata:
   name: taloscontrolplane-no-cni
 spec:
-  version: v1.12.1
+  version: v1.13.0
   mode: metal
   kubeVersion: v1.35.0
   metalSpec:

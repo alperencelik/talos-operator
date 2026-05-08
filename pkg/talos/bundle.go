@@ -266,7 +266,8 @@ func convertCNIConfig(cni *v1alpha1.CNIConfig) *taloscni.CNIConfig {
 	}
 	if cni.Flannel != nil {
 		talosCNI.CNIFlannel = &taloscni.FlannelCNIConfig{
-			FlanneldExtraArgs: cni.Flannel.ExtraArgs,
+			FlanneldExtraArgs:                 cni.Flannel.ExtraArgs,
+			FlannelKubeNetworkPoliciesEnabled: cni.Flannel.KubeNetworkPoliciesEnabled,
 		}
 	}
 	return talosCNI
