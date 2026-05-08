@@ -71,6 +71,10 @@ spec:
                         items:
                           type: string
                         type: array
+                      kubeNetworkPoliciesEnabled:
+                        description: kubeNetworkPoliciesEnabled enables Kubernetes
+                          NetworkPolicy support for the Flannel CNI by deploying kube-network-policies.
+                        type: boolean
                     type: object
                   name:
                     description: name of CNI to use (flannel, custom, none).

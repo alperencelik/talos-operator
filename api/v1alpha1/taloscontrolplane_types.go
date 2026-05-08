@@ -126,6 +126,10 @@ type FlannelCNIConfig struct {
 	// extraArgs are extra arguments for 'flanneld'.
 	// +kubebuilder:validation:Optional
 	ExtraArgs []string `json:"extraArgs,omitempty"`
+
+	// kubeNetworkPoliciesEnabled enables Kubernetes NetworkPolicy support for the Flannel CNI by deploying kube-network-policies.
+	// +kubebuilder:validation:Optional
+	KubeNetworkPoliciesEnabled *bool `json:"kubeNetworkPoliciesEnabled,omitempty"`
 }
 
 type MetalSpec struct {
