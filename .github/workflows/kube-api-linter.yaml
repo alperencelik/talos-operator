@@ -21,6 +21,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: v1.25
+          go-version: v1.26
       - name: Run kube-api-linter
         run: make kube-api-lint
