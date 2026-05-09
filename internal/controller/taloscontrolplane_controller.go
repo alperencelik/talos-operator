@@ -536,12 +536,15 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 }
 
 // resolveMaxUnavailable returns the effective maxUnavailable count for the rollout
-func resolveMaxUnavailable(rs *talosv1alpha1.RolloutStrategy, replicas int) (maxUnavailable int) {
-	v, err := intstr.GetScaledValueFromIntOrPercent(rs.RollingUpdate.MaxUnavailable, replicas, false)
-	if err == nil && v >= 1 {
-		maxUnavailable = v
+func resolveMaxUnavailable(rs *talosv1alpha1.RolloutStrategy, replicas int) int {
+	if rs == nil || rs.RollingUpdate == nil || rs.RollingUpdate.MaxUnavailable == nil {
+		return 1
 	}
-	return maxUnavailable
+	v, err := intstr.GetScaledValueFromIntOrPercent(rs.RollingUpdate.MaxUnavailable, replicas, false)
+	if err != nil || v < 1 {
+		return 1
+	}
+	return v
 }
 
 // countInFlightUpgrades returns how many of the desired machines currently have an upgrade in
