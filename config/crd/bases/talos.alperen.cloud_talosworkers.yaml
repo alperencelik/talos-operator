@@ -105,7 +105,7 @@ spec:
                 default: v1.35.0
                 description: kubeVersion is the version of Kubernetes to use for the
                   worker nodes.
-                pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
                 type: string
               metalSpec:
                 description: metalSpec is required when mode is 'metal'.
@@ -290,7 +290,7 @@ spec:
                         version:
                           description: version of Talos to use for this machine (controller-manager,
                             scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
-                          pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                          pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
                           type: string
                       type: object
                       x-kubernetes-validations:
@@ -325,7 +325,7 @@ spec:
               version:
                 default: v1.13.0
                 description: version of Talos to use for the worker nodes -- e.g "v1.13.0"
-                pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
                 type: string
             required:
             - kubeVersion

@@ -10,7 +10,10 @@ import (
 	"text/template"
 	"time"
 
+	"io"
+
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
+	"github.com/siderolabs/talos/pkg/machinery/api/common"
 	machineapi "github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/client"
 	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
@@ -113,22 +116,76 @@ func (tc *TalosClient) GetTalosVersion(ctx context.Context) (string, error) {
 	return version, nil
 }
 
+// UpgradeTalosVersion pre-pulls the installer image into the system containerd, runs the
+// installer via the Talos LifecycleService, then triggers a reboot to apply the upgrade.
 func (tc *TalosClient) UpgradeTalosVersion(ctx context.Context, image string) error {
-	// Decode machineConfig to get the image, stage, and force values
-	// yaml.Marshal(machineConfig, &machineConfigStruct)
-	// Create an UpgradeRequest
-	upgradeRequest := &machineapi.UpgradeRequest{
-		Image:      image,
-		Stage:      false,                             // stage is to perform upgrade it after a reboot
-		Force:      true,                              // force etcd checks etc
-		RebootMode: machineapi.UpgradeRequest_DEFAULT, // DEFAULT or POWERCYCLE
+	containerd := &common.ContainerdInstance{
+		Driver:    common.ContainerDriver_CRI,
+		Namespace: common.ContainerdNamespace_NS_SYSTEM,
 	}
-	// Deprecated in Talos 1.13, use the LifecycleService see: https://github.com/alperencelik/talos-operator/issues/52
-	_, err := tc.MachineClient.Upgrade(ctx, upgradeRequest) //nolint:staticcheck
+
+	if err := tc.pullInstallerImage(ctx, containerd, image); err != nil {
+		return fmt.Errorf("error pulling Talos installer image: %w", err)
+	}
+
+	stream, err := tc.LifecycleClient.Upgrade(ctx, &machineapi.LifecycleServiceUpgradeRequest{
+		Containerd: containerd,
+		Source: &machineapi.InstallArtifactsSource{
+			ImageName: image,
+		},
+	})
 	if err != nil {
-		return fmt.Errorf("error upgrading machine: %w", err)
+		return fmt.Errorf("error starting Talos upgrade: %w", err)
+	}
+
+	for {
+		resp, recvErr := stream.Recv()
+		if recvErr == io.EOF {
+			break
+		}
+		if recvErr != nil {
+			if isGracefulStop(recvErr) {
+				break
+			}
+			return fmt.Errorf("error during Talos upgrade: %w", recvErr)
+		}
+		exit, ok := resp.GetProgress().GetResponse().(*machineapi.LifecycleServiceInstallProgress_ExitCode)
+		if ok && exit.ExitCode != 0 {
+			return fmt.Errorf("talos upgrade installer exited with code %d", exit.ExitCode)
+		}
+	}
+	// Reboot the machine after upgrade
+	if _, err := tc.MachineClient.Reboot(ctx, &machineapi.RebootRequest{
+		Mode: machineapi.RebootRequest_DEFAULT,
+	}); err != nil && !isGracefulStop(err) {
+		return fmt.Errorf("error triggering reboot after Talos upgrade: %w", err)
 	}
 	return nil
+}
+
+// pullInstallerImage pulls the specificied image as pre-upgrade step.
+func (tc *TalosClient) pullInstallerImage(
+	ctx context.Context, containerd *common.ContainerdInstance, image string,
+) error {
+	stream, err := tc.ImageClient.Pull(ctx, &machineapi.ImageServicePullRequest{
+		Containerd: containerd,
+		ImageRef:   image,
+	})
+	if err != nil {
+		return err
+	}
+	for {
+		_, recvErr := stream.Recv()
+		if recvErr == io.EOF {
+			return nil
+		}
+		if recvErr != nil {
+			if isGracefulStop(recvErr) {
+				return nil
+			}
+			return recvErr
+		}
+	}
 }
 
 func (tc *TalosClient) GetInstallDisk(ctx context.Context, tm *talosv1alpha1.TalosMachine) (*string, error) {

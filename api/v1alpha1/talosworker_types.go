@@ -30,7 +30,7 @@ type TalosWorkerSpec struct {
 
 	// version of Talos to use for the worker nodes -- e.g "v1.13.0"
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
+	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`
 	// +kubebuilder:default="v1.13.0"
 	Version string `json:"version"`
 
@@ -50,7 +50,7 @@ type TalosWorkerSpec struct {
 
 	// kubeVersion is the version of Kubernetes to use for the worker nodes.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
+	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`
 	// +kubebuilder:default="v1.35.0"
 	KubeVersion string `json:"kubeVersion"`
 
