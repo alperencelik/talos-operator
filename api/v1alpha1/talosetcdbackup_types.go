@@ -59,6 +59,9 @@ type TalosEtcdBackupStatus struct {
 	// filename is the name of the backup file in the storage backend.
 	// +optional
 	Filename string `json:"filename,omitempty"`
+	// stateFilename is the name of the paired state-secret backup in the storage backend.
+	// +optional
+	StateFilename string `json:"stateFilename,omitempty"`
 	// conditions represent the current state of the TalosEtcdBackup resource.
 	// +listType=map
 	// +listMapKey=type

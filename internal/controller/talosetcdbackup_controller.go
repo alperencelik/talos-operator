@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -24,10 +25,13 @@ import (
 	"github.com/alperencelik/talos-operator/pkg/talos"
 	"github.com/alperencelik/talos-operator/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/yaml"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -185,7 +189,6 @@ func (r *TalosEtcdBackupReconciler) handleDelete(ctx context.Context, teb *talos
 	if err := s3Client.Delete(ctx, teb.Status.Filename); err != nil {
 		return fmt.Errorf("failed to delete backup from S3: %w", err)
 	}
-	// Successfully deleted
 	return nil
 }
 
@@ -263,7 +266,56 @@ func (r *TalosEtcdBackupReconciler) performBackup(ctx context.Context, teb *talo
 	}
 
 	logger.Info("Successfully uploaded etcd snapshot to S3", "bucket", s3Config.Bucket, "key", backupKey)
+
+	// Upload the state secret as well
+	stateKey, err := r.uploadStateSecret(ctx, &tcp, s3Client, backupKey)
+	if err != nil {
+		return fmt.Errorf("failed to upload state secret: %w", err)
+	}
+	if stateKey != nil {
+		teb.Status.StateFilename = *stateKey
+		if err := r.Status().Update(ctx, teb); err != nil {
+			return fmt.Errorf("failed to update status with state filename: %w", err)
+		}
+		logger.Info("Successfully uploaded state secret to S3", "bucket", s3Config.Bucket, "key", stateKey)
+	}
 	return nil
+}
+
+// uploadStateSecret fetches the {tcp.Name}-state Secret, strips runtime metadata so it
+func (r *TalosEtcdBackupReconciler) uploadStateSecret(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane, s3Client *storage.S3Client, backupKey string) (*string, error) {
+	stateSecret := &corev1.Secret{}
+	if err := r.Get(ctx, client.ObjectKey{
+		Namespace: tcp.Namespace,
+		Name:      fmt.Sprintf("%s-state", tcp.Name),
+	}, stateSecret); err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get state secret: %w", err)
+	}
+	sanitizedSecret := &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      stateSecret.Name,
+			Namespace: stateSecret.Namespace,
+			Labels:    stateSecret.Labels,
+		},
+		Type: stateSecret.Type,
+		Data: stateSecret.Data,
+	}
+	yamlBytes, err := yaml.Marshal(sanitizedSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal state secret: %w", err)
+	}
+	stateKey := storage.StateKeyForBackupKey(backupKey)
+	if err := s3Client.Upload(ctx, stateKey, bytes.NewReader(yamlBytes)); err != nil {
+		return nil, fmt.Errorf("failed to upload state secret to S3: %w", err)
+	}
+	return &stateKey, nil
 }
 
 // getS3Config retrieves S3 configuration from the TalosEtcdBackup spec and resolves credentials from secrets

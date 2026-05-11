@@ -21,7 +21,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.25
+          go-version: 1.26
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
 
       - name: Set environment variables
         run: |
-          echo "BUILD_IMAGE=golang:1.25" >> $GITHUB_ENV
+          echo "BUILD_IMAGE=golang:1.26" >> $GITHUB_ENV
           echo "KO_DOCKER_REPO=alperencelik/talos-operator" >> $GITHUB_ENV
         
       - name: Run mage.go Release

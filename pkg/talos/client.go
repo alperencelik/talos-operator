@@ -123,7 +123,8 @@ func (tc *TalosClient) UpgradeTalosVersion(ctx context.Context, image string) er
 		Force:      true,                              // force etcd checks etc
 		RebootMode: machineapi.UpgradeRequest_DEFAULT, // DEFAULT or POWERCYCLE
 	}
-	_, err := tc.MachineClient.Upgrade(ctx, upgradeRequest)
+	// Deprecated in Talos 1.13, use the LifecycleService see: https://github.com/alperencelik/talos-operator/issues/52
+	_, err := tc.MachineClient.Upgrade(ctx, upgradeRequest) //nolint:staticcheck
 	if err != nil {
 		return fmt.Errorf("error upgrading machine: %w", err)
 	}

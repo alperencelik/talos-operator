@@ -30,7 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -52,7 +52,7 @@ import (
 type TalosWorkerReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosworkers,verbs=get;list;watch;create;update;patch;delete
@@ -82,7 +82,7 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		finErr = r.handleFinalizer(ctx, &tw)
 		if finErr != nil {
 			logger.Error(finErr, "failed to handle finalizer for TalosWorker", "name", tw.Name)
-			r.Recorder.Event(&tw, corev1.EventTypeWarning, "FinalizerFailed", "Failed to handle finalizer for TalosWorker")
+			r.Recorder.Eventf(&tw, nil, corev1.EventTypeWarning, "FinalizerFailed", "FinalizerFailed", "Failed to handle finalizer for TalosWorker")
 			return ctrl.Result{}, finErr
 		}
 	} else {
@@ -93,7 +93,7 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			res, finErr = r.handleDeletion(ctx, &tw)
 			if finErr != nil {
 				logger.Error(finErr, "failed to handle deletion for TalosWorker", "name", tw.Name)
-				r.Recorder.Event(&tw, corev1.EventTypeWarning, "DeleteFailed", "Failed to handle deletion for TalosWorker")
+				r.Recorder.Eventf(&tw, nil, corev1.EventTypeWarning, "DeleteFailed", "DeleteFailed", "Failed to handle deletion for TalosWorker")
 				return res, finErr
 			}
 		}
@@ -105,15 +105,14 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			logger.Error(err, "TalosControlPlane not found", "name", tw.Spec.ControlPlaneRef.Name)
-			r.Recorder.Eventf(&tw, corev1.EventTypeWarning, "ControlPlaneNotFound",
-				"TalosControlPlane %s not found in namespace %s", tw.Spec.ControlPlaneRef.Name, tw.Namespace)
+			r.Recorder.Eventf(&tw, nil, corev1.EventTypeWarning, "ControlPlaneNotFound", "ControlPlaneNotFound", "TalosControlPlane %s not found in namespace %s", tw.Spec.ControlPlaneRef.Name, tw.Namespace)
 			return ctrl.Result{Requeue: true}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("failed to get TalosControlPlane ref for TalosWorker %s: %w", tw.Name, err)
 	}
 	if tcp.Status.SecretBundle == "" {
 		// If the TalosControlPlane does not have a secret bundle, we can requeue the reconciliation
-		r.Recorder.Eventf(&tw, corev1.EventTypeWarning, "SecretBundleNotFound", "TalosControlPlane %s does not have a secret bundle yet", tcp.Name)
+		r.Recorder.Eventf(&tw, nil, corev1.EventTypeWarning, "SecretBundleNotFound", "SecretBundleNotFound", "TalosControlPlane %s does not have a secret bundle yet", tcp.Name)
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil // Requeue to retry
 	}
 
@@ -139,14 +138,14 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	var result ctrl.Result
 	switch tw.Spec.Mode {
 	case TalosModeContainer:
-		r.Recorder.Event(&tw, corev1.EventTypeNormal, "Reconciling", "Reconciling TalosWorker in container mode")
+		r.Recorder.Eventf(&tw, nil, corev1.EventTypeNormal, "Reconciling", "Reconciling", "Reconciling TalosWorker in container mode")
 		result, err = r.reconcileContainerMode(ctx, &tw)
 		if err != nil {
 			logger.Error(err, "failed to reconcile TalosWorker in container mode", "name", tw.Name)
 		}
 		return result, nil
 	case TalosModeMetal:
-		r.Recorder.Event(&tw, corev1.EventTypeNormal, "Reconciling", "Reconciling TalosWorker in metal mode")
+		r.Recorder.Eventf(&tw, nil, corev1.EventTypeNormal, "Reconciling", "Reconciling", "Reconciling TalosWorker in metal mode")
 		result, err = r.reconcileMetalMode(ctx, &tw)
 		if err != nil {
 			logger.Error(err, "failed to reconcile TalosWorker in metal mode", "name", tw.Name)
@@ -164,7 +163,7 @@ func (r *TalosWorkerReconciler) reconcileContainerMode(ctx context.Context, tw *
 	// Generate the worker configuration
 	if err := r.GenerateConfig(ctx, tw); err != nil {
 		// Error is due to ref not found so report it in status and return without requeueing
-		r.Recorder.Eventf(tw, corev1.EventTypeWarning, "ConfigGenerationFailed", "Failed to generate worker config for TalosWorker %s: %s", tw.Name, err.Error())
+		r.Recorder.Eventf(tw, nil, corev1.EventTypeWarning, "ConfigGenerationFailed", "ConfigGenerationFailed", "Failed to generate worker config for TalosWorker %s: %s", tw.Name, err.Error())
 		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to generate worker config for TalosWorker %s: %w", tw.Name, err)
 	}
 	if err := r.reconcileService(ctx, tw); err != nil {
@@ -226,7 +225,7 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 	// List existing ones
 	existing := &talosv1alpha1.TalosMachineList{}
 	if err := r.List(ctx, existing, client.InNamespace(tw.Namespace),
-		client.MatchingFields{"spec.workerRef.name": tw.Name},
+		client.MatchingFields{IndexWorkerRefName: tw.Name},
 	); err != nil {
 		return fmt.Errorf("failed to list TalosMachines: %w", err)
 	}
@@ -363,7 +362,7 @@ func (r *TalosWorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		context.Background(),
 		&talosv1alpha1.TalosMachine{},
 		// Index by the worker reference name
-		"spec.workerRef.name",
+		IndexWorkerRefName,
 		func(rawObj client.Object) []string {
 			tm := rawObj.(*talosv1alpha1.TalosMachine)
 			if tm.Spec.WorkerRef != nil {
@@ -495,8 +494,7 @@ func (r *TalosWorkerReconciler) GetControlPlaneRef(ctx context.Context, tw *talo
 			return nil, err
 		}
 		// Fire an event if the TalosControlPlane is not found and maybe requeue the reconciliation after some time
-		r.Recorder.Eventf(tw, corev1.EventTypeWarning, "ControlPlaneNotFound",
-			"TalosControlPlane %s not found in namespace %s", tw.Spec.ControlPlaneRef.Name, tw.Namespace)
+		r.Recorder.Eventf(tw, nil, corev1.EventTypeWarning, "ControlPlaneNotFound", "ControlPlaneNotFound", "TalosControlPlane %s not found in namespace %s", tw.Spec.ControlPlaneRef.Name, tw.Namespace)
 		logger.Error(err, "Failed to get TalosControlPlane", "name", tw.Spec.ControlPlaneRef.Name)
 		return nil, err
 	}
@@ -572,7 +570,7 @@ func (r *TalosWorkerReconciler) handleDeletion(ctx context.Context, tw *talosv1a
 		meta.SetStatusCondition(&tw.Status.Conditions, metav1.Condition{
 			Type:    talosv1alpha1.ConditionDeleting,
 			Status:  metav1.ConditionTrue,
-			Reason:  "Deleting",
+			Reason:  ConditionReasonDeleting,
 			Message: "TalosWorker is being deleted",
 		})
 		if err := r.Status().Update(ctx, tw); err != nil {
@@ -589,7 +587,7 @@ func (r *TalosWorkerReconciler) handleDeletion(ctx context.Context, tw *talosv1a
 		talosMachineList := &talosv1alpha1.TalosMachineList{}
 		opts := []client.ListOption{
 			client.InNamespace(tw.Namespace),
-			client.MatchingFields{"spec.workerRef.name": tw.Name},
+			client.MatchingFields{IndexWorkerRefName: tw.Name},
 		}
 		if err := r.List(ctx, talosMachineList, opts...); err != nil {
 			logger.Error(err, "failed to list TalosMachines for deletion", "name", tw.Name)
@@ -629,7 +627,7 @@ func (r *TalosWorkerReconciler) CheckWorkerMachinesReady(ctx context.Context, tw
 	machines := &talosv1alpha1.TalosMachineList{}
 	opts := []client.ListOption{
 		client.InNamespace(tw.Namespace),
-		client.MatchingFields{"spec.workerRef.name": tw.Name},
+		client.MatchingFields{IndexWorkerRefName: tw.Name},
 	}
 	var allAvailable bool
 	for i := 0; i < maxRetries; i++ {
@@ -728,7 +726,7 @@ func (r *TalosWorkerReconciler) ImportExistingTalosWorker(ctx context.Context, t
 	}
 	logger.Info("Successfully imported existing TalosWorker", "name", tw.Name)
 	// Fire an event to indicate successful import
-	r.Recorder.Eventf(tw, corev1.EventTypeNormal, "Imported", "Successfully imported existing TalosWorker %s", tw.Name)
+	r.Recorder.Eventf(tw, nil, corev1.EventTypeNormal, "Imported", "Imported", "Successfully imported existing TalosWorker %s", tw.Name)
 	// Requeue so that the normal reconciliation can proceed after import
 	return ctrl.Result{Requeue: true}, nil
 

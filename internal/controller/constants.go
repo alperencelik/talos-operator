@@ -26,6 +26,20 @@ const (
 	// For tests
 	DefaultNamespace = "default"
 
+	// Deleting is the reason used in conditions when a resource is being deleted
+	ConditionReasonDeleting = "Deleting"
+
+	// AppLabelKey is the standard pod label used to select pods backing a Talos
+	// control plane StatefulSet/Service.
+	AppLabelKey = "app"
+
+	// Field index keys for owner-ref lookups
+	IndexControlPlaneRefName = "spec.controlPlaneRef.name"
+	IndexWorkerRefName       = "spec.workerRef.name"
+
+	// DeletionPolicyReset is the deletion policy that triggers a Talos reset
+	DeletionPolicyReset = "reset"
+
 	// PXE boot stack
 
 	// PXE boot stack enabled value

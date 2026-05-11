@@ -30,10 +30,10 @@ import (
 // TalosControlPlaneSpec defines the desired state of TalosControlPlane.
 type TalosControlPlaneSpec struct {
 
-	// version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
+	// version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
-	// +kubebuilder:default="v1.12.1"
+	// +kubebuilder:default="v1.13.0"
 	Version string `json:"version"`
 
 	// mode specifies the deployment mode for the control plane (container, metal, or cloud).
@@ -126,6 +126,10 @@ type FlannelCNIConfig struct {
 	// extraArgs are extra arguments for 'flanneld'.
 	// +kubebuilder:validation:Optional
 	ExtraArgs []string `json:"extraArgs,omitempty"`
+
+	// kubeNetworkPoliciesEnabled enables Kubernetes NetworkPolicy support for the Flannel CNI by deploying kube-network-policies.
+	// +kubebuilder:validation:Optional
+	KubeNetworkPoliciesEnabled *bool `json:"kubeNetworkPoliciesEnabled,omitempty"`
 }
 
 type MetalSpec struct {
@@ -142,7 +146,7 @@ type Machine struct {
 	// address is the IP address of the Talos machine.
 	// +kubebuilder:validation:Pattern=`^(\d{1,3}\.){3}\d{1,3}$`
 	Address *string `json:"address,omitempty"`
-	// version of Talos to use for this machine (controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.12.1"
+	// version of Talos to use for this machine (controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
 	Version string `json:"version,omitempty"`

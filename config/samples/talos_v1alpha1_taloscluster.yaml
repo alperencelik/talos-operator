@@ -7,13 +7,13 @@ metadata:
   name: taloscluster-sample
 spec:
   controlPlane:
-    version: v1.10.3
+    version: v1.13.0
     mode: container
     replicas: 2
     kubeVersion: v1.33.0
   worker:
-    version: v1.10.3
-    mode: container 
+    version: v1.13.0
+    mode: container
     replicas: 2
-    kubeVersion: v1.33.0 
+    kubeVersion: v1.33.0
   # TODO(user): Add fields here

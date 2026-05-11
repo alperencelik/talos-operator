@@ -40,8 +40,9 @@ spec:
             {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.tracing.enabled }}
           args:
+            - "--metrics-bind-address=:{{ .Values.service.port }}"
+          {{- if .Values.tracing.enabled }}
             - --enable-tracing
             - --otlp-endpoint={{ .Values.tracing.otlpEndpoint }}
           {{- end }}

@@ -30,7 +30,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,7 +48,7 @@ import (
 type TalosMachineReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosmachines,verbs=get;list;watch;create;update;patch;delete
@@ -63,7 +63,7 @@ type TalosMachineReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
-func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { // nolint:gocyclo
 	logger := log.FromContext(ctx)
 
 	// Get the machine object and decide whether it's a control plane or worker machine
@@ -87,14 +87,14 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			res, err := r.handleDelete(ctx, &talosMachine)
 			if err != nil {
 				logger.Error(err, "Failed to handle delete for TalosMachine", "name", talosMachine.Name)
-				r.Recorder.Event(&talosMachine, corev1.EventTypeWarning, "DeleteFailed", "Failed to handle delete for TalosMachine")
+				r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeWarning, "DeleteFailed", "DeleteFailed", "Failed to handle delete for TalosMachine")
 				return res, err
 			}
 			// Remove the finalizer
 			controllerutil.RemoveFinalizer(&talosMachine, talosv1alpha1.TalosMachineFinalizer)
 			if err := r.Update(ctx, &talosMachine); err != nil {
 				logger.Error(err, "Failed to remove finalizer for TalosMachine", "name", talosMachine.Name)
-				r.Recorder.Event(&talosMachine, corev1.EventTypeWarning, "FinalizerRemoveFailed", "Failed to remove finalizer for TalosMachine")
+				r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeWarning, "FinalizerRemoveFailed", "FinalizerRemoveFailed", "Failed to remove finalizer for TalosMachine")
 				return ctrl.Result{}, err
 			}
 		}
@@ -119,6 +119,22 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Do nothing, proceed with reconciliation
 	}
 
+	// If state is lost (e.g. CR was re-applied), probe the node to see if it's already
+	// provisioned.
+	if talosMachine.Status.State == "" {
+		provisioned, err := r.probeProvisioned(ctx, &talosMachine)
+		if err != nil {
+			logger.Info("Probe failed, falling through to normal flow", "name", talosMachine.Name, "error", err)
+		}
+		if provisioned {
+			if err := r.updateState(ctx, &talosMachine, talosv1alpha1.StateAvailable); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to restore TalosMachine %s state: %w", talosMachine.Name, err)
+			}
+			r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeNormal, "StatusRestored", "StatusRestored", "Node responded to secure connection; state restored to Available")
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
+
 	if talosMachine.Spec.PxeClientSpec != nil {
 		// If the state is empty update it to Booting
 		if talosMachine.Status.State == "" {
@@ -138,7 +154,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			}
 			if res != (ctrl.Result{}) {
 				logger.Info("Requeuing reconciliation to check machine boot status", "name", talosMachine.Name)
-				r.Recorder.Event(&talosMachine, corev1.EventTypeNormal, "Requeuing", "Requeuing reconciliation to check machine boot status")
+				r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeNormal, "Requeuing", "Requeuing", "Requeuing reconciliation to check machine boot status")
 				return res, nil // Requeue the reconciliation to check the machine boot status again
 			}
 		}
@@ -154,7 +170,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 		if res != (ctrl.Result{}) {
 			logger.Info("Requeuing reconciliation to check machine readiness", "name", talosMachine.Name)
-			r.Recorder.Event(&talosMachine, corev1.EventTypeNormal, "Requeuing", "Requeuing reconciliation to check machine readiness")
+			r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeNormal, "Requeuing", "Requeuing", "Requeuing reconciliation to check machine readiness")
 			return res, nil // Requeue the reconciliation to check the machine status again
 		}
 	}
@@ -169,7 +185,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		err := r.handleMetaKey(ctx, &talosMachine)
 		if err != nil {
 			logger.Error(err, "Failed to handle meta key for TalosMachine", "name", talosMachine.Name)
-			r.Recorder.Event(&talosMachine, corev1.EventTypeWarning, "MetaKeyFailed", "Failed to handle meta key for TalosMachine")
+			r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeWarning, "MetaKeyFailed", "MetaKeyFailed", "Failed to handle meta key for TalosMachine")
 			return ctrl.Result{}, err
 		}
 	}
@@ -200,17 +216,17 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	r.Recorder.Event(tm, corev1.EventTypeNormal, "Reconciling", "Handling control plane machine")
+	r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "Reconciling", "Reconciling", "Handling control plane machine")
 	// Get the bundle config from TalosControlPlane
 	bc, err := r.GetBundleConfig(ctx, tm)
 	if err != nil {
 		logger.Error(err, "Failed to get BundleConfig for TalosMachine", "name", tm.Name)
-		r.Recorder.Event(tm, corev1.EventTypeWarning, "BundleConfigFailed", "Failed to get BundleConfig for TalosMachine")
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "BundleConfigFailed", "BundleConfigFailed", "Failed to get BundleConfig for TalosMachine")
 		return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
 	}
 	if bc == nil {
 		logger.Info("TalosControlPlane bundleConfig is not set, waiting for it to be ready", "name", tm.Name)
-		r.Recorder.Event(tm, corev1.EventTypeNormal, "BundleConfigNotSet", "TalosControlPlane bundleConfig is not set, waiting for it to be ready")
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "BundleConfigNotSet", "BundleConfigNotSet", "TalosControlPlane bundleConfig is not set, waiting for it to be ready")
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check again
 	}
 
@@ -227,12 +243,12 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 		// Apply patches to config before applying it
 		patches, err := r.metalConfigPatches(ctx, tm, bc)
 		if err != nil {
-			r.Recorder.Event(tm, corev1.EventTypeWarning, "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
+			r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "MetalConfigPatchFailed", "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
 			return ctrl.Result{}, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
 		}
 		cpConfig, err = talos.GenerateControlPlaneConfig(bc, patches)
 		if err != nil {
-			r.Recorder.Event(tm, corev1.EventTypeWarning, "ConfigGenerationFailed", "Failed to generate Control Plane config for TalosMachine")
+			r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "ConfigGenerationFailed", "ConfigGenerationFailed", "Failed to generate Control Plane config for TalosMachine")
 			return ctrl.Result{}, fmt.Errorf("failed to generate Control Plane config for TalosMachine %s: %w", tm.Name, err)
 		}
 		if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.ImageCache {
@@ -256,7 +272,7 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 	err = r.UpgradeOrApplyConfig(ctx, tm, bc, cpConfig)
 	if err != nil {
 		logger.Error(err, "Failed to apply or upgrade Talos config for TalosMachine", "name", tm.Name)
-		r.Recorder.Event(tm, corev1.EventTypeWarning, "ConfigApplyFailed", "Failed to apply or upgrade Talos config for TalosMachine")
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "ConfigApplyFailed", "ConfigApplyFailed", "Failed to apply or upgrade Talos config for TalosMachine")
 		return ctrl.Result{}, fmt.Errorf("failed to apply or upgrade Talos config for TalosMachine %s: %w", tm.Name, err)
 	}
 	// TODO: Review here to make it more event driven -- maybe implement watcher, etc.
@@ -265,16 +281,16 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 
 func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	r.Recorder.Event(tm, corev1.EventTypeNormal, "Reconciling", "Handling worker machine")
+	r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "Reconciling", "Reconciling", "Handling worker machine")
 	bc, err := r.GetBundleConfig(ctx, tm)
 	if err != nil {
 		logger.Error(err, "Failed to get BundleConfig for TalosMachine", "name", tm.Name)
-		r.Recorder.Event(tm, corev1.EventTypeWarning, "BundleConfigFailed", "Failed to get BundleConfig for TalosMachine")
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "BundleConfigFailed", "BundleConfigFailed", "Failed to get BundleConfig for TalosMachine")
 		return ctrl.Result{}, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
 	}
 	if bc == nil {
 		logger.Info("TalosControlPlane bundleConfig is not set, waiting for it to be ready", "name", tm.Name)
-		r.Recorder.Event(tm, corev1.EventTypeNormal, "BundleConfigNotSet", "TalosControlPlane bundleConfig is not set, waiting for it to be ready")
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "BundleConfigNotSet", "BundleConfigNotSet", "TalosControlPlane bundleConfig is not set, waiting for it to be ready")
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check again
 	}
 
@@ -292,13 +308,13 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 		// Apply patches to config before applying it
 		patches, err := r.metalConfigPatches(ctx, tm, bc)
 		if err != nil {
-			r.Recorder.Event(tm, corev1.EventTypeWarning, "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
+			r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "MetalConfigPatchFailed", "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
 			return ctrl.Result{}, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
 		}
 		// Generate the worker config
 		workerConfig, err = talos.GenerateWorkerConfig(bc, patches)
 		if err != nil {
-			r.Recorder.Event(tm, corev1.EventTypeWarning, "ConfigGenerationFailed", "Failed to generate Worker config for TalosMachine")
+			r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "ConfigGenerationFailed", "ConfigGenerationFailed", "Failed to generate Worker config for TalosMachine")
 			return ctrl.Result{}, fmt.Errorf("failed to generate Worker config for TalosMachine %s: %w", tm.Name, err)
 		}
 		if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.ImageCache {
@@ -314,7 +330,7 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 	err = r.UpgradeOrApplyConfig(ctx, tm, bc, workerConfig)
 	if err != nil {
 		logger.Error(err, "Failed to apply or upgrade Talos config for TalosMachine", "name", tm.Name)
-		r.Recorder.Event(tm, corev1.EventTypeWarning, "ConfigApplyFailed", "Failed to apply or upgrade Talos config for TalosMachine")
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "ConfigApplyFailed", "ConfigApplyFailed", "Failed to apply or upgrade Talos config for TalosMachine")
 		return ctrl.Result{}, fmt.Errorf("failed to apply or upgrade Talos config for TalosMachine %s: %w", tm.Name, err)
 	}
 	// TODO: Review here to make it more event driven -- maybe implement watcher, etc.
@@ -446,7 +462,7 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 		return ctrl.Result{}, nil
 	}
 	// Only reset if requested by deletion policy:
-	if tm.Spec.DeletionPolicy == "reset" {
+	if tm.Spec.DeletionPolicy == DeletionPolicyReset {
 		// Run talosctl reset command to reset the machine
 		config, err := r.GetBundleConfig(ctx, tm)
 		if err != nil {
@@ -604,6 +620,29 @@ func (r *TalosMachineReconciler) configMapToTalosMachines(ctx context.Context, o
 	return requests
 }
 
+// probeProvisioned attempts a secure mtls connection to the node
+func (r *TalosMachineReconciler) probeProvisioned(ctx context.Context, tm *talosv1alpha1.TalosMachine) (bool, error) {
+	bc, err := r.GetBundleConfig(ctx, tm)
+	if err != nil {
+		return false, fmt.Errorf("failed to get BundleConfig for TalosMachine %s: %w", tm.Name, err)
+	}
+	if bc == nil {
+		return false, nil
+	}
+	bc.ClientEndpoint = &[]string{tm.Spec.Endpoint}
+	tc, err := talos.NewClient(ctx, bc, false)
+	if err != nil {
+		return false, nil
+	}
+	defer tc.Close() //nolint:errcheck
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := tc.GetTalosVersion(probeCtx); err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
 func (r *TalosMachineReconciler) CheckMachineBootStatus(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	// Create Talos client
@@ -733,7 +772,7 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 			image = fmt.Sprintf("%s:%s", talos.DefaultTalosImage, tm.Spec.Version)
 		}
 		// Add an event
-		r.Recorder.Event(tm, corev1.EventTypeNormal, "Upgrading", fmt.Sprintf("Upgrading Talos version to %s using image %s", tm.Spec.Version, image))
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "Upgrading", "Upgrading", fmt.Sprintf("Upgrading Talos version to %s using image %s", tm.Spec.Version, image))
 		if err := tc.UpgradeTalosVersion(ctx, image); err != nil {
 			return fmt.Errorf("failed to upgrade Talos version for TalosMachine %s: %w", tm.Name, err)
 		}
@@ -839,7 +878,7 @@ func (r *TalosMachineReconciler) ImportExistingMachine(ctx context.Context, tm *
 	}
 	logger.Info("Successfully imported existing TalosMachine", "name", tm.Name)
 	// Fire an event
-	r.Recorder.Event(tm, corev1.EventTypeNormal, "Imported", "Successfully imported existing TalosMachine")
+	r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "Imported", "Imported", "Successfully imported existing TalosMachine")
 	// Requeue so that the machine can be reconciled further after import
 	return ctrl.Result{Requeue: true}, nil
 }

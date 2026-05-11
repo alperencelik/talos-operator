@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -137,4 +138,15 @@ func (s *S3Client) Delete(ctx context.Context, key string) error {
 func GenerateBackupKey(clusterName string) string {
 	timestamp := time.Now().UTC().Format("2006-01-02T15-04-05Z")
 	return fmt.Sprintf("talos-operator-etcd-backups/%s/etcd-snapshot-%s.db", clusterName, timestamp)
+}
+
+// StateKeyForBackupKey derives the state-secret object key that pairs with a given
+// etcd backup key, so each backup and its matching state are stored side-by-side.
+func StateKeyForBackupKey(backupKey string) string {
+	dir, base := backupKey, ""
+	if i := strings.LastIndex(backupKey, "/"); i >= 0 {
+		dir, base = backupKey[:i], backupKey[i+1:]
+	}
+	timestamp := strings.TrimSuffix(strings.TrimPrefix(base, "etcd-snapshot-"), ".db")
+	return fmt.Sprintf("%s/state-%s.yaml", dir, timestamp)
 }

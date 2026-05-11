@@ -22,7 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,7 +40,7 @@ import (
 type TalosClusterAddonReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosclusteraddons,verbs=get;list;watch;create;update;patch;delete
@@ -69,7 +69,7 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		delErr = r.handleFinalizer(ctx, &tcAddon)
 		if delErr != nil {
 			logger.Error(delErr, "error while handling finalizer")
-			r.Recorder.Event(&tcAddon, corev1.EventTypeWarning, "FinalizerFailed", delErr.Error())
+			r.Recorder.Eventf(&tcAddon, nil, corev1.EventTypeWarning, "FinalizerFailed", "FinalizerFailed", delErr.Error())
 			return ctrl.Result{}, fmt.Errorf("failed to handle finalizer: %w", delErr)
 		}
 	} else {
@@ -80,7 +80,7 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			res, delErr = r.handleDelete(ctx, &tcAddon)
 			if delErr != nil {
 				logger.Error(delErr, "failed to handle delete for TalosClusterAddon", "name", tcAddon.Name)
-				r.Recorder.Event(&tcAddon, corev1.EventTypeWarning, "DeleteFailed", "Failed to handle delete for TalosClusterAddon")
+				r.Recorder.Eventf(&tcAddon, nil, corev1.EventTypeWarning, "DeleteFailed", "DeleteFailed", "Failed to handle delete for TalosClusterAddon")
 
 				return res, fmt.Errorf("failed to handle delete for TalosClusterAddon %s: %w", tcAddon.Name, delErr)
 			}
@@ -128,7 +128,7 @@ func (r *TalosClusterAddonReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		err := r.createOrUpdateAddonRelease(ctx, tcAddon, cluster)
 		if err != nil {
 			logger.Error(err, "failed to create or update TalosClusterAddonRelease", "cluster", cluster.Name)
-			r.Recorder.Event(&tcAddon, corev1.EventTypeWarning, "ReconcileFailed", fmt.Sprintf("Failed to create or update TalosClusterAddonRelease for cluster %s: %v", cluster.Name, err))
+			r.Recorder.Eventf(&tcAddon, nil, corev1.EventTypeWarning, "ReconcileFailed", "ReconcileFailed", fmt.Sprintf("Failed to create or update TalosClusterAddonRelease for cluster %s: %v", cluster.Name, err))
 
 			meta.SetStatusCondition(&tcAddon.Status.Conditions, metav1.Condition{
 				Type:    talosv1alpha1.ConditionReady,

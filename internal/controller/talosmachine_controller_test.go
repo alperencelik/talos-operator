@@ -52,9 +52,9 @@ var _ = Describe("TalosMachine Controller", func() {
 				Namespace: namespace,
 			},
 			Spec: talosv1alpha1.TalosMachineSpec{
-				Endpoint:       "192.168.1.10",
-				Version:        "v1.10.4",
-				DeletionPolicy: "reset",
+				Endpoint:       testMachineIP,
+				Version:        testTalosVersion,
+				DeletionPolicy: testDeletionPolicyReset,
 			},
 		}
 	})
@@ -70,8 +70,8 @@ var _ = Describe("TalosMachine Controller", func() {
 				return k8sClient.Get(ctx, types.NamespacedName{Name: talosMachineName, Namespace: namespace}, createdResource)
 			}, timeout, interval).Should(Succeed())
 
-			Expect(createdResource.Spec.Endpoint).To(Equal("192.168.1.10"))
-			Expect(createdResource.Spec.Version).To(Equal("v1.10.4"))
+			Expect(createdResource.Spec.Endpoint).To(Equal(testMachineIP))
+			Expect(createdResource.Spec.Version).To(Equal(testTalosVersion))
 		})
 
 		It("Should handle updates", func() {

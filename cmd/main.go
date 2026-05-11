@@ -193,7 +193,7 @@ func main() {
 	if err = (&controller.TalosClusterReconciler{
 		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("taloscluster-controller"),
+		Recorder: mgr.GetEventRecorder("taloscluster-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosCluster")
 		os.Exit(1)
@@ -201,7 +201,7 @@ func main() {
 	if err = (&controller.TalosControlPlaneReconciler{
 		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("taloscontrolplane-controller"),
+		Recorder: mgr.GetEventRecorder("taloscontrolplane-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosControlPlane")
 		os.Exit(1)
@@ -209,7 +209,7 @@ func main() {
 	if err = (&controller.TalosWorkerReconciler{
 		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("talosworker-controller"),
+		Recorder: mgr.GetEventRecorder("talosworker-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosWorker")
 		os.Exit(1)
@@ -217,7 +217,7 @@ func main() {
 	if err = (&controller.TalosMachineReconciler{
 		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("talosmachine-controller"),
+		Recorder: mgr.GetEventRecorder("talosmachine-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosMachine")
 		os.Exit(1)
@@ -239,7 +239,7 @@ func main() {
 	if err := (&controller.TalosClusterAddonReconciler{
 		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("talosclusteraddon-controller"),
+		Recorder: mgr.GetEventRecorder("talosclusteraddon-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosClusterAddon")
 		os.Exit(1)
@@ -247,7 +247,7 @@ func main() {
 	if err := (&controller.TalosClusterAddonReleaseReconciler{
 		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("talosclusteraddonrelease-controller"),
+		Recorder: mgr.GetEventRecorder("talosclusteraddonrelease-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosClusterAddonRelease")
 		os.Exit(1)
