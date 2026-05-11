@@ -303,3 +303,11 @@ func restartPxeBootStack() error {
 		return fmt.Errorf("could not find dnsmasq process")
 	}
 }
+
+func buildClusterName(baseName string, suffix string) string {
+	if os.Getenv("GLOBAL_CLUSTER_NAME") == "true" {
+		return baseName
+	} else {
+		return baseName + suffix
+	}
+}

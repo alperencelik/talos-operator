@@ -151,7 +151,7 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 	if tc.Spec.ControlPlane != nil && tc.Spec.ControlPlaneRef == nil {
 		tcp := &talosv1alpha1.TalosControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        tc.Name + "-controlplane",
+				Name:        buildClusterName(tc.Name, "-controlplane"),
 				Namespace:   tc.Namespace,
 				Labels:      tc.Labels,
 				Annotations: tc.Annotations,
@@ -233,11 +233,11 @@ func (r *TalosClusterReconciler) reconcileWorker(ctx context.Context, tc *talosv
 	if tc.Spec.ControlPlaneRef != nil {
 		controlPlaneRefName = tc.Spec.ControlPlaneRef.Name
 	} else {
-		controlPlaneRefName = tc.Name + "-controlplane"
+		controlPlaneRefName = buildClusterName(tc.Name, "-controlplane")
 	}
 
 	// Inline Worker spec is provided and no WorkerRef, reconcile TalosWorker resource
-	workerName := tc.Name + "-worker"
+	workerName := buildClusterName(tc.Name, "-worker")
 	tw := &talosv1alpha1.TalosWorker{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      workerName,
@@ -374,7 +374,7 @@ func (r *TalosClusterReconciler) handleDelete(ctx context.Context, tc talosv1alp
 	// Delete the child resources if they exist
 	if err := r.Delete(ctx, &talosv1alpha1.TalosWorker{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      tc.Name + "-worker",
+			Name:      buildClusterName(tc.Name, "-worker"),
 			Namespace: tc.Namespace,
 		},
 	}); err != nil && !kerrors.IsNotFound(err) {
@@ -384,7 +384,7 @@ func (r *TalosClusterReconciler) handleDelete(ctx context.Context, tc talosv1alp
 	// Delete the TalosControlPlane
 	if err := r.Delete(ctx, &talosv1alpha1.TalosControlPlane{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      tc.Name + "-controlplane",
+			Name:      buildClusterName(tc.Name, "-controlplane"),
 			Namespace: tc.Namespace,
 		},
 	}); err != nil && !kerrors.IsNotFound(err) {
