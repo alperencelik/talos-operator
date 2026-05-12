@@ -338,11 +338,6 @@ func (r *TalosClusterReconciler) handlePxeBootStack(ctx context.Context, tc talo
 		return err
 	}
 
-	// Restart PXE boot stack to apply the new configuration
-	if err := restartPxeBootStack(); err != nil {
-		return err
-	}
-
 	return nil
 }
 
