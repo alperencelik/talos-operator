@@ -57,8 +57,6 @@ spec:
               value: "{{ .Values.featureFlags.enableMetaKey | default "false" }}"
             - name: ENABLE_PXE_BOOT_STACK
               value: "{{ .Values.featureFlags.enablePxeBootStack | default "false" }}"
-            - name: GLOBAL_CLUSTER_NAME
-              value: "{{ .Values.globalClusterName | default "false" }}"
             {{- if .Values.featureFlags.enablePxeBootStack }}
             - name: MATCHBOX_PORT
               value: "{{ .Values.pxeBootStack.matchbox.port }}"

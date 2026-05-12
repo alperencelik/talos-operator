@@ -205,6 +205,3 @@ extraObjects: []
   #     dataFrom:
   #       - extract:
   #           key: /prod/talos
-
-# This flag specifies whether the same cluster name should be applied to all nodes, regardless of their type, or if a suffix should be appended depending on the type of node ("-controlplane" or "-worker")
-globalClusterName: false
