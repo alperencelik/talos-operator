@@ -127,20 +127,22 @@ func updatePxeBootStackConfig(clusters []Cluster) error {
 
 	// Generating configurations from templates and saving to files
 	// dnsmasq
-	if err := generateConfiguration(dnsmasqConfigTmpl, DnsmasqConfigPath, clusters); err != nil {
+	configChanged, err := generateConfiguration(dnsmasqConfigTmpl, DnsmasqConfigPath, clusters)
+	if err != nil {
 		return err
 	}
 	// Matchbox
+	// Does not need to be restarted, so we don't have to check if its config changed
 	for _, c := range clusters {
 		for _, m := range c.Machines {
 			// Groups
-			if err := generateConfiguration(matchboxGroupTmpl,
+			if _, err := generateConfiguration(matchboxGroupTmpl,
 				path.Join(MatchboxConfigPath, MatchboxGroupsDir, fmt.Sprintf("%s.json", m.Id)), m,
 			); err != nil {
 				return err
 			}
 			// Profiles
-			if err := generateConfiguration(matchboxProfileTmpl,
+			if _, err := generateConfiguration(matchboxProfileTmpl,
 				path.Join(MatchboxConfigPath, MatchboxProfilesDir, fmt.Sprintf("%s.json", m.Id)), m,
 			); err != nil {
 				return err
@@ -148,26 +150,50 @@ func updatePxeBootStackConfig(clusters []Cluster) error {
 		}
 	}
 
+	// Restart PXE boot stack to apply the new configuration, if necessary
+	if configChanged {
+		if err := restartPxeBootStack(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func generateConfiguration(tmplString string, destPath string, data any) error {
+func generateConfiguration(tmplString string, destPath string, data any) (bool, error) {
+	// Saving current config to check if it changed
+	configChanged := false
+	content, err := os.ReadFile(DnsmasqConfigPath)
+	if err != nil {
+		return configChanged, err
+	}
+	previousConfig := string(content)
+
 	file, err := os.Create(destPath)
 	if err != nil {
-		return err
+		return configChanged, err
 	}
 	tmpl, err := template.New("").Parse(tmplString)
 	if err != nil {
-		return err
+		return configChanged, err
 	}
 	if err := tmpl.Execute(file, data); err != nil {
-		return err
+		return configChanged, err
 	}
 	if err := file.Close(); err != nil {
-		return err
+		return configChanged, err
 	}
 
-	return nil
+	// Checking if config changed
+	content, err = os.ReadFile(DnsmasqConfigPath)
+	if err != nil {
+		return configChanged, err
+	}
+	if string(content) != previousConfig {
+		configChanged = true
+	}
+
+	return configChanged, nil
 }
 
 func downloadBootImages(clusters []Cluster) error {
