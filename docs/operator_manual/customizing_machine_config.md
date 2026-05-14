@@ -104,17 +104,45 @@ A runnable version of this example lives at [`examples/talos-controlplane-metal-
 
 In `metal` mode each `TalosMachine` reconciler regenerates the full machine config every time it reconciles, compares it against `TalosMachine.Status.Config`, and — if they differ — sends an apply through the Talos API. The actual reboot/no-reboot behavior is then decided by Talos itself, based on which fields changed: some fields can be applied live, others require a reboot, and a few require a staged apply. See the upstream [Talos configuration documentation](https://www.talos.dev/latest/talos-guides/configuration/) for the field-level rules.
 
-In `container` mode the rendered config is written to a `ConfigMap` consumed by the StatefulSet, so updating a patch will roll the pods.
-
 !!!tip
     If you want to inspect the config that will actually be applied before it lands on a machine, the operator writes generated configs to the cluster's state secret and `TalosMachine.Status.Config`. Reading those is the fastest way to verify a patch produced the YAML you expected.
 
+## CNI configuration
+
+CNI selection is *not* a `configPatches` field — `TalosControlPlane` exposes a dedicated `spec.cni` block with three modes: `flannel` (the Talos default), `custom`, and `none`. Reach for this before reaching for a patch:
+
+```yaml
+apiVersion: talos.alperen.cloud/v1alpha1
+kind: TalosControlPlane
+metadata:
+  name: taloscontrolplane-sample
+spec:
+  cni:
+    name: flannel
+    flannel:
+      kubeNetworkPoliciesEnabled: true
+      extraArgs:
+        - "--iface-regex=eth.*"
+```
+
+For a self-managed CNI (Cilium, Calico, etc.) set `name: custom` and provide the manifest URLs the operator should apply:
+
+```yaml
+spec:
+  cni:
+    name: custom
+    urls:
+      - https://raw.githubusercontent.com/.../cilium.yaml
+```
+
+Use `name: none` if you intend to install the CNI out of band (e.g. via a `TalosClusterAddon`). The `urls` field must be empty for both `flannel` and `none`.
+
+The `cni` field flows directly into the generated control-plane config, so it takes effect the same way as any other config change (see *How changes get applied* above). It's set once at cluster bootstrap; switching CNIs on a running cluster is a Talos-level operation that this field alone won't orchestrate.
+
 ## Common patterns
 
+- **CNI**: use the dedicated `spec.cni` field on `TalosControlPlane` (see *CNI configuration* above) rather than patching `cluster.network.cni`.
 - **Kubelet args**: patch `machine.kubelet.extraArgs` via `configPatches`.
 - **Network bonds and VLANs**: patch `machine.network.interfaces` via `configPatches` at the per-machine level.
 - **Container registry mirrors**: prefer the dedicated `spec.metalSpec.machineSpec.registries` field on the CRD when possible; fall back to a `configPatches` entry on `machine.registries` for cases the field doesn't cover.
 - **Standalone documents** (e.g. `VolumeConfig`, `NetworkDefaultActionConfig`, `Layer2VIPConfig`): use `additionalConfig`.
-
-!!!info
-    This page is an initial pass. If a pattern you need isn't covered here, please open an issue — the goal is for this page to grow with real-world examples.
