@@ -35,6 +35,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -164,6 +165,12 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		result, err = r.reconcileMetalMode(ctx, &tcp)
 		if err != nil {
 			return result, fmt.Errorf("failed to reconcile TalosControlPlane in metal mode: %w", err)
+		}
+		// If a Talos rollout is in progress (held upgrades waiting for budget) return early
+		// to complete rollout before doing anything else.
+		if result.RequeueAfter > 0 {
+			// Requeue since there are other machines waiting for the upgrade to proceed
+			return result, nil
 		}
 	default:
 		logger.Info("Unsupported mode for TalosControlPlane", "mode", tcp.Spec.Mode)
@@ -383,9 +390,15 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 	}
 
 	// Reconcile TalosMachine object
-	if err := r.handleTalosMachines(ctx, tcp); err != nil {
+	heldUpgrades, err := r.handleTalosMachines(ctx, tcp)
+	if err != nil {
 		logger.Error(err, "Failed to reconcile TalosMachine objects", "name", tcp.Name)
-		return ctrl.Result{Requeue: true}, err
+		return ctrl.Result{}, err
+	}
+	if heldUpgrades {
+		// Some machines are waiting for the rolling upgrade budget to free up.
+		// Requeue periodically so we re-evaluate as in-flight upgrades complete.
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	// Wait for all TalosMachines to be created and status Available
@@ -418,24 +431,32 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 	return ctrl.Result{}, nil
 }
 
-func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) error {
+// handleTalosMachines reconciles the set of child TalosMachines for the control plane.
+// returns true if it's heldfor upgrades.
+func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (bool, error) {
 	logger := log.FromContext(ctx)
 
 	resolvedMachines, err := getMachinesResolved(ctx, r.Client, &tcp.Spec.MetalSpec.Machines)
 	if err != nil {
-		return fmt.Errorf("failed to get machine IP addresses for TalosControlPlane %s: %w", tcp.Name, err)
+		return false, fmt.Errorf("failed to get machine IP addresses for TalosControlPlane %s: %w", tcp.Name, err)
 	}
 	// List existing ones
 	existing := &talosv1alpha1.TalosMachineList{}
 	if err := r.List(ctx, existing, client.InNamespace(tcp.Namespace),
 		client.MatchingFields{IndexControlPlaneRefName: tcp.Name},
 	); err != nil {
-		return fmt.Errorf("failed to list TalosMachines: %w", err)
+		return false, fmt.Errorf("failed to list TalosMachines: %w", err)
 	}
 	// Desired state
 	desired := make(map[string]bool)
 	for ip := range resolvedMachines {
 		desired[fmt.Sprintf("%s-%s", tcp.Name, ip)] = true
+	}
+	// Index existing machines by name for quick lookup during version decisions.
+	existingByName := make(map[string]*talosv1alpha1.TalosMachine, len(existing.Items))
+	for i := range existing.Items {
+		m := &existing.Items[i]
+		existingByName[m.Name] = m
 	}
 	// Delete orphaned machines
 	for _, m := range existing.Items {
@@ -443,11 +464,16 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 			if !desired[m.Name] {
 				if err := r.Delete(ctx, &m); err != nil && !kerrors.IsNotFound(err) {
 					logger.Error(err, "Failed to delete orphaned TalosMachine", "name", m.Name)
-					return fmt.Errorf("failed to delete orphaned TalosMachine %s: %w", m.Name, err)
+					return false, fmt.Errorf("failed to delete orphaned TalosMachine %s: %w", m.Name, err)
 				}
 			}
 		}
 	}
+
+	maxUnavailable := resolveMaxUnavailable(tcp.Spec.RolloutStrategy, len(resolvedMachines))
+	inFlight := countInFlightUpgrades(existing.Items, desired)
+	heldUpgrades := false
+
 	// Create or update TalosMachines
 	for ip, machine := range resolvedMachines {
 		name := fmt.Sprintf("%s-%s", tcp.Name, ip)
@@ -467,10 +493,23 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 			if err := controllerutil.SetControllerReference(tcp, tm, r.Scheme); err != nil {
 				return fmt.Errorf("failed to set controller reference for TalosMachine %s: %w", tm.Name, err)
 			}
-			version := tcp.Spec.Version
-			// Using machine specific version if specified
+			desiredVersion := tcp.Spec.Version
 			if machine.Version != "" {
-				version = machine.Version
+				// Per-machine pin overrides both the parent version and rollout gating.
+				desiredVersion = machine.Version
+			}
+			version := desiredVersion
+			// For existing machines without an explicit per-machine pin, gate the version bump
+			// behind the rollout strategy so we don't fan out an upgrade to all machines at once.
+			if existingTM, ok := existingByName[name]; ok && machine.Version == "" {
+				if existingTM.Spec.Version != "" && existingTM.Spec.Version != desiredVersion {
+					if inFlight >= maxUnavailable {
+						version = existingTM.Spec.Version
+						heldUpgrades = true
+					} else {
+						inFlight++
+					}
+				}
 			}
 			tm.Spec = talosv1alpha1.TalosMachineSpec{
 				ControlPlaneRef: &corev1.ObjectReference{
@@ -490,10 +529,39 @@ func (r *TalosControlPlaneReconciler) handleTalosMachines(ctx context.Context, t
 		})
 		if err != nil {
 			logger.Error(err, "Failed to create or update TalosMachine", "name", tm.Name)
-			return fmt.Errorf("failed to create or update TalosMachine %s: %w", tm.Name, err)
+			return false, fmt.Errorf("failed to create or update TalosMachine %s: %w", tm.Name, err)
 		}
 	}
-	return nil
+	return heldUpgrades, nil
+}
+
+// resolveMaxUnavailable returns the effective maxUnavailable count for the rollout
+func resolveMaxUnavailable(rs *talosv1alpha1.RolloutStrategy, replicas int) int {
+	if rs == nil || rs.RollingUpdate == nil || rs.RollingUpdate.MaxUnavailable == nil {
+		return 1
+	}
+	v, err := intstr.GetScaledValueFromIntOrPercent(rs.RollingUpdate.MaxUnavailable, replicas, false)
+	if err != nil || v < 1 {
+		return 1
+	}
+	return v
+}
+
+// countInFlightUpgrades returns how many of the desired machines currently have an upgrade in
+// progress: either explicitly in StateUpgrading, or with an observed version that lags the spec.
+func countInFlightUpgrades(items []talosv1alpha1.TalosMachine, desired map[string]bool) int {
+	count := 0
+	for i := range items {
+		m := &items[i]
+		if !desired[m.Name] {
+			continue
+		}
+		if m.Status.State == talosv1alpha1.StateUpgrading ||
+			(m.Status.ObservedVersion != "" && m.Status.ObservedVersion != m.Spec.Version) {
+			count++
+		}
+	}
+	return count
 }
 
 func (r *TalosControlPlaneReconciler) CheckControlPlaneReady(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (bool, error) {
