@@ -178,6 +178,3 @@ In `container` mode the rendered config is written to a `ConfigMap` consumed by 
 - **Kubelet args**: patch `machine.kubelet.extraArgs` via `configPatches`.
 - **Network bonds and VLANs**: patch `machine.network.interfaces` via `configPatches` at the per-machine level.
 - **Standalone documents** (e.g. `VolumeConfig`, `NetworkDefaultActionConfig`, `Layer2VIPConfig`): use `additionalConfig`.
-
-!!!info
-    This page is an initial pass. If a pattern you need isn't covered here, please open an issue — the goal is for this page to grow with real-world examples.
