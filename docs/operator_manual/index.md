@@ -14,3 +14,4 @@ This is the operator manual for Talos Operator. It provides detailed information
   - [Import Existing Clusters](import_existing_resources.md)
   - [Booting Talos Automatically](talos_auto_boot.md)
   - [State Secret](state_secret.md)
+  - [Customizing the Machine Config](customizing_machine_config.md)
