@@ -29,6 +29,9 @@ talos-operator's versions are compatible with the following versions of Talos:
 | talos-operator (v0.3.x) | ✓     | ✓     | ✓     | ✓     |       |       |
 | talos-operator (v0.4.x) |       |       |       |       | ✓     |       |
 | talos-operator (v0.5.0) |       |       |       |       | ✓     | ✓     |
+| talos-operator (v0.5.1) |       |       |       |       |       | ✓     |
+
+Starting from `v0.5.1`, the operator uses the new Talos `LifecycleService` API for machine upgrades, which is only available in Talos v1.13+. Earlier Talos versions are no longer supported.
 
 ## Motivation
 
