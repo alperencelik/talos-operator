@@ -73,6 +73,12 @@ type TalosWorkerSpec struct {
 	// +kubebuilder:validation:Enum=reset;preserve
 	// +kubebuilder:default=reset
 	DeletionPolicy string `json:"deletionPolicy"`
+
+	// rolloutStrategy controls how Talos version upgrades are propagated to the worker machines.
+	// only applied when mode is metal.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default={type: "RollingUpdate", rollingUpdate: {maxUnavailable: 1}}
+	RolloutStrategy *RolloutStrategy `json:"rolloutStrategy,omitempty"`
 }
 
 // TalosWorkerStatus defines the observed state of TalosWorker.

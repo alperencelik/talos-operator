@@ -188,8 +188,14 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 		return ctrl.Result{Requeue: true}, err
 	}
 	// Reconcile TalosMachine objects
-	if err := r.handleTalosMachines(ctx, tw); err != nil {
+	heldUpgrades, err := r.handleTalosMachines(ctx, tw)
+	if err != nil {
 		return ctrl.Result{}, err
+	}
+	if heldUpgrades {
+		// Some machines are waiting for the rolling upgrade budget to free up.
+		// Requeue periodically so we re-evaluate as in-flight upgrades complete.
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 	// TODO: The for loop here should be replaced. The problem is if I requeue here the reconcile will start from scratch and
 	// I need to make sure that the previous op is not repeated. Before switching here make sure the previous operations are idempotent and can be safely retried.
@@ -215,24 +221,32 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 	return ctrl.Result{}, nil
 }
 
-func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
+// handleTalosMachines reconciles the set of child TalosMachines for the worker pool.
+// returns true if it's held for upgrades.
+func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *talosv1alpha1.TalosWorker) (bool, error) {
 	logger := log.FromContext(ctx)
 
 	resolvedMachines, err := getMachinesResolved(ctx, r.Client, &tw.Spec.MetalSpec.Machines)
 	if err != nil {
-		return fmt.Errorf("failed to get machine IP addresses for TalosWorker %s: %w", tw.Name, err)
+		return false, fmt.Errorf("failed to get machine IP addresses for TalosWorker %s: %w", tw.Name, err)
 	}
 	// List existing ones
 	existing := &talosv1alpha1.TalosMachineList{}
 	if err := r.List(ctx, existing, client.InNamespace(tw.Namespace),
 		client.MatchingFields{IndexWorkerRefName: tw.Name},
 	); err != nil {
-		return fmt.Errorf("failed to list TalosMachines: %w", err)
+		return false, fmt.Errorf("failed to list TalosMachines: %w", err)
 	}
 	// Desired state
 	desired := make(map[string]bool)
 	for ip := range resolvedMachines {
 		desired[fmt.Sprintf("%s-%s", tw.Name, ip)] = true
+	}
+	// Index existing machines by name for quick lookup during version decisions.
+	existingByName := make(map[string]*talosv1alpha1.TalosMachine, len(existing.Items))
+	for i := range existing.Items {
+		m := &existing.Items[i]
+		existingByName[m.Name] = m
 	}
 	// Delete orphaned machines
 	for _, m := range existing.Items {
@@ -240,11 +254,16 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 			if !desired[m.Name] {
 				if err := r.Delete(ctx, &m); err != nil && !kerrors.IsNotFound(err) {
 					logger.Error(err, "Failed to delete orphaned TalosMachine", "name", m.Name)
-					return fmt.Errorf("failed to delete orphaned TalosMachine %s: %w", m.Name, err)
+					return false, fmt.Errorf("failed to delete orphaned TalosMachine %s: %w", m.Name, err)
 				}
 			}
 		}
 	}
+
+	maxUnavailable := resolveMaxUnavailable(tw.Spec.RolloutStrategy, len(resolvedMachines))
+	inFlight := countInFlightUpgrades(existing.Items, desired)
+	heldUpgrades := false
+
 	// Create or update machines
 	for ip, machine := range resolvedMachines {
 		name := fmt.Sprintf("%s-%s", tw.Name, ip)
@@ -264,10 +283,23 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 			if err := controllerutil.SetControllerReference(tw, tm, r.Scheme); err != nil {
 				return fmt.Errorf("failed to set controller reference for TalosMachine %s: %w", tm.Name, err)
 			}
-			version := tw.Spec.Version
-			// Using machine specific version if specified
+			desiredVersion := tw.Spec.Version
 			if machine.Version != "" {
-				version = machine.Version
+				// Per-machine pin overrides both the parent version and rollout gating.
+				desiredVersion = machine.Version
+			}
+			version := desiredVersion
+			// For existing machines without an explicit per-machine pin, gate the version bump
+			// behind the rollout strategy so we don't fan out an upgrade to all machines at once.
+			if existingTM, ok := existingByName[name]; ok && machine.Version == "" {
+				if existingTM.Spec.Version != "" && existingTM.Spec.Version != desiredVersion {
+					if inFlight >= maxUnavailable {
+						version = existingTM.Spec.Version
+						heldUpgrades = true
+					} else {
+						inFlight++
+					}
+				}
 			}
 			tm.Spec = talosv1alpha1.TalosMachineSpec{
 				WorkerRef: &corev1.ObjectReference{
@@ -286,10 +318,10 @@ func (r *TalosWorkerReconciler) handleTalosMachines(ctx context.Context, tw *tal
 		})
 		if err != nil {
 			logger.Error(err, "Failed to create or update TalosMachine", "name", tm.Name)
-			return fmt.Errorf("failed to create or update TalosMachine %s: %w", tm.Name, err)
+			return false, fmt.Errorf("failed to create or update TalosMachine %s: %w", tm.Name, err)
 		}
 	}
-	return nil
+	return heldUpgrades, nil
 }
 
 func (r *TalosWorkerReconciler) reconcileService(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
