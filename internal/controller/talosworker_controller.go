@@ -351,7 +351,7 @@ func (r *TalosWorkerReconciler) reconcileService(ctx context.Context, tw *talosv
 }
 
 func (r *TalosWorkerReconciler) reconcileStatefulSet(ctx context.Context, tw *talosv1alpha1.TalosWorker) error {
-	stsName := tw.Name
+	stsName := fmt.Sprintf("%s-worker", tw.Name)
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{

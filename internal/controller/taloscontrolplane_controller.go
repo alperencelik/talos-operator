@@ -725,7 +725,7 @@ func (r *TalosControlPlaneReconciler) reconcileService(ctx context.Context, tcp 
 }
 
 func (r *TalosControlPlaneReconciler) reconcileStatefulSet(ctx context.Context, tcp *talosv1alpha1.TalosControlPlane) (ctrl.Result, error) {
-	stsName := tcp.Name
+	stsName := fmt.Sprintf("%s-controlplane", tcp.Name)
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
