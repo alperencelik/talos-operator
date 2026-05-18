@@ -151,7 +151,7 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 	if tc.Spec.ControlPlane != nil && tc.Spec.ControlPlaneRef == nil {
 		tcp := &talosv1alpha1.TalosControlPlane{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        tc.Name + "-controlplane",
+				Name:        tc.Name,
 				Namespace:   tc.Namespace,
 				Labels:      tc.Labels,
 				Annotations: tc.Annotations,
@@ -175,6 +175,7 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 				PodCIDR:          tc.Spec.ControlPlane.PodCIDR,
 				ServiceCIDR:      tc.Spec.ControlPlane.ServiceCIDR,
 				DeletionPolicy:   tc.Spec.ControlPlane.DeletionPolicy,
+				RolloutStrategy:  tc.Spec.ControlPlane.RolloutStrategy,
 			}
 			// Optionally set ConfigRef if provided
 			if tc.Spec.ControlPlane.ConfigRef != nil {
@@ -233,14 +234,13 @@ func (r *TalosClusterReconciler) reconcileWorker(ctx context.Context, tc *talosv
 	if tc.Spec.ControlPlaneRef != nil {
 		controlPlaneRefName = tc.Spec.ControlPlaneRef.Name
 	} else {
-		controlPlaneRefName = tc.Name + "-controlplane"
+		controlPlaneRefName = tc.Name
 	}
 
 	// Inline Worker spec is provided and no WorkerRef, reconcile TalosWorker resource
-	workerName := tc.Name + "-worker"
 	tw := &talosv1alpha1.TalosWorker{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      workerName,
+			Name:      tc.Name,
 			Namespace: tc.Namespace,
 		},
 	}
@@ -369,7 +369,7 @@ func (r *TalosClusterReconciler) handleDelete(ctx context.Context, tc talosv1alp
 	// Delete the child resources if they exist
 	if err := r.Delete(ctx, &talosv1alpha1.TalosWorker{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      tc.Name + "-worker",
+			Name:      tc.Name,
 			Namespace: tc.Namespace,
 		},
 	}); err != nil && !kerrors.IsNotFound(err) {
@@ -379,7 +379,7 @@ func (r *TalosClusterReconciler) handleDelete(ctx context.Context, tc talosv1alp
 	// Delete the TalosControlPlane
 	if err := r.Delete(ctx, &talosv1alpha1.TalosControlPlane{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      tc.Name + "-controlplane",
+			Name:      tc.Name,
 			Namespace: tc.Namespace,
 		},
 	}); err != nil && !kerrors.IsNotFound(err) {

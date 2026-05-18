@@ -113,12 +113,13 @@ func TestHasVersionSuffix(t *testing.T) {
 		want  bool
 	}{
 		{"image:v1.0.0", true},
-		{"image:v1.2", true}, // Regex :v\d+(\.\d+)*$ matches v1.2
+		{"image:v1.2", true},
 		{"image:v1", true},
-		{"image:v1.2.3.4", true}, // Regex allows multiple components
-		{"image:1.0.0", false},
-		{"image", false},
-		{"image:v1.2.3", true},
+		{"image:v1.2.3.4", true},
+		{"image:v1.13.5", true},
+		{"image:v1.14.0-alpha.0", true},
+		{"image:v1.14.0-rc.1", true},
+		{"image:v1.0.0-beta", true},
 		{"image:1.0.0", false},
 		{"image", false},
 	}
@@ -136,13 +137,16 @@ func TestIsValidTalosVersion(t *testing.T) {
 		want  bool
 	}{
 		{"v1.0.0", true},
+		{"v1.13.5", true},
 		{"v1.2", true},
 		{"v1", true},
+		{"v1.14.0-alpha.0", true},
+		{"v1.14.0-rc.1", true},
+		{"v1.0.0-beta", true},
 		{"1.0.0", false},
-		{"v1.0.0-beta", false},
+		{"v1.0.0-", false},
+		{"v1.0.0-alpha..0", false},
 	}
-	// Re-reading IsValidTalosVersion regex: `^v\d+(\.\d+)*$`
-	// It strictly matches vDigits(.Digits)*
 
 	for _, tt := range tests {
 		if got := IsValidTalosVersion(tt.input); got != tt.want {

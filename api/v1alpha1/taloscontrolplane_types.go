@@ -20,6 +20,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
+)
+
+const (
+	// RollingUpdateStrategyType upgrades machines one cohort at a time, gated by MaxUnavailable
+	// and a per-machine health check. This is currently the only supported strategy.
+	RollingUpdateStrategyType RolloutStrategyType = "RollingUpdate"
 )
 
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.clusterDomain) || self.clusterDomain == oldSelf.clusterDomain", message="ClusterDomain is immutable"
@@ -32,7 +39,7 @@ type TalosControlPlaneSpec struct {
 
 	// version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
+	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`
 	// +kubebuilder:default="v1.13.0"
 	Version string `json:"version"`
 
@@ -60,7 +67,7 @@ type TalosControlPlaneSpec struct {
 
 	// kubeVersion is the version of Kubernetes to use for the control plane.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
+	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`
 	// +kubebuilder:default="v1.35.0"
 	KubeVersion string `json:"kubeVersion"`
 
@@ -102,6 +109,38 @@ type TalosControlPlaneSpec struct {
 	// +kubebuilder:validation:Enum=reset;preserve
 	// +kubebuilder:default=reset
 	DeletionPolicy string `json:"deletionPolicy"`
+
+	// rolloutStrategy controls how Talos version upgrades are propagated to the control plane machines.
+	// only applied when mode is metal.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default={type: "RollingUpdate", rollingUpdate: {maxUnavailable: 1}}
+	RolloutStrategy *RolloutStrategy `json:"rolloutStrategy,omitempty"`
+}
+
+// RolloutStrategyType is the type of rollout strategy used for control plane upgrades.
+// +kubebuilder:validation:Enum=RollingUpdate
+type RolloutStrategyType string
+
+// RolloutStrategy describes how to roll out Talos version upgrades across control plane machines.
+type RolloutStrategy struct {
+	// type of rollout. Defaults to RollingUpdate.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=RollingUpdate
+	Type RolloutStrategyType `json:"type,omitempty"`
+
+	// rollingUpdate is the spec for the RollingUpdate strategy. Only honoured when type is RollingUpdate.
+	// +kubebuilder:validation:Optional
+	RollingUpdate *RollingUpdateRolloutStrategy `json:"rollingUpdate,omitempty"`
+}
+
+// RollingUpdateRolloutStrategy is the spec for the RollingUpdate rollout strategy.
+type RollingUpdateRolloutStrategy struct {
+	// maxUnavailable is the maximum number of machines that may be upgrading at once.
+	// May be an absolute number (e.g. 1) or a percentage of the desired replica count
+	// (e.g. "25%"). Defaults to 1.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=1
+	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty"`
 }
 
 // CNIConfig represents the CNI configuration options.
@@ -148,7 +187,7 @@ type Machine struct {
 	Address *string `json:"address,omitempty"`
 	// version of Talos to use for this machine (controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-\w+)?$`
+	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`
 	Version string `json:"version,omitempty"`
 	// image is the Talos image to use for this machine
 	// +kubebuilder:validation:Optional

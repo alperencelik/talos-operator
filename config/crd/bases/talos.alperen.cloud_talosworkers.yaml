@@ -105,7 +105,7 @@ spec:
                 default: v1.35.0
                 description: kubeVersion is the version of Kubernetes to use for the
                   worker nodes.
-                pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
                 type: string
               metalSpec:
                 description: metalSpec is required when mode is 'metal'.
@@ -290,7 +290,7 @@ spec:
                         version:
                           description: version of Talos to use for this machine (controller-manager,
                             scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
-                          pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                          pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
                           type: string
                       type: object
                       x-kubernetes-validations:
@@ -313,6 +313,37 @@ spec:
                   Only applies when mode is 'container'.
                 format: int32
                 type: integer
+              rolloutStrategy:
+                default:
+                  rollingUpdate:
+                    maxUnavailable: 1
+                  type: RollingUpdate
+                description: |-
+                  rolloutStrategy controls how Talos version upgrades are propagated to the worker machines.
+                  only applied when mode is metal.
+                properties:
+                  rollingUpdate:
+                    description: rollingUpdate is the spec for the RollingUpdate strategy.
+                      Only honoured when type is RollingUpdate.
+                    properties:
+                      maxUnavailable:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        default: 1
+                        description: |-
+                          maxUnavailable is the maximum number of machines that may be upgrading at once.
+                          May be an absolute number (e.g. 1) or a percentage of the desired replica count
+                          (e.g. "25%"). Defaults to 1.
+                        x-kubernetes-int-or-string: true
+                    type: object
+                  type:
+                    default: RollingUpdate
+                    description: type of rollout. Defaults to RollingUpdate.
+                    enum:
+                    - RollingUpdate
+                    type: string
+                type: object
               storageClassName:
                 description: storageClassName is the name of the storage class to
                   use for persistent volumes.
@@ -325,7 +356,7 @@ spec:
               version:
                 default: v1.13.0
                 description: version of Talos to use for the worker nodes -- e.g "v1.13.0"
-                pattern: ^v\d+\.\d+\.\d+(-\w+)?$
+                pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
                 type: string
             required:
             - kubeVersion

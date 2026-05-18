@@ -78,24 +78,22 @@ var _ = Describe("TalosCluster Controller", func() {
 			Expect(k8sClient.Create(ctx, talosCluster)).To(Succeed())
 
 			By("Checking for TalosControlPlane creation")
-			controlPlaneName := talosClusterName + "-controlplane"
 			createdControlPlane := &talosv1alpha1.TalosControlPlane{}
 			Eventually(func() error {
-				return k8sClient.Get(ctx, types.NamespacedName{Name: controlPlaneName, Namespace: namespace}, createdControlPlane)
+				return k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, createdControlPlane)
 			}, timeout, interval).Should(Succeed())
 
 			Expect(createdControlPlane.Spec.Replicas).To(Equal(int32(3)))
 			Expect(createdControlPlane.Spec.Version).To(Equal(testTalosVersion))
 
 			By("Checking for TalosWorker creation")
-			workerName := talosClusterName + "-worker"
 			createdWorker := &talosv1alpha1.TalosWorker{}
 			Eventually(func() error {
-				return k8sClient.Get(ctx, types.NamespacedName{Name: workerName, Namespace: namespace}, createdWorker)
+				return k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, createdWorker)
 			}, timeout, interval).Should(Succeed())
 
 			Expect(createdWorker.Spec.Replicas).To(Equal(int32(3)))
-			Expect(createdWorker.Spec.ControlPlaneRef.Name).To(Equal(controlPlaneName))
+			Expect(createdWorker.Spec.ControlPlaneRef.Name).To(Equal(talosClusterName))
 
 			By("Verifying OwnerReferences")
 			// Helper to check owner reference
@@ -122,10 +120,9 @@ var _ = Describe("TalosCluster Controller", func() {
 			Expect(k8sClient.Create(ctx, talosCluster)).To(Succeed())
 
 			By("Waiting for child resources")
-			controlPlaneName := talosClusterName + "-controlplane"
 			createdControlPlane := &talosv1alpha1.TalosControlPlane{}
 			Eventually(func() error {
-				return k8sClient.Get(ctx, types.NamespacedName{Name: controlPlaneName, Namespace: namespace}, createdControlPlane)
+				return k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, createdControlPlane)
 			}, timeout, interval).Should(Succeed())
 
 			By("Updating TalosCluster spec")
@@ -137,7 +134,7 @@ var _ = Describe("TalosCluster Controller", func() {
 
 			By("Verifying TalosControlPlane update")
 			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: controlPlaneName, Namespace: namespace}, createdControlPlane)).To(Succeed())
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, createdControlPlane)).To(Succeed())
 				g.Expect(createdControlPlane.Spec.Replicas).To(Equal(int32(5)))
 			}, timeout, interval).Should(Succeed())
 		})
@@ -160,15 +157,12 @@ var _ = Describe("TalosCluster Controller", func() {
 				return k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, talosCluster)
 			}, timeout, interval).ShouldNot(Succeed())
 			// Also verify child resources are deleted
-			controlPlaneName := talosClusterName + "-controlplane"
-			workerName := talosClusterName + "-worker"
-
 			Eventually(func() error {
-				return k8sClient.Get(ctx, types.NamespacedName{Name: controlPlaneName, Namespace: namespace}, &talosv1alpha1.TalosControlPlane{})
+				return k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, &talosv1alpha1.TalosControlPlane{})
 			}, timeout, interval).ShouldNot(Succeed())
 
 			Eventually(func() error {
-				return k8sClient.Get(ctx, types.NamespacedName{Name: workerName, Namespace: namespace}, &talosv1alpha1.TalosWorker{})
+				return k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, &talosv1alpha1.TalosWorker{})
 			}, timeout, interval).ShouldNot(Succeed())
 
 		})
