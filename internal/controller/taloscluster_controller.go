@@ -176,6 +176,7 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 				ServiceCIDR:      tc.Spec.ControlPlane.ServiceCIDR,
 				DeletionPolicy:   tc.Spec.ControlPlane.DeletionPolicy,
 				RolloutStrategy:  tc.Spec.ControlPlane.RolloutStrategy,
+				CNI:              tc.Spec.ControlPlane.CNI,
 			}
 			// Optionally set ConfigRef if provided
 			if tc.Spec.ControlPlane.ConfigRef != nil {
