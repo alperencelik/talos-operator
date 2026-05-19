@@ -13,6 +13,7 @@ import (
 	"io"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
+	"github.com/alperencelik/talos-operator/pkg/utils"
 	"github.com/siderolabs/talos/pkg/machinery/api/common"
 	machineapi "github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/client"
@@ -116,9 +117,15 @@ func (tc *TalosClient) GetTalosVersion(ctx context.Context) (string, error) {
 	return version, nil
 }
 
-// UpgradeTalosVersion pre-pulls the installer image into the system containerd, runs the
-// installer via the Talos LifecycleService, then triggers a reboot to apply the upgrade.
-func (tc *TalosClient) UpgradeTalosVersion(ctx context.Context, image string) error {
+// UpgradeTalosVersion upgrades the Talos installation to the given installer image.
+func (tc *TalosClient) UpgradeTalosVersion(ctx context.Context, currentVersion, image string) error {
+	if utils.SupportsLifecycleService(currentVersion) {
+		return tc.upgradeViaLifecycleService(ctx, image)
+	}
+	return tc.upgradeViaMachineService(ctx, image)
+}
+
+func (tc *TalosClient) upgradeViaLifecycleService(ctx context.Context, image string) error {
 	containerd := &common.ContainerdInstance{
 		Driver:    common.ContainerDriver_CRI,
 		Namespace: common.ContainerdNamespace_NS_SYSTEM,
@@ -159,6 +166,23 @@ func (tc *TalosClient) UpgradeTalosVersion(ctx context.Context, image string) er
 		Mode: machineapi.RebootRequest_DEFAULT,
 	}); err != nil && !isGracefulStop(err) {
 		return fmt.Errorf("error triggering reboot after Talos upgrade: %w", err)
+	}
+	return nil
+}
+
+func (tc *TalosClient) upgradeViaMachineService(ctx context.Context, image string) error {
+	req := &machineapi.UpgradeRequest{
+		Image:      image,
+		Stage:      false,
+		Force:      true,
+		RebootMode: machineapi.UpgradeRequest_DEFAULT,
+	}
+	// Deprecated on 1.13 and should be removed at 1.18
+	if _, err := tc.MachineClient.Upgrade(ctx, req); err != nil { //nolint:staticcheck
+		if isGracefulStop(err) {
+			return nil
+		}
+		return fmt.Errorf("error upgrading machine: %w", err)
 	}
 	return nil
 }
