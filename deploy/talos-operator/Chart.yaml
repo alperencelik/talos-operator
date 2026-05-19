@@ -1,6 +1,17 @@
 apiVersion: v2
 name: talos-operator
-description: A Helm chart for Kubernetes
+description: Helm chart for the Talos Operator — declaratively manage Talos Linux clusters from Kubernetes.
+home: https://github.com/alperencelik/talos-operator
+sources:
+  - https://github.com/alperencelik/talos-operator
+keywords:
+  - talos
+  - kubernetes
+  - operator
+  - cluster
+maintainers:
+  - name: alperencelik
+    url: https://github.com/alperencelik
 
 # A chart can be either an 'application' or a 'library' chart.
 #

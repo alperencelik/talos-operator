@@ -36,6 +36,9 @@ jobs:
       - name: Run Tests
         run: make test
 
+      - name: Verify chart README is up to date
+        run: make helm-docs-check
+
 #      - name: Run govulncheck
 #        run: |
 #          go install golang.org/x/vuln/cmd/govulncheck@latest
