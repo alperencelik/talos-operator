@@ -2,121 +2,151 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+# -- Number of operator replicas. See [the Kubernetes docs](https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/).
 replicaCount: 1
 
-# This will install the CRDs for the Talos Operator.
+# -- Install the Talos Operator CRDs as part of this chart release.
 installCRDs: true
 
-# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
+  # -- Operator container image repository.
   repository: alperencelik/talos-operator
-  # This sets the pull policy for images.
+  # -- Image pull policy.
   pullPolicy: Always
-  # Overrides the image tag whose default is the chart appVersion.
+  # -- Image tag. Falls back to the chart `appVersion` when empty.
   tag: "latest"
 
+# -- Extra environment variables to add to the operator container.
 env: []
 
 featureFlags:
-  enableMetaKey: true # This feature allows you to handle the meta key in the reconciliation logic but requires a custom Talos ISO image with the necessary changes.
-  # More information can be found here: https://github.com/siderolabs/talos/discussions/11648#discussioncomment-14253477
-  enablePxeBootStack: false # This feature allows you to boot Talos using PXE by installing a DHCP+TFTP and Matchbox servers to send Talos images to clients.
+  # -- Handle the Talos `meta` key in reconciliation. Requires a custom Talos ISO with the necessary changes — see [the upstream discussion](https://github.com/siderolabs/talos/discussions/11648#discussioncomment-14253477).
+  enableMetaKey: true
+  # -- Install a DHCP+TFTP + Matchbox stack so the operator can PXE-boot Talos machines.
+  enablePxeBootStack: false
 
-# Prometheus metrics scraping configuration.
 metrics:
   serviceMonitor:
-    # Create a ServiceMonitor targeting the operator metrics endpoint.
-    # Requires the Prometheus Operator CRDs to be installed in the cluster.
+    # -- Create a `ServiceMonitor` targeting the operator metrics endpoint. Requires the Prometheus Operator CRDs.
     enabled: false
+    # -- Scrape interval.
     interval: 30s
+    # -- Per-scrape timeout.
     scrapeTimeout: 10s
+    # -- Extra labels to add to the `ServiceMonitor` so it gets picked up by a specific Prometheus selector.
     labels: {}
 
-# Distributed tracing via OpenTelemetry + operatortrace.
 tracing:
+  # -- Enable distributed tracing via OpenTelemetry + `operatortrace`.
   enabled: false
-  # OTLP HTTP endpoint the operator exports spans to.
+  # -- OTLP HTTP endpoint the operator exports spans to.
   otlpEndpoint: "otel-collector.tracing.svc.cluster.local:4318"
 
 ui:
+  # -- Deploy the Talos Operator UI alongside the controller.
   enabled: true
   image:
+    # -- UI container image repository.
     repository: alperencelik/talos-operator-ui
+    # -- Image pull policy for the UI container.
     pullPolicy: Always
+    # -- UI image tag.
     tag: "latest"
+  # -- Port the UI container listens on.
   containerPort: 8082
   service:
+    # -- UI service type.
     type: ClusterIP
+    # -- UI service port.
     port: 8082
+  # -- Resource requests/limits for the UI container.
   resources: {}
   ingress:
+    # -- Create an `Ingress` for the UI service.
     enabled: false
+    # -- `IngressClass` name.
     className: ""
+    # -- Annotations to add to the UI `Ingress`.
     annotations: {}
+    # -- Hosts/paths to expose the UI at.
     hosts:
       - host: ui.chart-example.local
         paths:
           - path: /
             pathType: ImplementationSpecific
+    # -- TLS configuration for the UI `Ingress`.
     tls: []
 
 pxeBootStack:
-  # URL to download Talos boot images
+  # -- Base URL used to download Talos boot images.
   talosBootImagesBaseUrl: "https://github.com/siderolabs/talos/releases/download"
-  # URL to download iPXE
+  # -- Base URL used to download iPXE binaries.
   ipxeBaseUrl: "https://boot.ipxe.org"
-  # dnsmasq is used as a DHCP+TFTP server for PXE boot
+  # -- Volumes added to the operator pod when `featureFlags.enablePxeBootStack` is true. Backs the `dnsmasq.volumeMounts` and `matchbox.volumeMounts` below.
+  volumes:
+    - name: dnsmasq-vol
+      emptyDir:
+        sizeLimit: 1Mi
+    - name: tftp-vol
+      emptyDir:
+        sizeLimit: 2Mi
+    - name: matchbox-vol
+      emptyDir:
+        sizeLimit: 10Gi
   dnsmasq:
+    # -- `dnsmasq` image (DHCP+TFTP server used for PXE boot).
     image:
       repository: dockurr/dnsmasq
       pullPolicy: Always
       tag: "latest"
+    # -- `dnsmasq` container volume mounts.
     volumeMounts:
       - name: dnsmasq-vol
         mountPath: /etc/dnsmasq.d
       - name: tftp-vol
         mountPath: /var/lib/tftp
-  # Matchbox is used as an HTTP server to deliver Talos images and optional kernel command line arguments to each machine depending on their MAC address
   matchbox:
+    # -- Matchbox image (HTTP server delivering Talos images per MAC).
     image:
       repository: "quay.io/poseidon/matchbox"
       pullPolicy: Always
       tag: "latest"
+    # -- Matchbox listening port.
     port: 8000
+    # -- Matchbox process arguments.
     args: ["-address=0.0.0.0:8000"]
+    # -- Matchbox container volume mounts.
     volumeMounts:
       - name: matchbox-vol
         mountPath: /var/lib/matchbox
 
-# This is for the secretes for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+# -- `imagePullSecrets` to attach to the operator pod for pulling from private registries.
 imagePullSecrets: []
-# This is to override the chart name.
+# -- Override the chart name.
 nameOverride: ""
+# -- Override the full release name (chart name + release name).
 fullnameOverride: ""
 
-# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
 serviceAccount:
-  # Specifies whether a service account should be created
+  # -- Create a `ServiceAccount` for the operator.
   create: true
-  # Automatically mount a ServiceAccount's API credentials?
+  # -- Auto-mount the `ServiceAccount`'s API credentials.
   automount: true
-  # Annotations to add to the service account
+  # -- Annotations to add to the `ServiceAccount`.
   annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
+  # -- Name of the `ServiceAccount` to use. When empty and `create` is true, a name is generated from the fullname template.
   name: ""
 
-# This is for setting Kubernetes Annotations to a Pod.
-# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+# -- Annotations to add to the operator pod.
 podAnnotations: {}
-# This is for setting Kubernetes Labels to a Pod.
-# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+# -- Labels to add to the operator pod.
 podLabels: {}
 
+# -- Pod-level security context.
 podSecurityContext: {}
   # fsGroup: 2000
 
+# -- Container-level security context.
 securityContext: {}
   # capabilities:
   #   drop:
@@ -125,35 +155,35 @@ securityContext: {}
   # runAsNonRoot: true
   # runAsUser: 1000
 
-# This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
-  # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
+  # -- Operator metrics service type.
   type: ClusterIP
-  # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
+  # -- Operator metrics service port.
   port: 8080
 
-# This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:
+  # -- Create an `Ingress` for the operator metrics service.
   enabled: false
+  # -- `IngressClass` name.
   className: ""
+  # -- Annotations to add to the `Ingress`.
   annotations: {}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
+  # -- Hosts/paths to expose.
   hosts:
     - host: chart-example.local
       paths:
         - path: /
           pathType: ImplementationSpecific
+  # -- TLS configuration.
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:
   #      - chart-example.local
 
+# -- Resource requests/limits for the operator container. Leaving this empty (`{}`) defers the choice to the cluster admin.
 resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
   # limits:
   #   cpu: 100m
   #   memory: 128Mi
@@ -161,38 +191,39 @@ resources: {}
   #   cpu: 100m
   #   memory: 128Mi
 
-# This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
+  # -- Enable a `HorizontalPodAutoscaler` for the operator deployment.
   enabled: false
+  # -- Minimum replicas.
   minReplicas: 1
+  # -- Maximum replicas.
   maxReplicas: 100
+  # -- Target average CPU utilization across pods.
   targetCPUUtilizationPercentage: 80
+  # -- Target average memory utilization across pods.
   # targetMemoryUtilizationPercentage: 80
 
-volumes:
-  - name: dnsmasq-vol
-    emptyDir:
-      sizeLimit: 1Mi
-  - name: tftp-vol
-    emptyDir:
-      sizeLimit: 2Mi
-  - name: matchbox-vol
-    emptyDir:
-      sizeLimit: 10Gi
+# -- Additional volumes to attach to the operator pod. The PXE stack's own volumes live under `pxeBootStack.volumes` and are added automatically when `featureFlags.enablePxeBootStack` is true.
+volumes: []
+# - name: foo
+#   emptyDir: {}
 
-# Additional volumeMounts on the output Deployment definition.
+# -- Additional `volumeMounts` for the operator container.
 volumeMounts: []
 # - name: foo
 #   mountPath: "/etc/foo"
 #   readOnly: true
 
+# -- Node selectors for scheduling the operator pod.
 nodeSelector: {}
 
+# -- Tolerations for scheduling the operator pod.
 tolerations: []
 
+# -- Affinity rules for scheduling the operator pod.
 affinity: {}
 
-# Any additional manifests:
+# -- Arbitrary additional manifests to ship alongside the chart (useful for `ExternalSecret`, `IngressRoute`, etc.).
 extraObjects: []
   # - apiVersion: "external-secrets.io/v1beta1"
   #   kind: ExternalSecret

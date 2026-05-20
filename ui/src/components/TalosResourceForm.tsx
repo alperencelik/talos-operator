@@ -3,7 +3,6 @@ import YAML from 'js-yaml';
 import axios from 'axios';
 import { Copy, Download, Send, Check, ChevronDown } from 'lucide-react';
 import 'reactflow/dist/style.css';
-import '../TalosUI.css';
 
 // ─── Styled primitives ────────────────────────────────────────────────────────
 

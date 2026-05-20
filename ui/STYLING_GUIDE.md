@@ -1,165 +1,98 @@
 # Talos Operator UI Styling Guide
 
-## Overview
-The Talos Operator UI uses a custom styling system based on Bootstrap with Talos-specific branding and enhancements.
+The UI uses **Tailwind CSS** with a small custom theme. There is no Bootstrap and
+no `.talos-*` utility layer; earlier versions of this guide described a
+since-removed `TalosUI.css`. All styling lives in component classes plus a few
+global rules in `src/index.css`.
 
-## Color Palette
+## Stack
 
-### Primary Colors
-- **Talos Primary (Orange)**: `#FF6B35` - Used for main actions and accents
-- **Talos Primary Dark**: `#E5501B` - Hover states
-- **Talos Primary Light**: `#FF8C66` - Light accents
+- Tailwind 3 (`tailwind.config.js`, processed by PostCSS / `react-scripts`)
+- Inter for sans, JetBrains Mono for code (see `fontFamily` in the Tailwind config)
+- `lucide-react` for icons (sized 12–16 in chrome, 20+ in empty states)
 
-### Secondary Colors
-- **Talos Secondary (Blue)**: `#004E89` - Headers and secondary actions
-- **Talos Secondary Dark**: `#003A66` - Dark backgrounds
-- **Talos Secondary Light**: `#1A6FA8` - Light backgrounds
+## Color tokens
 
-### Accent & Status Colors
-- **Talos Accent**: `#00A5CF` - Links and highlights
-- **Success**: `#2ECC71` - Success states
-- **Warning**: `#F39C12` - Warning states
-- **Danger**: `#E74C3C` - Error states
+Defined under `theme.extend.colors` in `tailwind.config.js`:
 
-### Neutral Colors
-- **Dark**: `#1A1A2E` - Text
-- **Light**: `#F8F9FA` - Backgrounds
-- **Gray**: `#6C757D` - Secondary text
-- **Gray Light**: `#E9ECEF` - Borders
-- **Code Background**: `#2C3E50` - Code/YAML display
+| Token         | Value                          | Use                              |
+| ------------- | ------------------------------ | -------------------------------- |
+| `brand`       | `#FF6B35`                      | Primary accent, active nav, CTA  |
+| `brand-hover` | `#ff7c4d`                      | Hover state for `brand`          |
+| `brand-dim`   | `rgba(255, 107, 53, 0.12)`     | Tinted backgrounds, soft chips   |
 
-## CSS Class Reference
+Everything else uses Tailwind's stock `zinc` palette for surfaces and text, and
+the stock `green` / `red` / `yellow` / `sky` / `purple` / `emerald` scales for
+status and kind badges.
 
-### Layout Classes
-- `.talos-container` - Main container with shadow and rounded corners
-- `.talos-header` - Gradient header with title
-- `.talos-tab-content` - Tab content wrapper
+### Surface scale (dark theme)
 
-### Card Classes
-- `.talos-card` - Card with shadow and hover effects
-- `.talos-card .card-title` - Card title with accent border
+| Layer            | Class                                |
+| ---------------- | ------------------------------------ |
+| Page background  | `bg-zinc-950`                        |
+| Panel / card     | `bg-zinc-900` + `border-zinc-800`    |
+| Row hover        | `bg-zinc-800/30` or `bg-zinc-800/50` |
+| Strong border    | `border-zinc-700`                    |
+| Body text        | `text-zinc-100` / `text-zinc-200`    |
+| Secondary text   | `text-zinc-400` / `text-zinc-500`    |
+| Muted / disabled | `text-zinc-600` / `text-zinc-700`    |
 
-### Form Classes
-- `.talos-form-group` - Form group wrapper
-- `.talos-form-label` - Styled form labels (uppercase)
-- `.talos-form-control` - Styled input fields
-- `.talos-form-select` - Styled select dropdowns
+### Status tones
 
-### Button Classes
-- `.talos-btn` - Base button style
-- `.talos-btn-primary` - Primary action (orange gradient)
-- `.talos-btn-success` - Success action (green gradient)
-- `.talos-btn-secondary` - Secondary action (blue gradient)
-- `.talos-button-group` - Button group container
+`ResourceList.getStatus` maps Kubernetes condition state to one of four tones:
 
-### Navigation Classes
-- `.talos-nav` - Navigation tabs container
-- `.talos-nav .nav-link` - Individual tab
-- `.talos-nav .nav-link.active` - Active tab
+| Tone     | Text class        | Dot class      | Meaning                                     |
+| -------- | ----------------- | -------------- | ------------------------------------------- |
+| `green`  | `text-green-400`  | `bg-green-500` | `Ready=True`                                |
+| `yellow` | `text-yellow-400` | `bg-yellow-500`| `Ready=Unknown` or in-progress reason       |
+| `red`    | `text-red-400`    | `bg-red-500`   | `Ready=False`, or any failing condition     |
+| `gray`   | `text-zinc-500`   | `bg-zinc-600`  | No conditions yet                           |
 
-### Display Classes
-- `.talos-yaml-display` - Dark theme code/YAML display
-- `.talos-divider` - Section divider
-- `.talos-section-title` - Section title with accent
+Reuse the same palette anywhere status is shown so the visualizer, lists, and
+detail pages stay consistent.
 
-### Utility Classes
-- `.talos-animate` - Fade-in animation
-- `.talos-visualizer` - Cluster visualizer styling
-- `.talos-modal` - Modal dialog styling
-- `.talos-toast` - Toast notification styling
+## Layout patterns
 
-## Customization
+- **App shell** (`App.tsx`): `flex h-screen` with a fixed `w-56` sidebar and a
+  flex‑1 column containing a thin `h-11` header bar and a scrollable `<main>`.
+- **Cards**: `bg-zinc-900 border border-zinc-800 rounded-xl` with internal
+  padding `p-5` (compact) or `p-6` (page-level).
+- **Tables**: zebra-less, `divide-y divide-zinc-800` for row separators, header
+  row `text-xs uppercase tracking-wider text-zinc-500`.
+- **Forms**: labels are `text-xs font-medium text-zinc-400`, inputs use the
+  `inputCls` / `selectCls` / `textareaCls` constants in `TalosResourceForm.tsx`
+  — copy them when adding new form components instead of redefining the look.
 
-### Changing Colors
-Edit CSS variables in `TalosUI.css`:
-```css
-:root {
-  --talos-primary: #FF6B35;
-  --talos-secondary: #004E89;
-  /* ... other variables */
-}
-```
+## Conventions
 
-### Adding New Styles
-Follow the naming convention:
-- Prefix all custom classes with `.talos-`
-- Use descriptive names (e.g., `.talos-form-control`, not `.tfc`)
-- Group related styles together
+1. Prefer Tailwind utilities directly in JSX; avoid component-level CSS files.
+2. New global rules go in `src/index.css` only when they cannot be expressed as
+   utilities (scrollbar styling, ReactFlow overrides, etc.).
+3. Use the tokens above — don't hardcode `#FF6B35` or other hex values in
+   components. If a new accent is needed, add it to `tailwind.config.js`.
+4. Icon sizes: 12 for inline chrome buttons, 14–16 for nav and headers, 20+
+   for empty-state visuals.
+5. Keep transitions short: `transition-colors` is enough for most hover states.
 
-### Responsive Breakpoints
-The UI uses standard Bootstrap breakpoints:
-- Mobile: < 768px
-- Tablet: 768px - 991px
-- Desktop: ≥ 992px
+## File map
 
-## Best Practices
-
-1. **Always use Talos classes** instead of inline styles
-2. **Maintain consistency** with existing color palette
-3. **Test responsiveness** on multiple screen sizes
-4. **Verify accessibility** (contrast ratios, focus states)
-5. **Keep animations subtle** (0.3s transitions)
-
-## File Structure
-```
+```text
 ui/src/
-├── TalosUI.css              # Main custom stylesheet
-├── index.css                # Global styles
-├── App.css                  # App-level styles
+├── index.css          # Tailwind directives, body defaults, scrollbar, ReactFlow overrides
+├── App.css            # currently empty — kept for CRA compatibility
+├── App.tsx            # shell, toast plumbing, routing
 └── components/
-    ├── TalosResourceForm.tsx   # Main form component
-    └── ClusterVisualizer.tsx   # Visualizer component
+    ├── Sidebar.tsx
+    ├── Overview.tsx
+    ├── ResourceList.tsx
+    ├── TalosResourceForm.tsx
+    └── ClusterVisualizer.tsx
 ```
 
-## Browser Support
-- Chrome/Edge: Latest 2 versions
-- Firefox: Latest 2 versions
-- Safari: Latest 2 versions
-- Mobile browsers: iOS Safari, Chrome Android
+## Dev workflow
 
-## Development Workflow
-
-### Starting Dev Server
 ```bash
 cd ui
-npm start
+npm start       # dev server (proxies /api to localhost:8080)
+npm run build   # production build
 ```
-
-### Building for Production
-```bash
-cd ui
-npm run build
-```
-
-### Linting
-The project uses ESLint. Warnings should be fixed before committing.
-
-## Troubleshooting
-
-### Styles not applying
-1. Check that `TalosUI.css` is imported in the component
-2. Verify class names are correct (case-sensitive)
-3. Clear browser cache and reload
-
-### Responsive issues
-1. Use browser dev tools responsive mode
-2. Test at breakpoints (320px, 768px, 1024px, 1440px)
-3. Check for hardcoded widths/heights
-
-### Color inconsistencies
-1. Always use CSS variables, not hardcoded colors
-2. Verify color accessibility with contrast checker
-3. Test in light and dark mode if applicable
-
-## Contributing
-When adding new styles:
-1. Follow existing naming conventions
-2. Add comments for complex styles
-3. Test on all supported browsers
-4. Update this guide if needed
-5. Keep styles maintainable and DRY
-
-## Resources
-- [Bootstrap 5 Documentation](https://getbootstrap.com/docs/5.3/)
-- [React Bootstrap Components](https://react-bootstrap.github.io/)
-- [CSS Best Practices](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_best_practices)

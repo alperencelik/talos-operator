@@ -1,4 +1,5 @@
 import React from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Server,
@@ -8,11 +9,14 @@ import {
   Wand2,
   GitBranch,
   Circle,
+  Package,
+  Tag,
+  Database,
+  CalendarClock,
 } from 'lucide-react';
-import { Page } from '../App';
 
 interface NavItem {
-  id: Page;
+  to: string;
   label: string;
   icon: React.ReactNode;
 }
@@ -24,38 +28,57 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
+    items: [{ to: '/', label: 'Overview', icon: <LayoutDashboard size={15} /> }],
+  },
+  {
+    label: 'Workloads',
     items: [
-      { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={15} /> },
+      { to: '/clusters', label: 'Clusters', icon: <Server size={15} /> },
+      { to: '/control-planes', label: 'Control Planes', icon: <Cpu size={15} /> },
+      { to: '/workers', label: 'Workers', icon: <Layers size={15} /> },
+      { to: '/machines', label: 'Machines', icon: <HardDrive size={15} /> },
     ],
   },
   {
-    label: 'Resources',
+    label: 'Add-ons',
     items: [
-      { id: 'clusters', label: 'Clusters', icon: <Server size={15} /> },
-      { id: 'control-planes', label: 'Control Planes', icon: <Cpu size={15} /> },
-      { id: 'workers', label: 'Workers', icon: <Layers size={15} /> },
-      { id: 'machines', label: 'Machines', icon: <HardDrive size={15} /> },
+      { to: '/addons', label: 'Add-ons', icon: <Package size={15} /> },
+      { to: '/addon-releases', label: 'Releases', icon: <Tag size={15} /> },
+    ],
+  },
+  {
+    label: 'Backups',
+    items: [
+      { to: '/etcd-backups', label: 'Etcd Backups', icon: <Database size={15} /> },
+      { to: '/etcd-backup-schedules', label: 'Schedules', icon: <CalendarClock size={15} /> },
     ],
   },
   {
     label: 'Tools',
     items: [
-      { id: 'generator', label: 'Generator', icon: <Wand2 size={15} /> },
-      { id: 'visualizer', label: 'Visualizer', icon: <GitBranch size={15} /> },
+      { to: '/generator', label: 'Generator', icon: <Wand2 size={15} /> },
+      { to: '/visualizer', label: 'Visualizer', icon: <GitBranch size={15} /> },
     ],
   },
 ];
 
 interface SidebarProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
   connected: boolean;
 }
 
-export default function Sidebar({ currentPage, onNavigate, connected }: SidebarProps) {
+// Active when the current path equals `to` or starts with `to + '/'` so
+// that detail pages also light up their parent section. The overview link
+// is exact-match only.
+function isActive(pathname: string, to: string): boolean {
+  if (to === '/') return pathname === '/';
+  return pathname === to || pathname.startsWith(to + '/');
+}
+
+export default function Sidebar({ connected }: SidebarProps) {
+  const { pathname } = useLocation();
+
   return (
     <div className="w-56 flex-shrink-0 bg-zinc-900 border-r border-zinc-800 flex flex-col select-none">
-      {/* Logo */}
       <div className="px-4 py-4 border-b border-zinc-800">
         <div className="flex items-center gap-2.5">
           <img src="/logo.png" alt="Talos" className="w-7 h-7 rounded" />
@@ -66,7 +89,6 @@ export default function Sidebar({ currentPage, onNavigate, connected }: SidebarP
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 px-2 py-3 overflow-y-auto space-y-5">
         {navGroups.map((group, gi) => (
           <div key={gi}>
@@ -77,22 +99,21 @@ export default function Sidebar({ currentPage, onNavigate, connected }: SidebarP
             )}
             <div className="space-y-0.5">
               {group.items.map(item => {
-                const active = currentPage === item.id;
+                const active = isActive(pathname, item.to);
                 return (
-                  <button
-                    key={item.id}
-                    onClick={() => onNavigate(item.id)}
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === '/'}
                     className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition-colors text-left ${
                       active
                         ? 'bg-brand-dim text-brand font-medium'
                         : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
                     }`}
                   >
-                    <span className={active ? 'text-brand' : 'text-zinc-500'}>
-                      {item.icon}
-                    </span>
+                    <span className={active ? 'text-brand' : 'text-zinc-500'}>{item.icon}</span>
                     {item.label}
-                  </button>
+                  </NavLink>
                 );
               })}
             </div>
@@ -100,16 +121,13 @@ export default function Sidebar({ currentPage, onNavigate, connected }: SidebarP
         ))}
       </nav>
 
-      {/* Connection status */}
       <div className="px-4 py-3 border-t border-zinc-800">
         <div className="flex items-center gap-2">
           <Circle
             size={7}
             className={connected ? 'fill-green-500 text-green-500' : 'fill-red-500 text-red-500'}
           />
-          <span className="text-xs text-zinc-500">
-            {connected ? 'Connected' : 'Disconnected'}
-          </span>
+          <span className="text-xs text-zinc-500">{connected ? 'Connected' : 'Disconnected'}</span>
         </div>
       </div>
     </div>
