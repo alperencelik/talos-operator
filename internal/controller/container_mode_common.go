@@ -269,6 +269,7 @@ func BuildK8sUpgradeJobSpec(tcp *talosv1alpha1.TalosControlPlane, image, service
 	return batchv1.JobSpec{
 		Template: corev1.PodTemplateSpec{
 			Spec: corev1.PodSpec{
+				HostNetwork:   true,
 				RestartPolicy: corev1.RestartPolicyOnFailure,
 				Containers: []corev1.Container{
 					{

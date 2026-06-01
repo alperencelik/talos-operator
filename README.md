@@ -26,9 +26,12 @@ talos-operator's versions are compatible with the following versions of Talos:
 
 |                         | v1.8  | v1.9  | v1.10 | v1.11 | v1.12 | v1.13 |
 | ----------------------- | ----- | ----- | ----- | ----- | ----- | ----- |
-| talos-operator (v0.3.x) | ✓     | ✓     | ✓     | ✓     |       |       |
-| talos-operator (v0.4.x) |       |       |       |       | ✓     |       |
-| talos-operator (v0.5.0) |       |       |       |       | ✓     | ✓     |
+| talos-operator (v0.3.x) | ✓     | ✓     | ✓     | ★     |       |       |
+| talos-operator (v0.4.x) | ✓     | ✓     | ✓     | ✓     | ★     |       |
+| talos-operator (v0.5.0) | ✓     | ✓     | ✓     | ✓     | ★     | ★     |
+| talos-operator (v0.5.2) | ✓     | ✓     | ✓     | ✓     | ★     | ★     |
+
+Legend: ★ recommended · ✓ supported (backwards compatible)
 
 ## Motivation
 
@@ -54,7 +57,7 @@ Alternatively, you can use the `make` commands to build and deploy the operator 
 
 ## Creating your own First Talos Cluster
 
-To create your first Talos cluster using the `talos-operator`, you need to define a `TalosCluster` custom resource. You can find an examples of `TalosCluster` in the `examples/` directory. 
+To create your first Talos cluster using the `talos-operator`, you need to define a `TalosCluster` custom resource. You can find an examples of `TalosCluster` in the `examples/` directory.
 
 ### Prerequisites
 - go version v1.24.0+

@@ -8,8 +8,12 @@ import (
 	"strings"
 
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
+	"golang.org/x/mod/semver"
 	"gopkg.in/yaml.v2"
 )
+
+// LifecycleServiceMinVersion is the min version Talos introduced it.
+const LifecycleServiceMinVersion = "v1.13.0"
 
 func GetEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
@@ -58,14 +62,27 @@ func PtrToString(s *string) string {
 	return *s
 }
 
+// talosVersionPattern matches a Talos version: a leading "v", a dotted numeric core
+// (e.g. "1.13.5"), and an optional semver-style pre-release suffix introduced by "-"
+// (e.g. "-alpha.0", "-rc.1"). Pre-release identifiers are dot-separated alphanumerics.
+const talosVersionPattern = `v\d+(\.\d+)*(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?`
+
 func HasVersionSuffix(v string) bool {
-	re := regexp.MustCompile(`:v\d+(\.\d+)*$`)
+	re := regexp.MustCompile(`:` + talosVersionPattern + `$`)
 	return re.MatchString(v)
 }
 
 func IsValidTalosVersion(v string) bool {
-	re := regexp.MustCompile(`^v\d+(\.\d+)*$`)
+	re := regexp.MustCompile(`^` + talosVersionPattern + `$`)
 	return re.MatchString(v)
+}
+
+// LifecycleService was introduced in v1.13.0, so check if the version is valid and at least that version.
+func SupportsLifecycleService(v string) bool {
+	if !semver.IsValid(v) {
+		return false
+	}
+	return semver.Compare(v, LifecycleServiceMinVersion) >= 0
 }
 
 func StringToBytePtr(s string) *[]byte {

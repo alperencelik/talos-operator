@@ -169,6 +169,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 KUBE_API_LINTER = $(LOCALBIN)/golangci-lint-kube-api-linter
+HELM_DOCS ?= $(LOCALBIN)/helm-docs
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.5.0
@@ -176,6 +177,7 @@ CONTROLLER_TOOLS_VERSION ?= v0.16.4
 ENVTEST_VERSION ?= release-0.19
 GOLANGCI_LINT_VERSION ?= v2.11.4
 KUBE_API_LINTER_VERSION ?= v0.0.0-20260206102632-39e3d06a2850
+HELM_DOCS_VERSION ?= v1.14.2
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -211,6 +213,22 @@ kube-api-lint-fix: $(KUBE_API_LINTER) ## Run kube-api-linter and perform fixes.
 chart: manifests ## Copies and cleans CRDs for the Helm chart.
 	@echo "--- Helm: Cleaning and copying CRDs"
 	@./scripts/clean_crds.sh config/crd/bases deploy/talos-operator/templates/crds
+
+.PHONY: helm-docs
+helm-docs: $(HELM_DOCS) ## Regenerate deploy/talos-operator/README.md from values.yaml.
+	@echo "--- Helm: Regenerating chart README"
+	@$(HELM_DOCS) --chart-search-root deploy/talos-operator
+$(HELM_DOCS): $(LOCALBIN)
+	$(call go-install-tool,$(HELM_DOCS),github.com/norwoodj/helm-docs/cmd/helm-docs,$(HELM_DOCS_VERSION))
+
+.PHONY: helm-docs-check
+helm-docs-check: $(HELM_DOCS) ## Fail if deploy/talos-operator/README.md is out of date relative to values.yaml.
+	@$(HELM_DOCS) --chart-search-root deploy/talos-operator
+	@if ! git diff --quiet -- deploy/talos-operator/README.md; then \
+		echo "deploy/talos-operator/README.md is out of date — run 'make helm-docs' and commit." >&2; \
+		git --no-pager diff -- deploy/talos-operator/README.md; \
+		exit 1; \
+	fi
 
 .PHONY: custom-dashboard
 custom-dashboard: ## Run the custom dashboard generator. For more information check out https://kubebuilder.io/plugins/available/grafana-v1-alpha

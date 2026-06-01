@@ -113,12 +113,13 @@ func TestHasVersionSuffix(t *testing.T) {
 		want  bool
 	}{
 		{"image:v1.0.0", true},
-		{"image:v1.2", true}, // Regex :v\d+(\.\d+)*$ matches v1.2
+		{"image:v1.2", true},
 		{"image:v1", true},
-		{"image:v1.2.3.4", true}, // Regex allows multiple components
-		{"image:1.0.0", false},
-		{"image", false},
-		{"image:v1.2.3", true},
+		{"image:v1.2.3.4", true},
+		{"image:v1.13.5", true},
+		{"image:v1.14.0-alpha.0", true},
+		{"image:v1.14.0-rc.1", true},
+		{"image:v1.0.0-beta", true},
 		{"image:1.0.0", false},
 		{"image", false},
 	}
@@ -136,17 +137,46 @@ func TestIsValidTalosVersion(t *testing.T) {
 		want  bool
 	}{
 		{"v1.0.0", true},
+		{"v1.13.5", true},
 		{"v1.2", true},
 		{"v1", true},
+		{"v1.14.0-alpha.0", true},
+		{"v1.14.0-rc.1", true},
+		{"v1.0.0-beta", true},
 		{"1.0.0", false},
-		{"v1.0.0-beta", false},
+		{"v1.0.0-", false},
+		{"v1.0.0-alpha..0", false},
 	}
-	// Re-reading IsValidTalosVersion regex: `^v\d+(\.\d+)*$`
-	// It strictly matches vDigits(.Digits)*
 
 	for _, tt := range tests {
 		if got := IsValidTalosVersion(tt.input); got != tt.want {
 			t.Errorf("IsValidTalosVersion(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestSupportsLifecycleService(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"v1.13.0", true},
+		{"v1.13.5", true},
+		{"v1.14.0", true},
+		{"v1.14.0-alpha.0", true},
+		{"v2.0.0", true},
+		{"v1.12.5", false},
+		{"v1.12.0", false},
+		{"v1.11.0", false},
+		{"v1.0.0", false},
+		{"1.13.0", false}, // missing leading v
+		{"", false},
+		{"not-a-version", false},
+	}
+
+	for _, tt := range tests {
+		if got := SupportsLifecycleService(tt.input); got != tt.want {
+			t.Errorf("SupportsLifecycleService(%q) = %v, want %v", tt.input, got, tt.want)
 		}
 	}
 }
