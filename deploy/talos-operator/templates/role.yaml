@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "talos-operator.fullname" . }}  
+  name: {{ include "talos-operator.fullname" . }}
 rules:
 - apiGroups:
   - ""
@@ -89,7 +89,7 @@ rules:
   - update
   - watch
 # Events
-- apiGroups: [""]
+- apiGroups: ["events.k8s.io"]
   resources: ["events"]
   verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
 ## Leader election
