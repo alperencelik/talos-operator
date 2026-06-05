@@ -174,10 +174,6 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return res, nil // Requeue the reconciliation to check the machine status again
 		}
 	}
-	// Re-get the machine object to ensure we have the latest state
-	if err := r.Get(ctx, req.NamespacedName, &talosMachine); err != nil {
-		return ctrl.Result{}, r.handleResourceNotFound(ctx, err)
-	}
 
 	// Check if feature flag for meta key is enabled and handle it
 	if os.Getenv("ENABLE_META_KEY") == "true" {
