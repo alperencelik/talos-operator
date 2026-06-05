@@ -83,22 +83,39 @@ func (tc *TalosClient) BootstrapNode(ctx context.Context) error {
 	return nil
 }
 
-// ApplyConfig applies the config to the machine by using talos client
-func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte) error {
+// ApplyConfig applies the config to the machine by using talos client. If dryRun is set,
+// the config is not applied and the returned string contains the change details (diff)
+// reported by the node.
+func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte, dryRun bool) (string, error) {
 	applyRequest := &machineapi.ApplyConfigurationRequest{
 		Data:           machineConfig,
 		Mode:           machineapi.ApplyConfigurationRequest_AUTO,
-		DryRun:         false,
+		DryRun:         dryRun,
 		TryModeTimeout: durationpb.New(60 * time.Second),
 	}
-	_, err := tc.ApplyConfiguration(ctx, applyRequest)
+	resp, err := tc.ApplyConfiguration(ctx, applyRequest)
 	if err != nil {
 		if isGracefulStop(err) {
-			return nil
+			return "", nil
 		}
-		return fmt.Errorf("error applying new configuration: %w", err)
+		return "", fmt.Errorf("error applying new configuration: %w", err)
 	}
-	return nil
+	if !dryRun {
+		return "", nil
+	}
+	var sb strings.Builder
+	for _, m := range resp.GetMessages() {
+		if details := m.GetModeDetails(); details != "" {
+			sb.WriteString(details)
+			sb.WriteString("\n")
+		}
+		for _, w := range m.GetWarnings() {
+			sb.WriteString("WARNING: ")
+			sb.WriteString(w)
+			sb.WriteString("\n")
+		}
+	}
+	return strings.TrimRight(sb.String(), "\n"), nil
 }
 
 func (tc *TalosClient) GetTalosVersion(ctx context.Context) (string, error) {

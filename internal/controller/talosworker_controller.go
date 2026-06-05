@@ -123,8 +123,14 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		logger.Info("Reconciliation is disabled for this TalosWorker", "name", tw.Name, "namespace", tw.Namespace)
 		return ctrl.Result{}, nil
 	case ReconcileModeDryRun:
-		logger.Info("Dry run mode is not implemented yet, skipping reconciliation", "name", tw.Name, "namespace", tw.Namespace)
-		return ctrl.Result{}, nil
+		if tw.Spec.Mode == TalosModeContainer {
+			logger.Info("DryRun is not supported in container mode yet, skipping reconciliation", "name", tw.Name, "namespace", tw.Namespace)
+			return ctrl.Result{}, nil
+		}
+		logger.Info("Reconciling TalosWorker in DryRun mode; no mutating operations will be performed", "name", tw.Name, "namespace", tw.Namespace)
+		r.Recorder.Eventf(&tw, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Reconciling in DryRun mode; no mutating operations will be performed")
+		// Route all Kubernetes writes through server-side dry-run for the rest of the reconciliation
+		r = &TalosWorkerReconciler{Client: client.NewDryRunClient(r.Client), Scheme: r.Scheme, Recorder: r.Recorder}
 	case ReconcileModeImport:
 		// If user would like to import existing TalosWorker run specific logic
 		if tw.Status.Imported == nil || !*tw.Status.Imported {
@@ -196,6 +202,13 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 		// Some machines are waiting for the rolling upgrade budget to free up.
 		// Requeue periodically so we re-evaluate as in-flight upgrades complete.
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	if isDryRun(tw) {
+		// The TalosMachines are never persisted in DryRun mode, so they can never become
+		// ready; skip the wait loop and the state update and re-simulate later.
+		logger.Info("DryRun: would wait for worker machines to become ready and set state to Ready", "name", tw.Name)
+		r.Recorder.Eventf(tw, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Would wait for worker machines to become ready and set state to Ready")
+		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 	// TODO: The for loop here should be replaced. The problem is if I requeue here the reconcile will start from scratch and
 	// I need to make sure that the previous op is not repeated. Before switching here make sure the previous operations are idempotent and can be safely retried.
@@ -478,9 +491,12 @@ func (r *TalosWorkerReconciler) GenerateConfig(ctx context.Context, tw *talosv1a
 	if err := r.WriteWorkerConfig(ctx, tw, wkConfig); err != nil {
 		return fmt.Errorf("failed to write worker config: %w", err)
 	}
-	// Get the object before updating the state
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tw), tw); err != nil {
-		return fmt.Errorf("failed to get TalosWorker %s: %w", tw.Name, err)
+	// Get the object before updating the state. In DryRun mode skip the re-fetch since the
+	// status is never persisted; the in-memory object stays authoritative for this pass.
+	if !isDryRun(tw) {
+		if err := r.Get(ctx, client.ObjectKeyFromObject(tw), tw); err != nil {
+			return fmt.Errorf("failed to get TalosWorker %s: %w", tw.Name, err)
+		}
 	}
 	// Update the state to pending
 	if err := r.updateState(ctx, tw, talosv1alpha1.StatePending); err != nil {
@@ -597,6 +613,18 @@ func (r *TalosWorkerReconciler) handleDeletion(ctx context.Context, tw *talosv1a
 	logger := log.FromContext(ctx)
 	logger.Info("Deleting TalosWorker", "name", tw.Name)
 
+	if isDryRun(tw) && tw.Spec.Mode == TalosModeMetal {
+		// Skip the explicit child cleanup and the wait for their removal; note that
+		// owner-reference garbage collection still cascades once the TalosWorker is deleted.
+		logger.Info("DryRun: would delete child TalosMachines; removing finalizer", "name", tw.Name)
+		r.Recorder.Eventf(tw, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Would delete child TalosMachines")
+		controllerutil.RemoveFinalizer(tw, talosv1alpha1.TalosWorkerFinalizer)
+		if err := r.Update(ctx, tw); err != nil {
+			logger.Error(err, "failed to remove finalizer from TalosWorker", "name", tw.Name)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
 	// Update the conditions to reflect the deletion
 	if !meta.IsStatusConditionPresentAndEqual(tw.Status.Conditions, talosv1alpha1.ConditionDeleting, metav1.ConditionUnknown) {
 		meta.SetStatusCondition(&tw.Status.Conditions, metav1.Condition{

@@ -15,10 +15,13 @@ const (
 
 	// ReconcileModeAnnotation is the annotation key for the reconcile mode
 	ReconcileModeAnnotation = "talos.alperen.cloud/reconcile-mode"
-	// ReconcileMode is the mode of the reconciliation it could be Normal, WatchOnly, EnsureExists, Disable, DryRun (to be implemented)
+	// ReconcileMode is the mode of the reconciliation, it could be Reconcile, Disable or DryRun
 	ReconcileModeNormal  = "reconcile"
 	ReconcileModeDisable = "disable"
-	ReconcileModeDryRun  = "dryrun" // TODO: Implement DryRun mode
+	// ReconcileModeDryRun runs the reconciliation without performing any mutating operations.
+	// Kubernetes writes are validated via server-side dry-run; Talos API and file-system
+	// operations are skipped and reported as "Would do X" events.
+	ReconcileModeDryRun = "dryrun"
 
 	// ReconcileModeImport is the mode for importing existing Talos resources
 	ReconcileModeImport = "import"

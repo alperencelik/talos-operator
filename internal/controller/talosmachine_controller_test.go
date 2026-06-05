@@ -22,8 +22,10 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 )
@@ -104,6 +106,38 @@ var _ = Describe("TalosMachine Controller", func() {
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{Name: talosMachineName, Namespace: namespace}, talosMachine)
 			}, timeout, interval).ShouldNot(Succeed())
+		})
+	})
+
+	Context("When reconciling a TalosMachine in DryRun mode", func() {
+		It("Should emit DryRun events and not mutate the status", func() {
+			By("Creating the TalosMachine with the DryRun annotation")
+			talosMachine.Annotations = map[string]string{
+				ReconcileModeAnnotation: ReconcileModeDryRun,
+			}
+			Expect(k8sClient.Create(ctx, talosMachine)).To(Succeed())
+
+			By("Waiting for a DryRun event to be recorded")
+			Eventually(func(g Gomega) {
+				var eventList corev1.EventList
+				g.Expect(k8sClient.List(ctx, &eventList, client.InNamespace(namespace))).To(Succeed())
+				var found bool
+				for _, e := range eventList.Items {
+					if e.InvolvedObject.Name == talosMachineName && e.Reason == "DryRun" {
+						found = true
+						break
+					}
+				}
+				g.Expect(found).To(BeTrue(), "expected a DryRun event for the TalosMachine")
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying the status is not mutated")
+			Consistently(func(g Gomega) {
+				fetched := &talosv1alpha1.TalosMachine{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosMachineName, Namespace: namespace}, fetched)).To(Succeed())
+				g.Expect(fetched.Status.State).To(BeEmpty())
+				g.Expect(fetched.Status.Config).To(BeEmpty())
+			}, time.Second*2, interval).Should(Succeed())
 		})
 	})
 })

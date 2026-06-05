@@ -23,6 +23,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -137,6 +138,40 @@ var _ = Describe("TalosCluster Controller", func() {
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, createdControlPlane)).To(Succeed())
 				g.Expect(createdControlPlane.Spec.Replicas).To(Equal(int32(5)))
 			}, timeout, interval).Should(Succeed())
+		})
+
+		It("Should not create child resources in DryRun mode", func() {
+			By("Creating the TalosCluster with the DryRun annotation")
+			talosCluster.Annotations = map[string]string{
+				ReconcileModeAnnotation: ReconcileModeDryRun,
+			}
+			Expect(k8sClient.Create(ctx, talosCluster)).To(Succeed())
+
+			By("Waiting for the finalizer to be added (finalizer management runs normally)")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, talosCluster)).To(Succeed())
+				g.Expect(talosCluster.Finalizers).To(ContainElement(talosv1alpha1.TalosClusterFinalizer))
+			}, timeout, interval).Should(Succeed())
+
+			By("Waiting for a DryRun event to be recorded")
+			Eventually(func(g Gomega) {
+				var eventList corev1.EventList
+				g.Expect(k8sClient.List(ctx, &eventList, client.InNamespace(namespace))).To(Succeed())
+				var found bool
+				for _, e := range eventList.Items {
+					if e.InvolvedObject.Name == talosClusterName && e.Reason == "DryRun" {
+						found = true
+						break
+					}
+				}
+				g.Expect(found).To(BeTrue(), "expected a DryRun event for the TalosCluster")
+			}, timeout, interval).Should(Succeed())
+
+			By("Verifying no child resources are created")
+			Consistently(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, &talosv1alpha1.TalosControlPlane{})).NotTo(Succeed())
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosClusterName, Namespace: namespace}, &talosv1alpha1.TalosWorker{})).NotTo(Succeed())
+			}, time.Second*3, interval).Should(Succeed())
 		})
 
 		It("Should handle deletion correctly", func() {
