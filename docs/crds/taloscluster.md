@@ -1,10 +1,22 @@
 # TalosCluster
 
-`TalosCluster` is a custom resource definition (CRD) used to define a Talos Linux cluster in a Kubernetes environment. It allows users to specify the configuration and desired state of a Talos cluster, including the number of control plane and worker nodes, networking settings, and other cluster parameters. `TalosCluster` is breaking the cluster into two parts: the `TalosControlPlane` and the `TalosWorker`. You can either define them inline or you can refer to them by name.
+| Field | Value |
+|-------|-------|
+| **API Group** | `talos.alperen.cloud` |
+| **API Version** | `v1alpha1` |
+| **Kind** | `TalosCluster` |
+| **Short Names** | `tc` |
+| **Scope** | Namespaced |
+| **Subresources** | `status` |
 
-## Creating your first TalosCluster
+`TalosCluster` is the top-level CRD that defines a complete Talos Linux cluster. It composes a `TalosControlPlane` and `TalosWorker` into a single resource. You can either define them **inline** (embedded directly) or **by reference** (pointing to separately managed resources).
 
-To create your first `TalosCluster` as container mode, you can use the following example YAML manifest:
+!!!warning
+    Mixing modes (e.g. `container` control plane with `metal` workers) is highly discouraged and may lead to unexpected behavior.
+
+---
+
+## Example
 
 ```yaml
 apiVersion: talos.alperen.cloud/v1alpha1
@@ -15,7 +27,7 @@ spec:
   controlPlane:
     version: v1.13.0
     mode: container
-    replicas: 2
+    replicas: 3
     kubeVersion: v1.35.0
   worker:
     version: v1.13.0
@@ -24,21 +36,53 @@ spec:
     kubeVersion: v1.35.0
 ```
 
-This manifest defines a `TalosCluster` named `taloscluster-sample` with the following specifications:
+---
 
-- **Control Plane**:
-  - Version: `v1.13.0` (Talos version)
-  - Mode: `container` (running Talos as a container in Kubernetes)
-  - Replicas: `2` (two control plane nodes)
-  - Kubernetes Version: `v1.33.0`
-- **Worker Nodes**:
-  - Version: `v1.13.0` (Talos version)
-  - Mode: `container` (running Talos as a container in Kubernetes)
-  - Replicas: `2` (two worker nodes)
-  - Kubernetes Version: `v1.33.0`
+## Spec Fields
 
-!!!tip
-    For more examples please refer to [examples](https://github.com/alperencelik/talos-operator/tree/main/examples) directory in the repository.
+### `spec` (TalosClusterSpec)
 
-!!!warning
-    Mixing modes is highly discouraged. You should either use `container` mode for both control plane and worker nodes or `metal` mode for both. Mixing modes can lead to unexpected behavior and it's not fully supported. If you want to run Talos on bare metal or virtual machines, you should use the `metal` mode for both control plane and worker nodes.
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `controlPlane` | [TalosControlPlaneSpec](./taloscontrolplane.md#spec-fields) | No | - | Inline control plane configuration. Mutually exclusive with `controlPlaneRef`. |
+| `controlPlaneRef` | [LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#localobjectreference-v1-core) | No | - | Reference to an existing `TalosControlPlane` resource by name. Mutually exclusive with `controlPlane`. |
+| `worker` | [TalosWorkerSpec](./talosworker.md#spec-fields) | No | - | Inline worker configuration. Mutually exclusive with `workerRef`. |
+| `workerRef` | [LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#localobjectreference-v1-core) | No | - | Reference to an existing `TalosWorker` resource by name. Mutually exclusive with `worker`. |
+| `pxeServerSpec` | [PxeServerSpec](#pxeserverspec) | No | - | PXE server configuration for network booting Talos machines. |
+
+### Cross-Field Validations
+
+| Rule | Message |
+|------|---------|
+| `!(has(controlPlane) && has(controlPlaneRef))` | Specify either controlPlane or controlPlaneRef, but not both |
+| `!(has(worker) && has(workerRef))` | Specify either worker or workerRef, but not both |
+
+---
+
+## Nested Types
+
+### PxeServerSpec
+
+Defines the PXE server used for booting Talos over the network.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `address` | string | Yes | - | IP address of the PXE server. Must match pattern `^(\d{1,3}\.){3}\d{1,3}$`. |
+| `interface` | string | Yes | - | Network interface on the PXE server connected to the boot network (Linux interface name, e.g. `eth0`). |
+
+---
+
+## Status Fields
+
+### `status` (TalosClusterStatus)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `conditions` | [][Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#condition-v1-meta) | List of conditions representing the current state of the TalosCluster. |
+
+#### Condition Types
+
+| Type | Description |
+|------|-------------|
+| `Ready` | The cluster and all its components are fully reconciled and healthy. |
+| `Progressing` | The cluster is being created, updated, or upgraded. |
