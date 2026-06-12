@@ -124,6 +124,23 @@ func rawExtensionToYAML(raw runtime.RawExtension) ([]byte, error) {
 	return out, nil
 }
 
+// appendAdditionalConfig appends each additionalConfig document from the MachineSpec to the
+// generated machine config, separated by "---".
+func appendAdditionalConfig(config *[]byte, spec *talosv1alpha1.MachineSpec) error {
+	if spec == nil {
+		return nil
+	}
+	for _, ac := range spec.AdditionalConfig {
+		yamlBytes, err := rawExtensionToYAML(ac)
+		if err != nil {
+			return fmt.Errorf("failed to convert additionalConfig to YAML: %w", err)
+		}
+		*config = append(*config, []byte("\n---\n")...)
+		*config = append(*config, yamlBytes...)
+	}
+	return nil
+}
+
 // rawExtensionsToPatches converts a slice of RawExtension config patches to YAML strings
 // suitable for passing to talos.GenerateControlPlaneConfig or talos.GenerateWorkerConfig.
 func rawExtensionsToPatches(patches []runtime.RawExtension) ([]string, error) {

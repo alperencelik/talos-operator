@@ -251,15 +251,8 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 			*cpConfig = append(*cpConfig, []byte(talos.ImageCacheVolumeConfig)...)
 		}
 		// Append each additionalConfig document separated by "---"
-		if tm.Spec.MachineSpec != nil {
-			for _, ac := range tm.Spec.MachineSpec.AdditionalConfig {
-				*cpConfig = append(*cpConfig, []byte("\n---\n")...)
-				yamlBytes, err := rawExtensionToYAML(ac)
-				if err != nil {
-					return ctrl.Result{}, fmt.Errorf("failed to convert additionalConfig to YAML for TalosMachine %s: %w", tm.Name, err)
-				}
-				*cpConfig = append(*cpConfig, yamlBytes...)
-			}
+		if err := appendAdditionalConfig(cpConfig, tm.Spec.MachineSpec); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to append additionalConfig for TalosMachine %s: %w", tm.Name, err)
 		}
 	}
 	// Check if the current config is the same as the one in status
@@ -319,6 +312,10 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 		}
 		if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.ImageCache {
 			*workerConfig = append(*workerConfig, []byte(talos.ImageCacheVolumeConfig)...)
+		}
+		// Append each additionalConfig document separated by "---"
+		if err := appendAdditionalConfig(workerConfig, tm.Spec.MachineSpec); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to append additionalConfig for TalosMachine %s: %w", tm.Name, err)
 		}
 	}
 
