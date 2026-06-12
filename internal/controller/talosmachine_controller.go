@@ -108,8 +108,9 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logger.Info("Reconciliation is disabled for this TalosWorker", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
 		return ctrl.Result{}, nil
 	case ReconcileModeDryRun:
-		logger.Info("Dry run mode is not implemented yet, skipping reconciliation", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
-		return ctrl.Result{}, nil
+		logger.Info("Reconciling TalosMachine in DryRun mode; no mutating operations will be performed", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
+		r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Reconciling in DryRun mode; no mutating operations will be performed")
+		// Proceed with the reconciliation; mutating operations are gated on the DryRun mode
 	case ReconcileModeImport:
 		// Handle import logic here
 		if talosMachine.Status.Imported == nil || !*talosMachine.Status.Imported {
@@ -127,6 +128,12 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			logger.Info("Probe failed, falling through to normal flow", "name", talosMachine.Name, "error", err)
 		}
 		if provisioned {
+			if r.isDryRun(&talosMachine) {
+				// State is not persisted in DryRun mode; requeue slowly instead of hot-looping
+				logger.Info("DryRun: would restore TalosMachine state to Available", "name", talosMachine.Name)
+				r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would restore state to Available")
+				return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+			}
 			if err := r.updateState(ctx, &talosMachine, talosv1alpha1.StateAvailable); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to restore TalosMachine %s state: %w", talosMachine.Name, err)
 			}
@@ -268,6 +275,10 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 		r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "ConfigApplyFailed", "ConfigApplyFailed", "Failed to apply or upgrade Talos config for TalosMachine")
 		return ctrl.Result{}, fmt.Errorf("failed to apply or upgrade Talos config for TalosMachine %s: %w", tm.Name, err)
 	}
+	if r.isDryRun(tm) {
+		// Status is not persisted in DryRun mode, so every reconcile re-runs the simulation; slow down the requeue
+		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	}
 	// TODO: Review here to make it more event driven -- maybe implement watcher, etc.
 	return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check the machine status again
 }
@@ -330,6 +341,10 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 		r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "ConfigApplyFailed", "ConfigApplyFailed", "Failed to apply or upgrade Talos config for TalosMachine")
 		return ctrl.Result{}, fmt.Errorf("failed to apply or upgrade Talos config for TalosMachine %s: %w", tm.Name, err)
 	}
+	if r.isDryRun(tm) {
+		// Status is not persisted in DryRun mode, so every reconcile re-runs the simulation; slow down the requeue
+		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	}
 	// TODO: Review here to make it more event driven -- maybe implement watcher, etc.
 	return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check the machine status again
 }
@@ -345,6 +360,11 @@ func (r *TalosMachineReconciler) handleResourceNotFound(ctx context.Context, err
 
 func (r *TalosMachineReconciler) updateState(ctx context.Context, tm *talosv1alpha1.TalosMachine, state string) error {
 	if tm.Status.State == state {
+		return nil
+	}
+	if r.isDryRun(tm) {
+		log.FromContext(ctx).Info("DryRun: would update TalosMachine state", "name", tm.Name, "from", tm.Status.State, "to", state)
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, fmt.Sprintf("Would set state to %s", state))
 		return nil
 	}
 	tm.Status.State = state
@@ -460,6 +480,11 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 	}
 	// Only reset if requested by deletion policy:
 	if tm.Spec.DeletionPolicy == DeletionPolicyReset {
+		if r.isDryRun(tm) {
+			log.FromContext(ctx).Info("DryRun: would reset TalosMachine", "name", tm.Name)
+			r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would reset machine")
+			return ctrl.Result{}, nil
+		}
 		// Run talosctl reset command to reset the machine
 		config, err := r.GetBundleConfig(ctx, tm)
 		if err != nil {
@@ -706,6 +731,8 @@ func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talo
 }
 
 func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *talosv1alpha1.TalosMachine, bc *talos.BundleConfig, config *[]byte) error {
+	logger := log.FromContext(ctx)
+	dryRun := r.isDryRun(tm)
 	// Check whether we need to construct maintenance mode or not
 	insecure := tm.Status.State == "" || tm.Status.State == talosv1alpha1.StatePending
 	// Create Talos client
@@ -716,8 +743,14 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 	defer tc.Close() //nolint:errcheck
 	configDrift := tm.Status.Config != string(*config)
 	applyConfigurationFunc := func() error {
-		if err := tc.ApplyConfig(ctx, *config); err != nil {
+		diff, err := tc.ApplyConfig(ctx, *config, dryRun)
+		if err != nil {
 			return fmt.Errorf("failed to apply Talos config for TalosMachine %s: %w", tm.Name, err)
+		}
+		if dryRun {
+			logger.Info("DryRun: would apply Talos config", "name", tm.Name, "changes", diff)
+			r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, fmt.Sprintf("Would apply config; changes reported by node:\n%s", diff))
+			return nil
 		}
 		// Prepare a merge patch to update only our status fields
 		orig := tm.DeepCopy()
@@ -768,6 +801,12 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 			// If the .machineSpec.image is not set, use the default image from the version
 			image = fmt.Sprintf("%s:%s", talos.DefaultTalosImage, tm.Spec.Version)
 		}
+		if dryRun {
+			// The Talos upgrade API has no native dry-run support, so just report what would happen
+			logger.Info("DryRun: would upgrade Talos version", "name", tm.Name, "from", actualVersion, "to", tm.Spec.Version, "image", image)
+			r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, fmt.Sprintf("Would upgrade Talos version from %s to %s using image %s", actualVersion, tm.Spec.Version, image))
+			return nil
+		}
 		// Add an event
 		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "Upgrading", "Upgrading", fmt.Sprintf("Upgrading Talos version to %s using image %s", tm.Spec.Version, image))
 		if err := tc.UpgradeTalosVersion(ctx, actualVersion, image); err != nil {
@@ -784,6 +823,11 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		}
 	}
 	return nil
+}
+
+// isDryRun returns true if the TalosMachine is annotated with the DryRun reconciliation mode.
+func (r *TalosMachineReconciler) isDryRun(tm *talosv1alpha1.TalosMachine) bool {
+	return isDryRun(tm)
 }
 
 func (r *TalosMachineReconciler) getReconciliationMode(ctx context.Context, tm *talosv1alpha1.TalosMachine) string {
@@ -819,6 +863,11 @@ func (r *TalosMachineReconciler) handleMetaKey(ctx context.Context, tm *talosv1a
 		if tm.Spec.MachineSpec.Meta == nil {
 			return nil // No meta key is set
 		}
+	}
+	if r.isDryRun(tm) {
+		log.FromContext(ctx).Info("DryRun: would write meta key(s) to TalosMachine", "name", tm.Name)
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would write meta key(s) to machine")
+		return nil
 	}
 	bc, err := r.GetBundleConfig(ctx, tm)
 	if err != nil {

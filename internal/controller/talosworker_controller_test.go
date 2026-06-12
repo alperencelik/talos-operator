@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 )
@@ -128,6 +129,44 @@ var _ = Describe("TalosWorker Controller", func() {
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{Name: talosWorkerName, Namespace: namespace}, talosWorker)
 			}, timeout, interval).ShouldNot(Succeed())
+		})
+	})
+
+	Context("When reconciling a TalosWorker in DryRun mode", func() {
+		It("Should skip reconciliation entirely in container mode", func() {
+			By("Stubbing the TalosControlPlane SecretBundle so the worker passes the precondition")
+			Eventually(func(g Gomega) {
+				cp := &talosv1alpha1.TalosControlPlane{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: controlPlaneName, Namespace: namespace}, cp)).To(Succeed())
+				cp.Status.SecretBundle = "stub-secret-bundle"
+				g.Expect(k8sClient.Status().Update(ctx, cp)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			By("Creating a container-mode TalosWorker with the DryRun annotation")
+			talosWorker.Annotations = map[string]string{
+				ReconcileModeAnnotation: ReconcileModeDryRun,
+			}
+			talosWorker.Spec.Mode = TalosModeContainer
+			Expect(k8sClient.Create(ctx, talosWorker)).To(Succeed())
+
+			By("Verifying nothing is reconciled: no DryRun event, no resources, no status")
+			Consistently(func(g Gomega) {
+				// No DryRun event is recorded since container mode skips before the simulation starts
+				var eventList corev1.EventList
+				g.Expect(k8sClient.List(ctx, &eventList, client.InNamespace(namespace))).To(Succeed())
+				for _, e := range eventList.Items {
+					g.Expect(e.InvolvedObject.Name == talosWorkerName && e.Reason == EventReasonDryRun).To(BeFalse(),
+						"expected no DryRun event for a container-mode TalosWorker")
+				}
+				// No worker config ConfigMap is created
+				cm := &corev1.ConfigMap{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosWorkerName + "-config", Namespace: namespace}, cm)).NotTo(Succeed())
+				// Status stays untouched
+				fetched := &talosv1alpha1.TalosWorker{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: talosWorkerName, Namespace: namespace}, fetched)).To(Succeed())
+				g.Expect(fetched.Status.State).To(BeEmpty())
+				g.Expect(fetched.Status.Config).To(BeEmpty())
+			}, time.Second*3, interval).Should(Succeed())
 		})
 	})
 })

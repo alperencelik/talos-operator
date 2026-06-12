@@ -98,12 +98,16 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// Initialize ObservedKubeVersion if it's empty
 	if tcp.Status.ObservedKubeVersion == "" && tcp.Spec.KubeVersion != "" {
 		tcp.Status.ObservedKubeVersion = tcp.Spec.KubeVersion
-		if err := r.Status().Update(ctx, &tcp); err != nil {
-			logger.Error(err, "failed to initialize ObservedKubeVersion")
-			r.Recorder.Eventf(&tcp, nil, corev1.EventTypeWarning, "StatusUpdateFailed", "StatusUpdateFailed", "Failed to initialize ObservedKubeVersion")
-			return ctrl.Result{Requeue: true}, err
+		// In DryRun mode keep the value in memory only; persisting it would mutate status and
+		// the requeue would loop forever since the write never lands.
+		if !isDryRun(&tcp) {
+			if err := r.Status().Update(ctx, &tcp); err != nil {
+				logger.Error(err, "failed to initialize ObservedKubeVersion")
+				r.Recorder.Eventf(&tcp, nil, corev1.EventTypeWarning, "StatusUpdateFailed", "StatusUpdateFailed", "Failed to initialize ObservedKubeVersion")
+				return ctrl.Result{Requeue: true}, err
+			}
+			return ctrl.Result{Requeue: true}, nil
 		}
-		return ctrl.Result{Requeue: true}, nil
 	}
 	// Finalizer
 	var delErr error
@@ -137,8 +141,14 @@ func (r *TalosControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		logger.Info("Reconciliation is disabled for this TalosControlplane", "name", tcp.Name, "namespace", tcp.Namespace)
 		return ctrl.Result{}, nil
 	case ReconcileModeDryRun:
-		logger.Info("Dry run mode is not implemented yet, skipping reconciliation", "name", tcp.Name, "namespace", tcp.Namespace)
-		return ctrl.Result{}, nil
+		if tcp.Spec.Mode == TalosModeContainer {
+			logger.Info("DryRun is not supported in container mode yet, skipping reconciliation", "name", tcp.Name, "namespace", tcp.Namespace)
+			return ctrl.Result{}, nil
+		}
+		logger.Info("Reconciling TalosControlPlane in DryRun mode; no mutating operations will be performed", "name", tcp.Name, "namespace", tcp.Namespace)
+		r.Recorder.Eventf(&tcp, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Reconciling in DryRun mode; no mutating operations will be performed")
+		// Route all Kubernetes writes through server-side dry-run for the rest of the reconciliation
+		r = &TalosControlPlaneReconciler{Client: client.NewDryRunClient(r.Client), Scheme: r.Scheme, Recorder: r.Recorder}
 	case ReconcileModeImport:
 		// If user would like to import existing TalosControlPlane run special logic and then continue normal reconciliation by setting Imported to true
 		if tcp.Status.Imported == nil || !*tcp.Status.Imported {
@@ -229,6 +239,11 @@ func (r *TalosControlPlaneReconciler) reconcileKubeVersion(ctx context.Context, 
 				logger.Error(err, "failed to create or update upgrade job")
 				r.Recorder.Eventf(tcp, nil, corev1.EventTypeWarning, "UpgradeJobFailed", "UpgradeJobFailed", "Failed to create or update upgrade job")
 				return ctrl.Result{Requeue: true}, err
+			}
+			if isDryRun(tcp) {
+				logger.Info("DryRun: would create Kubernetes upgrade job", "job", jobName)
+				r.Recorder.Eventf(tcp, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, fmt.Sprintf("Would create Kubernetes upgrade Job %s to upgrade from %s to %s", jobName, tcp.Status.ObservedKubeVersion, tcp.Spec.KubeVersion))
+				return ctrl.Result{}, nil
 			}
 			tcp.Status.State = talosv1alpha1.StateUpgradingKubernetes
 			if err := r.Status().Update(ctx, tcp); err != nil {
@@ -399,6 +414,13 @@ func (r *TalosControlPlaneReconciler) reconcileMetalMode(ctx context.Context, tc
 		// Some machines are waiting for the rolling upgrade budget to free up.
 		// Requeue periodically so we re-evaluate as in-flight upgrades complete.
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	if isDryRun(tcp) {
+		// The TalosMachines are never persisted in DryRun mode, so they can never become
+		// Available; report the remaining steps and re-simulate later.
+		logger.Info("DryRun: would wait for control plane machines, bootstrap the cluster and write kubeconfig/talosconfig", "name", tcp.Name)
+		r.Recorder.Eventf(tcp, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would wait for control plane machines to become available, bootstrap the cluster and write kubeconfig/talosconfig secrets")
+		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
 	// Wait for all TalosMachines to be created and status Available
@@ -891,6 +913,12 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 	if tcp.Status.State == talosv1alpha1.StateBootstrapped || tcp.Status.State == talosv1alpha1.StateReady {
 		return nil
 	}
+	if isDryRun(tcp) {
+		// The bootstrap RPC has no dry-run support on the Talos side
+		logger.Info("DryRun: would bootstrap the Talos control plane", "name", tcp.Name)
+		r.Recorder.Eventf(tcp, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would bootstrap the Talos control plane")
+		return nil
+	}
 	// Make sure that the .status.state is set to Available before bootstrapping
 	if tcp.Status.State != talosv1alpha1.StateAvailable {
 		return fmt.Errorf("TalosControlPlane %s is not in Available to bootstrap, current state: %s", tcp.Name, tcp.Status.State)
@@ -997,12 +1025,15 @@ func (r *TalosControlPlaneReconciler) SetConfig(ctx context.Context, tcp *talosv
 		replicas = int(tcp.Spec.Replicas)
 		sans = utils.GenSans(tcp.Name, &replicas)
 	}
-	// Get the latest TalosControlPlane object
-	if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
-		if kerrors.IsNotFound(err) {
-			return nil, fmt.Errorf("TalosControlPlane %s not found: %w", tcp.Name, err)
+	// Get the latest TalosControlPlane object. In DryRun mode skip the re-fetch since status
+	// is never persisted; the in-memory object stays authoritative for this pass.
+	if !isDryRun(tcp) {
+		if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+			if kerrors.IsNotFound(err) {
+				return nil, fmt.Errorf("TalosControlPlane %s not found: %w", tcp.Name, err)
+			}
+			return nil, fmt.Errorf("failed to get TalosControlPlane %s: %w", tcp.Name, err)
 		}
-		return nil, fmt.Errorf("failed to get TalosControlPlane %s: %w", tcp.Name, err)
 	}
 	// Get secret bundle
 	secretBundle, err := r.SecretBundle(ctx, tcp)
@@ -1071,9 +1102,12 @@ func (r *TalosControlPlaneReconciler) SecretBundle(ctx context.Context, tcp *tal
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal SecretBundle for TalosControlPlane %s: %w", tcp.Name, err)
 		}
-		// Get the object again since the status might have been updated
-		if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
-			return nil, fmt.Errorf("failed to get TalosControlPlane %s after generating SecretBundle: %w", tcp.Name, err)
+		// Get the object again since the status might have been updated. In DryRun mode skip
+		// the re-fetch since status is never persisted; the in-memory object stays authoritative.
+		if !isDryRun(tcp) {
+			if err := r.Get(ctx, client.ObjectKeyFromObject(tcp), tcp); err != nil {
+				return nil, fmt.Errorf("failed to get TalosControlPlane %s after generating SecretBundle: %w", tcp.Name, err)
+			}
 		}
 
 		// Converts bytes to a string and sets it in the status
@@ -1112,6 +1146,18 @@ func (r *TalosControlPlaneReconciler) handleDelete(ctx context.Context, tcp *tal
 	logger := log.FromContext(ctx)
 	logger.Info("Deleting TalosControlPlane", "name", tcp.Name)
 
+	if isDryRun(tcp) && tcp.Spec.Mode == TalosModeMetal {
+		// Skip the explicit child cleanup and the wait for their removal; note that
+		// owner-reference garbage collection still cascades once the object is deleted.
+		logger.Info("DryRun: would delete child TalosMachines; removing finalizer", "name", tcp.Name)
+		r.Recorder.Eventf(tcp, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would delete child TalosMachines")
+		controllerutil.RemoveFinalizer(tcp, talosv1alpha1.TalosControlPlaneFinalizer)
+		if err := r.Update(ctx, tcp); err != nil {
+			logger.Error(err, "Failed to remove finalizer from TalosControlPlane", "name", tcp.Name)
+			return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from TalosControlPlane %s: %w", tcp.Name, err)
+		}
+		return ctrl.Result{}, nil
+	}
 	// Update the conditions to mark the TalosControlPlane as being deleted
 	if !meta.IsStatusConditionPresentAndEqual(tcp.Status.Conditions, talosv1alpha1.ConditionDeleting, metav1.ConditionUnknown) {
 		meta.SetStatusCondition(&tcp.Status.Conditions, metav1.Condition{
@@ -1238,6 +1284,11 @@ func (r *TalosControlPlaneReconciler) restoreFromStateSecret(ctx context.Context
 	tcp.Status.State = string(secret.Data["state"])
 	tcp.Status.Config = string(secret.Data["config"])
 	tcp.Status.ObservedKubeVersion = string(secret.Data["observedKubeVersion"])
+	if isDryRun(tcp) {
+		// Keep the restored status in memory only; it stays authoritative for this pass
+		logger.Info("DryRun: restored status from state secret in memory only", "name", tcp.Name)
+		return nil
+	}
 	if err := r.Status().Patch(ctx, tcp, client.MergeFrom(orig)); err != nil {
 		return fmt.Errorf("failed to restore TalosControlPlane %s status from state secret: %w", tcp.Name, err)
 	}
