@@ -254,7 +254,11 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 		if tm.Spec.MachineSpec != nil {
 			for _, ac := range tm.Spec.MachineSpec.AdditionalConfig {
 				*cpConfig = append(*cpConfig, []byte("\n---\n")...)
-				*cpConfig = append(*cpConfig, ac.Raw...)
+				yamlBytes, err := rawExtensionToYAML(ac)
+				if err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to convert additionalConfig to YAML for TalosMachine %s: %w", tm.Name, err)
+				}
+				*cpConfig = append(*cpConfig, yamlBytes...)
 			}
 		}
 	}

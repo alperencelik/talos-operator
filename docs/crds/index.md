@@ -1,17 +1,41 @@
 # Custom Resource Definitions (CRDs)
 
-This section provides detailed documentation for the Custom Resource Definitions (CRDs) used by the Talos Operator. CRDs are extensions of the Kubernetes API that allow you to manage custom resources. In the context of the Talos Operator, these resources are used to define and manage Talos clusters in a declarative way.
+The Talos Operator defines the following CRDs in the `talos.alperen.cloud/v1alpha1` API group. All resources are namespaced.
 
-Here you will find information on the following CRDs:
+## Core Resources
 
-*   [TalosCluster](./taloscluster.md)
-*   [TalosControlPlane](./taloscontrolplane.md)
-*   [TalosWorker](./talosworker.md)
-*   [TalosMachine](./talosmachine.md)
-*   [TalosEtcdBackup](./talosetcdbackup.md)
-*   [TalosEtcdBackupSchedule](./talosetcdbackupschedule.md)
-*   [TalosClusterAddon](./talosclusteraddon.md)
-*   [TalosClusterAddonRelease](./talosclusteraddonrelease.md)
+| CRD | Short Name | Description |
+|-----|-----------|-------------|
+| [TalosCluster](./taloscluster.md) | `tc` | Top-level resource that composes a Talos cluster from a control plane and worker nodes. |
+| [TalosControlPlane](./taloscontrolplane.md) | `tcp` | Defines and manages the control plane of a Talos cluster. |
+| [TalosWorker](./talosworker.md) | `tw` | Defines and manages the worker nodes of a Talos cluster. |
+| [TalosMachine](./talosmachine.md) | `tm` | Represents a single Talos machine. Auto-managed by the operator in `metal` mode. |
 
+## Backup Resources
 
+| CRD | Short Name | Description |
+|-----|-----------|-------------|
+| [TalosEtcdBackup](./talosetcdbackup.md) | `teb` | One-time etcd backup streamed to S3-compatible storage. |
+| [TalosEtcdBackupSchedule](./talosetcdbackupschedule.md) | `tebs` | Cron-based scheduled etcd backups with retention management. |
 
+## Addon Resources
+
+| CRD | Short Name | Description |
+|-----|-----------|-------------|
+| [TalosClusterAddon](./talosclusteraddon.md) | `tca` | Helm chart addon applied to clusters matching a label selector. |
+| [TalosClusterAddonRelease](./talosclusteraddonrelease.md) | `tcar` | Per-cluster Helm release instance (auto-managed by `TalosClusterAddon`). |
+
+## Resource Relationships
+
+```
+TalosCluster
+ ├── TalosControlPlane (inline or ref)
+ │    ├── TalosMachine (metal mode, auto-created)
+ │    ├── TalosEtcdBackupSchedule
+ │    │    └── TalosEtcdBackup (auto-created per schedule)
+ │    └── TalosEtcdBackup (manual)
+ ├── TalosWorker (inline or ref)
+ │    └── TalosMachine (metal mode, auto-created)
+ └── TalosClusterAddon
+      └── TalosClusterAddonRelease (auto-created per matched cluster)
+```

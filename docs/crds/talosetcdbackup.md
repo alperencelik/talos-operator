@@ -1,56 +1,26 @@
 # TalosEtcdBackup
 
-The `TalosEtcdBackup` custom resource enables automated etcd backups for Talos control planes, streaming snapshots directly to S3-compatible storage without local disk usage.
+| Field | Value |
+|-------|-------|
+| **API Group** | `talos.alperen.cloud` |
+| **API Version** | `v1alpha1` |
+| **Kind** | `TalosEtcdBackup` |
+| **Short Names** | `teb` |
+| **Scope** | Namespaced |
+| **Subresources** | `status` |
 
-## Overview
+`TalosEtcdBackup` creates a one-time etcd backup from a Talos control plane, streaming the snapshot directly to S3-compatible storage with zero local disk I/O.
 
-TalosEtcdBackup provides a declarative way to backup etcd data from Talos control planes. The operator:
+## Print Columns
 
-1. Connects to the Talos API to stream an etcd snapshot
-2. Uploads the snapshot directly to S3 (or S3-compatible storage)
-3. Uses zero local disk I/O for minimal footprint
-4. Updates status conditions to track backup progress
+| Name | JSON Path |
+|------|-----------|
+| Filename | `.status.filename` |
+| Age | `.metadata.creationTimestamp` |
 
-## Features
-
-- **Zero Local I/O**: Snapshots stream directly from Talos API to S3
-- **Memory Efficient**: Uses streaming to minimize memory footprint
-- **S3 Compatible**: Works with AWS S3, MinIO, Ceph, and other S3-compatible storage
-- **Secure**: Credentials stored in Kubernetes secrets
-- **Status Tracking**: Updates conditions for easy monitoring
-
-## Specification
-
-### Required Fields
-
-- `spec.talosControlPlaneRef`: Reference to the TalosControlPlane to backup
-- `spec.backupStorage.s3.bucket`: S3 bucket name
-- `spec.backupStorage.s3.region`: AWS region
-- `spec.backupStorage.s3.accessKeyID`: Secret reference for access key ID
-- `spec.backupStorage.s3.secretAccessKey`: Secret reference for secret access key
-
-### Optional Fields
-
-- `spec.backupStorage.s3.endpoint`: Custom S3 endpoint (for S3-compatible storage)
-- `spec.backupStorage.s3.insecureSkipTLSVerify`: Skip TLS verification (default: false)
+---
 
 ## Example
-
-### 1. Create S3 Credentials Secret
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: my-s3-credentials
-  namespace: default
-type: Opaque
-stringData:
-  accessKeyID: "YOUR_ACCESS_KEY_ID"
-  secretAccessKey: "YOUR_SECRET_ACCESS_KEY"
-```
-
-### 2. Create TalosEtcdBackup Resource
 
 ```yaml
 apiVersion: talos.alperen.cloud/v1alpha1
@@ -72,21 +42,7 @@ spec:
         key: secretAccessKey
 ```
 
-### 3. Check Backup Status
-
-```bash
-kubectl get talosetcdbackup my-backup -o yaml
-```
-
-Look for the `status.conditions` field to check backup progress:
-
-- `Progressing`: Backup is in progress
-- `Ready`: Backup completed successfully
-- `Failed`: Backup encountered an error
-
-## Using S3-Compatible Storage
-
-For MinIO, Ceph, or other S3-compatible storage, add the `endpoint` field:
+### With Custom S3 Endpoint (MinIO, Ceph, etc.)
 
 ```yaml
 spec:
@@ -95,7 +51,7 @@ spec:
       bucket: my-backups
       region: us-east-1
       endpoint: https://minio.example.com
-      insecureSkipTLSVerify: false  # Set to true for self-signed certs
+      insecureSkipTLSVerify: false
       accessKeyID:
         name: my-s3-credentials
         key: accessKeyID
@@ -104,76 +60,51 @@ spec:
         key: secretAccessKey
 ```
 
-## Backup Location
+---
 
-Backups are stored in S3 with the following key pattern:
+## Spec Fields
 
-```
-talos-operator-etcd-backups/<controlplane-name>/etcd-snapshot-<timestamp>.db
-```
+### `spec` (TalosEtcdBackupSpec)
 
-Example:
-```
-talos-operator-etcd-backups/my-controlplane/etcd-snapshot-2025-10-04T11-30-00Z.db
-```
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `talosControlPlaneRef` | [LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#localobjectreference-v1-core) | Yes | - | Reference to the `TalosControlPlane` to back up (by name). |
+| `backupStorage` | [BackupStorage](#backupstorage) | Yes | - | Storage configuration for the backup. |
 
-## Status Conditions
+### BackupStorage
 
-The operator updates status conditions throughout the backup lifecycle:
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `s3` | *[S3Storage](#s3storage) | No | - | S3-compatible storage configuration. |
 
-| Condition | Status | Reason | Description |
-|-----------|--------|--------|-------------|
-| Progressing | True | BackupInProgress | Backup is currently running |
-| Progressing | False | BackupCompleted | Backup finished |
-| Ready | True | BackupSucceeded | Backup completed successfully |
-| Failed | True | BackupFailed | Backup encountered an error |
+### S3Storage
 
-## Best Practices
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `bucket` | string | Yes | - | S3 bucket name. |
+| `region` | string | Yes | - | AWS region where the bucket is located. |
+| `endpoint` | string | No | - | Custom S3 endpoint URL for S3-compatible services (MinIO, Ceph, etc.). |
+| `accessKeyID` | [SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#secretkeyselector-v1-core) | Yes | - | Reference to a Secret key containing the S3 access key ID. |
+| `secretAccessKey` | [SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#secretkeyselector-v1-core) | Yes | - | Reference to a Secret key containing the S3 secret access key. |
+| `insecureSkipTLSVerify` | bool | No | `false` | Skip TLS certificate verification for the S3 endpoint. |
 
-1. **Credentials Management**: Always use Kubernetes secrets for S3 credentials
-2. **Bucket Lifecycle**: Configure S3 lifecycle policies for automatic cleanup
-3. **Monitoring**: Watch status conditions for backup health
-4. **Testing**: Test restores regularly to ensure backups are valid
-5. **Network**: Ensure operator has network access to S3 endpoint
+---
 
-## Troubleshooting
+## Status Fields
 
-### Backup Fails with "Failed to get TalosControlPlane"
+### `status` (TalosEtcdBackupStatus)
 
-Ensure:
-- The referenced TalosControlPlane exists in the same namespace
-- The TalosControlPlane is in a ready state with valid bundle config
+| Field | Type | Description |
+|-------|------|-------------|
+| `filename` | string | Name of the etcd snapshot file in the storage backend. Pattern: `talos-operator-etcd-backups/<controlplane-name>/etcd-snapshot-<timestamp>.db` |
+| `stateFilename` | string | Name of the paired state-secret backup file in the storage backend. |
+| `conditions` | [][Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#condition-v1-meta) | List of conditions. Map-list keyed by `type`. |
 
-### Backup Fails with "Failed to get secret"
+#### Condition Types
 
-Ensure:
-- The secret exists in the same namespace as the TalosEtcdBackup
-- The secret contains the correct keys (`accessKeyID` and `secretAccessKey`)
-
-### Backup Fails with "Failed to upload snapshot to S3"
-
-Check:
-- S3 credentials have write permissions to the bucket
-- Network connectivity to S3 endpoint
-- Bucket exists and is in the correct region
-- For custom endpoints, verify the endpoint URL is correct
-
-### Backup Hangs in Progressing State
-
-- Check operator logs for detailed error messages
-- Verify Talos API is accessible from the operator
-- Ensure sufficient network bandwidth for snapshot transfer
-
-## Performance Considerations
-
-The backup process streams data directly from Talos to S3:
-
-- **Memory Usage**: Minimal, as data is streamed (not buffered)
-- **Disk Usage**: Zero, no local storage is used
-- **Network**: Bandwidth dependent on snapshot size
-- **Duration**: Depends on snapshot size and network speed
-
-For large etcd databases, ensure:
-- Adequate network bandwidth between operator and S3
-- Sufficient Talos API timeout settings
-- Monitoring of backup completion times
+| Type | Status | Reason | Description |
+|------|--------|--------|-------------|
+| `Progressing` | `True` | `BackupInProgress` | Backup is currently running. |
+| `Progressing` | `False` | `BackupCompleted` | Backup finished. |
+| `Ready` | `True` | `BackupSucceeded` | Backup completed successfully. |
+| `Failed` | `True` | `BackupFailed` | Backup encountered an error. |
