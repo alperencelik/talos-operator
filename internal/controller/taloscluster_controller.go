@@ -78,7 +78,7 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if os.Getenv("ENABLE_PXE_BOOT_STACK") == PxeBootStackEnabled {
 				if isDryRun(&tc) {
 					logger.Info("DryRun: would remove TalosCluster from PXE boot stack configuration", "name", tc.Name)
-					r.Recorder.Eventf(&tc, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Would remove cluster from PXE boot stack configuration")
+					r.Recorder.Eventf(&tc, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would remove cluster from PXE boot stack configuration")
 				} else if err := r.handlePxeBootStack(ctx, tc); err != nil {
 					logger.Error(err, "failed to handle PXE boot stack during TalosCluster deletion", "name", tc.Name)
 					return ctrl.Result{}, err
@@ -108,7 +108,7 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	case ReconcileModeDryRun:
 		logger.Info("Reconciling TalosCluster in DryRun mode; no mutating operations will be performed", "name", tc.Name, "namespace", tc.Namespace)
-		r.Recorder.Eventf(&tc, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Reconciling in DryRun mode; no mutating operations will be performed")
+		r.Recorder.Eventf(&tc, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Reconciling in DryRun mode; no mutating operations will be performed")
 		// Route all Kubernetes writes through server-side dry-run for the rest of the reconciliation
 		r = &TalosClusterReconciler{Client: client.NewDryRunClient(r.Client), Scheme: r.Scheme, Recorder: r.Recorder}
 	case ReconcileModeNormal:
@@ -120,7 +120,7 @@ func (r *TalosClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if isDryRun(&tc) {
 			// PXE boot stack performs file-system and process operations that have no dry-run support
 			logger.Info("DryRun: would update PXE boot stack configuration", "name", tc.Name)
-			r.Recorder.Eventf(&tc, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Would update PXE boot stack configuration")
+			r.Recorder.Eventf(&tc, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would update PXE boot stack configuration")
 		} else if err := r.handlePxeBootStack(ctx, tc); err != nil {
 			logger.Error(err, "failed to handle PXE boot stack for TalosCluster", "name", tc.Name)
 			return ctrl.Result{}, err
@@ -207,7 +207,7 @@ func (r *TalosClusterReconciler) reconcileControlPlane(ctx context.Context, tc *
 			// Nothing is persisted in DryRun mode, so report the would-be operation and slow down the requeue
 			if op == controllerutil.OperationResultCreated || op == controllerutil.OperationResultUpdated {
 				logger.Info("DryRun: would reconcile TalosControlPlane", "operation", op, "name", tcp.Name, "namespace", tcp.Namespace)
-				r.Recorder.Eventf(tc, nil, corev1.EventTypeNormal, "DryRun", "DryRun", fmt.Sprintf("Would %s TalosControlPlane %s", op, tcp.Name))
+				r.Recorder.Eventf(tc, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, fmt.Sprintf("Would %s TalosControlPlane %s", op, tcp.Name))
 			}
 			return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 		}
@@ -301,7 +301,7 @@ func (r *TalosClusterReconciler) reconcileWorker(ctx context.Context, tc *talosv
 		// Nothing is persisted in DryRun mode, so report the would-be operation and slow down the requeue
 		if op == controllerutil.OperationResultCreated || op == controllerutil.OperationResultUpdated {
 			logger.Info("DryRun: would reconcile TalosWorker", "operation", op, "name", tw.Name)
-			r.Recorder.Eventf(tc, nil, corev1.EventTypeNormal, "DryRun", "DryRun", fmt.Sprintf("Would %s TalosWorker %s", op, tw.Name))
+			r.Recorder.Eventf(tc, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, fmt.Sprintf("Would %s TalosWorker %s", op, tw.Name))
 		}
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
@@ -383,7 +383,7 @@ func (r *TalosClusterReconciler) handleDelete(ctx context.Context, tc talosv1alp
 		// Skip the explicit child cleanup; note that owner-reference garbage collection
 		// will still cascade once the TalosCluster is actually deleted.
 		logger.Info("DryRun: would delete child TalosControlPlane and TalosWorker", "name", tc.Name)
-		r.Recorder.Eventf(&tc, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Would delete child TalosControlPlane and TalosWorker")
+		r.Recorder.Eventf(&tc, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would delete child TalosControlPlane and TalosWorker")
 		return ctrl.Result{}, nil
 	}
 	// Update the conditions of the TalosCluster to reflect deletion

@@ -123,7 +123,7 @@ var _ = Describe("TalosMachine Controller", func() {
 				g.Expect(k8sClient.List(ctx, &eventList, client.InNamespace(namespace))).To(Succeed())
 				var found bool
 				for _, e := range eventList.Items {
-					if e.InvolvedObject.Name == talosMachineName && e.Reason == "DryRun" {
+					if e.InvolvedObject.Name == talosMachineName && e.Reason == EventReasonDryRun {
 						found = true
 						break
 					}

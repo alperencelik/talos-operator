@@ -127,7 +127,7 @@ var _ = Describe("TalosControlPlane Controller", func() {
 				var eventList corev1.EventList
 				g.Expect(k8sClient.List(ctx, &eventList, client.InNamespace(namespace))).To(Succeed())
 				for _, e := range eventList.Items {
-					g.Expect(e.InvolvedObject.Name == talosControlPlaneName && e.Reason == "DryRun").To(BeFalse(),
+					g.Expect(e.InvolvedObject.Name == talosControlPlaneName && e.Reason == EventReasonDryRun).To(BeFalse(),
 						"expected no DryRun event for a container-mode TalosControlPlane")
 				}
 				// No config ConfigMap is created
@@ -162,7 +162,7 @@ var _ = Describe("TalosControlPlane Controller", func() {
 				g.Expect(k8sClient.List(ctx, &eventList, client.InNamespace(namespace))).To(Succeed())
 				var found bool
 				for _, e := range eventList.Items {
-					if e.InvolvedObject.Name == talosControlPlaneName && e.Reason == "DryRun" {
+					if e.InvolvedObject.Name == talosControlPlaneName && e.Reason == EventReasonDryRun {
 						found = true
 						break
 					}

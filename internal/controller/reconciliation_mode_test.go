@@ -25,6 +25,9 @@ import (
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 )
 
+// dryRunMixedCase exercises the case-insensitive matching of the reconcile-mode annotation.
+const dryRunMixedCase = "DryRun"
+
 func newTalosMachineWithMode(mode string) *talosv1alpha1.TalosMachine {
 	tm := &talosv1alpha1.TalosMachine{
 		ObjectMeta: metav1.ObjectMeta{
@@ -46,10 +49,10 @@ func TestGetReconciliationMode(t *testing.T) {
 		expected   string
 	}{
 		{name: "absent annotation defaults to Normal", annotation: "", expected: ReconcileModeNormal},
-		{name: "reconcile", annotation: "reconcile", expected: ReconcileModeNormal},
-		{name: "disable", annotation: "disable", expected: ReconcileModeDisable},
-		{name: "dryrun lowercase", annotation: "dryrun", expected: ReconcileModeDryRun},
-		{name: "dryrun mixed case", annotation: "DryRun", expected: ReconcileModeDryRun},
+		{name: "reconcile", annotation: ReconcileModeNormal, expected: ReconcileModeNormal},
+		{name: "disable", annotation: ReconcileModeDisable, expected: ReconcileModeDisable},
+		{name: "dryrun lowercase", annotation: ReconcileModeDryRun, expected: ReconcileModeDryRun},
+		{name: "dryrun mixed case", annotation: dryRunMixedCase, expected: ReconcileModeDryRun},
 		{name: "dryrun uppercase", annotation: "DRYRUN", expected: ReconcileModeDryRun},
 		{name: "import", annotation: "import", expected: ReconcileModeImport},
 		{name: "unknown defaults to Normal", annotation: "bogus", expected: ReconcileModeNormal},
@@ -72,10 +75,10 @@ func TestIsDryRun(t *testing.T) {
 		expected   bool
 	}{
 		{name: "absent annotation", annotation: "", expected: false},
-		{name: "dryrun lowercase", annotation: "dryrun", expected: true},
-		{name: "dryrun mixed case", annotation: "DryRun", expected: true},
-		{name: "disable", annotation: "disable", expected: false},
-		{name: "reconcile", annotation: "reconcile", expected: false},
+		{name: "dryrun lowercase", annotation: ReconcileModeDryRun, expected: true},
+		{name: "dryrun mixed case", annotation: dryRunMixedCase, expected: true},
+		{name: "disable", annotation: ReconcileModeDisable, expected: false},
+		{name: "reconcile", annotation: ReconcileModeNormal, expected: false},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -93,7 +96,7 @@ func TestIsDryRunGeneric(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-cluster",
 			Namespace:   DefaultNamespace,
-			Annotations: map[string]string{ReconcileModeAnnotation: "DryRun"},
+			Annotations: map[string]string{ReconcileModeAnnotation: dryRunMixedCase},
 		},
 	}
 	if !isDryRun(tc) {

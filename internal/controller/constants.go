@@ -32,6 +32,9 @@ const (
 	// Deleting is the reason used in conditions when a resource is being deleted
 	ConditionReasonDeleting = "Deleting"
 
+	// EventReasonDryRun is the reason used in events emitted while reconciling in DryRun mode
+	EventReasonDryRun = "DryRun"
+
 	// AppLabelKey is the standard pod label used to select pods backing a Talos
 	// control plane StatefulSet/Service.
 	AppLabelKey = "app"

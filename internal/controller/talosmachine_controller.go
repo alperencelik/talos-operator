@@ -109,7 +109,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	case ReconcileModeDryRun:
 		logger.Info("Reconciling TalosMachine in DryRun mode; no mutating operations will be performed", "name", talosMachine.Name, "namespace", talosMachine.Namespace)
-		r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Reconciling in DryRun mode; no mutating operations will be performed")
+		r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Reconciling in DryRun mode; no mutating operations will be performed")
 		// Proceed with the reconciliation; mutating operations are gated on the DryRun mode
 	case ReconcileModeImport:
 		// Handle import logic here
@@ -131,7 +131,7 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if r.isDryRun(&talosMachine) {
 				// State is not persisted in DryRun mode; requeue slowly instead of hot-looping
 				logger.Info("DryRun: would restore TalosMachine state to Available", "name", talosMachine.Name)
-				r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Would restore state to Available")
+				r.Recorder.Eventf(&talosMachine, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would restore state to Available")
 				return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 			}
 			if err := r.updateState(ctx, &talosMachine, talosv1alpha1.StateAvailable); err != nil {
@@ -367,7 +367,7 @@ func (r *TalosMachineReconciler) updateState(ctx context.Context, tm *talosv1alp
 	}
 	if r.isDryRun(tm) {
 		log.FromContext(ctx).Info("DryRun: would update TalosMachine state", "name", tm.Name, "from", tm.Status.State, "to", state)
-		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "DryRun", "DryRun", fmt.Sprintf("Would set state to %s", state))
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, fmt.Sprintf("Would set state to %s", state))
 		return nil
 	}
 	tm.Status.State = state
@@ -485,7 +485,7 @@ func (r *TalosMachineReconciler) handleDelete(ctx context.Context, tm *talosv1al
 	if tm.Spec.DeletionPolicy == DeletionPolicyReset {
 		if r.isDryRun(tm) {
 			log.FromContext(ctx).Info("DryRun: would reset TalosMachine", "name", tm.Name)
-			r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Would reset machine")
+			r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would reset machine")
 			return ctrl.Result{}, nil
 		}
 		// Run talosctl reset command to reset the machine
@@ -752,7 +752,7 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		}
 		if dryRun {
 			logger.Info("DryRun: would apply Talos config", "name", tm.Name, "changes", diff)
-			r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "DryRun", "DryRun", fmt.Sprintf("Would apply config; changes reported by node:\n%s", diff))
+			r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, fmt.Sprintf("Would apply config; changes reported by node:\n%s", diff))
 			return nil
 		}
 		// Prepare a merge patch to update only our status fields
@@ -807,7 +807,7 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		if dryRun {
 			// The Talos upgrade API has no native dry-run support, so just report what would happen
 			logger.Info("DryRun: would upgrade Talos version", "name", tm.Name, "from", actualVersion, "to", tm.Spec.Version, "image", image)
-			r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "DryRun", "DryRun", fmt.Sprintf("Would upgrade Talos version from %s to %s using image %s", actualVersion, tm.Spec.Version, image))
+			r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, fmt.Sprintf("Would upgrade Talos version from %s to %s using image %s", actualVersion, tm.Spec.Version, image))
 			return nil
 		}
 		// Add an event
@@ -869,7 +869,7 @@ func (r *TalosMachineReconciler) handleMetaKey(ctx context.Context, tm *talosv1a
 	}
 	if r.isDryRun(tm) {
 		log.FromContext(ctx).Info("DryRun: would write meta key(s) to TalosMachine", "name", tm.Name)
-		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Would write meta key(s) to machine")
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would write meta key(s) to machine")
 		return nil
 	}
 	bc, err := r.GetBundleConfig(ctx, tm)

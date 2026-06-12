@@ -128,7 +128,7 @@ func (r *TalosWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			return ctrl.Result{}, nil
 		}
 		logger.Info("Reconciling TalosWorker in DryRun mode; no mutating operations will be performed", "name", tw.Name, "namespace", tw.Namespace)
-		r.Recorder.Eventf(&tw, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Reconciling in DryRun mode; no mutating operations will be performed")
+		r.Recorder.Eventf(&tw, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Reconciling in DryRun mode; no mutating operations will be performed")
 		// Route all Kubernetes writes through server-side dry-run for the rest of the reconciliation
 		r = &TalosWorkerReconciler{Client: client.NewDryRunClient(r.Client), Scheme: r.Scheme, Recorder: r.Recorder}
 	case ReconcileModeImport:
@@ -207,7 +207,7 @@ func (r *TalosWorkerReconciler) reconcileMetalMode(ctx context.Context, tw *talo
 		// The TalosMachines are never persisted in DryRun mode, so they can never become
 		// ready; skip the wait loop and the state update and re-simulate later.
 		logger.Info("DryRun: would wait for worker machines to become ready and set state to Ready", "name", tw.Name)
-		r.Recorder.Eventf(tw, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Would wait for worker machines to become ready and set state to Ready")
+		r.Recorder.Eventf(tw, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would wait for worker machines to become ready and set state to Ready")
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 	// TODO: The for loop here should be replaced. The problem is if I requeue here the reconcile will start from scratch and
@@ -617,7 +617,7 @@ func (r *TalosWorkerReconciler) handleDeletion(ctx context.Context, tw *talosv1a
 		// Skip the explicit child cleanup and the wait for their removal; note that
 		// owner-reference garbage collection still cascades once the TalosWorker is deleted.
 		logger.Info("DryRun: would delete child TalosMachines; removing finalizer", "name", tw.Name)
-		r.Recorder.Eventf(tw, nil, corev1.EventTypeNormal, "DryRun", "DryRun", "Would delete child TalosMachines")
+		r.Recorder.Eventf(tw, nil, corev1.EventTypeNormal, EventReasonDryRun, EventReasonDryRun, "Would delete child TalosMachines")
 		controllerutil.RemoveFinalizer(tw, talosv1alpha1.TalosWorkerFinalizer)
 		if err := r.Update(ctx, tw); err != nil {
 			logger.Error(err, "failed to remove finalizer from TalosWorker", "name", tw.Name)
