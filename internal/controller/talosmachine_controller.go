@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alperencelik/kube-external-watcher/watcher"
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/pkg/talos"
 	"github.com/alperencelik/talos-operator/pkg/utils"
@@ -49,6 +50,7 @@ type TalosMachineReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder events.EventRecorder
+	Watcher  *watcher.ExternalWatcher
 }
 
 // +kubebuilder:rbac:groups=talos.alperen.cloud,resources=talosmachines,verbs=get;list;watch;create;update;patch;delete
@@ -217,6 +219,43 @@ func (r *TalosMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 }
 
+// BuildDesiredConfig produces the machine configuration the operator wants
+// applied to tm.
+func (r *TalosMachineReconciler) BuildDesiredConfig(ctx context.Context, tm *talosv1alpha1.TalosMachine, bc *talos.BundleConfig) (*[]byte, error) {
+	// If the TalosMachine has a configRef, get the config from there. Else generate the config from the bundleConfig
+	if tm.Spec.ConfigRef != nil {
+		data, err := r.GetConfigMapData(ctx, tm)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get configRef for TalosMachine %s: %w", tm.Name, err)
+		}
+		return utils.StringToBytePtr(strings.TrimSpace(*data)), nil
+	}
+	// Apply patches to config before applying it
+	patches, err := r.metalConfigPatches(ctx, tm, bc)
+	if err != nil {
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "MetalConfigPatchFailed", "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
+		return nil, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
+	}
+	var config *[]byte
+	if tm.Spec.ControlPlaneRef != nil {
+		config, err = talos.GenerateControlPlaneConfig(bc, patches)
+	} else {
+		config, err = talos.GenerateWorkerConfig(bc, patches)
+	}
+	if err != nil {
+		r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "ConfigGenerationFailed", "ConfigGenerationFailed", "Failed to generate config for TalosMachine")
+		return nil, fmt.Errorf("failed to generate config for TalosMachine %s: %w", tm.Name, err)
+	}
+	if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.ImageCache {
+		*config = append(*config, []byte(talos.ImageCacheVolumeConfig)...)
+	}
+	// Append each additionalConfig document separated by "---"
+	if err := appendAdditionalConfig(config, tm.Spec.MachineSpec); err != nil {
+		return nil, fmt.Errorf("failed to append additionalConfig for TalosMachine %s: %w", tm.Name, err)
+	}
+	return config, nil
+}
+
 func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, tm *talosv1alpha1.TalosMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "Reconciling", "Reconciling", "Handling control plane machine")
@@ -233,39 +272,19 @@ func (r *TalosMachineReconciler) handleControlPlaneMachine(ctx context.Context, 
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check again
 	}
 
-	var cpConfig *[]byte
-	// If the TalosMachine has a configRef, get the config from there. Else generate the config from the bundleConfig
-	if tm.Spec.ConfigRef != nil {
-		// Get the config from the ConfigMap
-		data, err := r.GetConfigMapData(ctx, tm)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to get configRef for TalosMachine %s: %w", tm.Name, err)
-		}
-		cpConfig = utils.StringToBytePtr(strings.TrimSpace(*data))
-	} else {
-		// Apply patches to config before applying it
-		patches, err := r.metalConfigPatches(ctx, tm, bc)
-		if err != nil {
-			r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "MetalConfigPatchFailed", "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
-			return ctrl.Result{}, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
-		}
-		cpConfig, err = talos.GenerateControlPlaneConfig(bc, patches)
-		if err != nil {
-			r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "ConfigGenerationFailed", "ConfigGenerationFailed", "Failed to generate Control Plane config for TalosMachine")
-			return ctrl.Result{}, fmt.Errorf("failed to generate Control Plane config for TalosMachine %s: %w", tm.Name, err)
-		}
-		if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.ImageCache {
-			*cpConfig = append(*cpConfig, []byte(talos.ImageCacheVolumeConfig)...)
-		}
-		// Append each additionalConfig document separated by "---"
-		if err := appendAdditionalConfig(cpConfig, tm.Spec.MachineSpec); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to append additionalConfig for TalosMachine %s: %w", tm.Name, err)
-		}
+	cpConfig, err := r.BuildDesiredConfig(ctx, tm, bc)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 	// Check if the current config is the same as the one in status
 	if tm.Status.Config == string(*cpConfig) && tm.Status.ObservedVersion == tm.Spec.Version {
-		// Return since the machine is in desired state
-		return ctrl.Result{}, nil
+		drift, nodeDrifted := r.nodeDrift(tm)
+		if !nodeDrifted {
+			// Return since the machine is in desired state
+			return ctrl.Result{}, nil
+		}
+		// The CR is unchanged but the node itself diverged; fall through to re-apply.
+		r.reportNodeDrift(ctx, tm, drift)
 	}
 	// Ensure the client targets this specific machine, not the cluster name
 	bc.ClientEndpoint = &[]string{tm.Spec.Endpoint}
@@ -298,42 +317,20 @@ func (r *TalosMachineReconciler) handleWorkerMachine(ctx context.Context, tm *ta
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil // Requeue after 30 seconds to check again
 	}
 
-	var workerConfig *[]byte
-
-	// If the TalosMachine has a configRef, get the config from there. Else generate the config from the bundleConfig
-	if tm.Spec.ConfigRef != nil {
-		// Get the config from the ConfigMap
-		data, err := r.GetConfigMapData(ctx, tm)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to get configRef for TalosMachine %s: %w", tm.Name, err)
-		}
-		workerConfig = utils.StringToBytePtr(strings.TrimSpace(*data))
-	} else {
-		// Apply patches to config before applying it
-		patches, err := r.metalConfigPatches(ctx, tm, bc)
-		if err != nil {
-			r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "MetalConfigPatchFailed", "MetalConfigPatchFailed", "Failed to get metal config patches for TalosMachine")
-			return ctrl.Result{}, fmt.Errorf("failed to get metal config patches for TalosMachine %s: %w", tm.Name, err)
-		}
-		// Generate the worker config
-		workerConfig, err = talos.GenerateWorkerConfig(bc, patches)
-		if err != nil {
-			r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "ConfigGenerationFailed", "ConfigGenerationFailed", "Failed to generate Worker config for TalosMachine")
-			return ctrl.Result{}, fmt.Errorf("failed to generate Worker config for TalosMachine %s: %w", tm.Name, err)
-		}
-		if tm.Spec.MachineSpec != nil && tm.Spec.MachineSpec.ImageCache {
-			*workerConfig = append(*workerConfig, []byte(talos.ImageCacheVolumeConfig)...)
-		}
-		// Append each additionalConfig document separated by "---"
-		if err := appendAdditionalConfig(workerConfig, tm.Spec.MachineSpec); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to append additionalConfig for TalosMachine %s: %w", tm.Name, err)
-		}
+	workerConfig, err := r.BuildDesiredConfig(ctx, tm, bc)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
 	// Check if the current config is the same as the one in status
 	if tm.Status.Config == string(*workerConfig) && tm.Status.ObservedVersion == tm.Spec.Version {
-		// Return since the machine is in desired state
-		return ctrl.Result{}, nil
+		drift, nodeDrifted := r.nodeDrift(tm)
+		if !nodeDrifted {
+			// Return since the machine is in desired state
+			return ctrl.Result{}, nil
+		}
+		// The CR is unchanged but the node itself diverged; fall through to re-apply.
+		r.reportNodeDrift(ctx, tm, drift)
 	}
 	err = r.UpgradeOrApplyConfig(ctx, tm, bc, workerConfig)
 	if err != nil {
@@ -605,7 +602,7 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TalosMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	b := ctrl.NewControllerManagedBy(mgr).
 		For(&talosv1alpha1.TalosMachine{}).
 		Named("talosmachine").
 		// Watch ConfigMaps so that changes to a referenced configRef trigger reconciliation.
@@ -618,8 +615,13 @@ func (r *TalosMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
 			},
 		}).
-		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
-		Complete(r)
+		WithOptions(controller.Options{MaxConcurrentReconciles: 10})
+	// Add the watcher source
+	if r.Watcher != nil {
+		b = b.WatchesRawSource(r.Watcher)
+	}
+
+	return b.Complete(r)
 }
 
 // configMapToTalosMachines maps a ConfigMap change event to the TalosMachines that reference it via configRef.
@@ -730,6 +732,35 @@ func (r *TalosMachineReconciler) CheckMachineReady(ctx context.Context, tm *talo
 	return ctrl.Result{}, nil
 }
 
+// nodeDrift returns the drift observed by the external watcher's last poll
+// against the live Talos node, if any. Out-of-band node changes (a manual
+// config edit, a version change on the node itself) don't touch the CR, so
+// spec and status still match and the "already in desired state" short-circuits
+// would skip the re-apply — this signal is what forces it. The watcher clears
+// the entry once a poll observes the node back in sync.
+func (r *TalosMachineReconciler) nodeDrift(tm *talosv1alpha1.TalosMachine) (watcher.DriftInfo, bool) {
+	if r.Watcher == nil {
+		return watcher.DriftInfo{}, false
+	}
+	return r.Watcher.LastDrift(types.NamespacedName{Name: tm.Name, Namespace: tm.Namespace})
+}
+
+// reportNodeDrift logs the observed node drift and emits a NodeDriftDetected
+// event carrying the drift diff, truncated to stay within the events API's
+// 1kB note limit (an oversized note is rejected and the event silently lost).
+func (r *TalosMachineReconciler) reportNodeDrift(ctx context.Context, tm *talosv1alpha1.TalosMachine, drift watcher.DriftInfo) {
+	logger := log.FromContext(ctx)
+	logger.Info("Node drifted out-of-band, re-applying desired state",
+		"name", tm.Name, "detectedAt", drift.DetectedAt, "diff", drift.Diff)
+	const maxDiffLen = 900
+	diff := drift.Diff
+	if len(diff) > maxDiffLen {
+		diff = diff[:maxDiffLen] + "\n… (truncated, full diff in controller logs)"
+	}
+	r.Recorder.Eventf(tm, nil, corev1.EventTypeWarning, "NodeDriftDetected", "NodeDriftDetected",
+		fmt.Sprintf("Node drifted from desired state, re-applying:\n%s", diff))
+}
+
 func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *talosv1alpha1.TalosMachine, bc *talos.BundleConfig, config *[]byte) error {
 	logger := log.FromContext(ctx)
 	dryRun := r.isDryRun(tm)
@@ -741,7 +772,11 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		return fmt.Errorf("failed to create Talos client for TalosMachine %s: %w", tm.Name, err)
 	}
 	defer tc.Close() //nolint:errcheck
-	configDrift := tm.Status.Config != string(*config)
+	// Config must be (re)applied when the desired config changed in the cluster
+	// (status no longer matches) OR when the node itself drifted out-of-band —
+	// in the latter case status still matches, only the watcher knows.
+	_, nodeDrifted := r.nodeDrift(tm)
+	configDrift := tm.Status.Config != string(*config) || nodeDrifted
 	applyConfigurationFunc := func() error {
 		diff, err := tc.ApplyConfig(ctx, *config, dryRun)
 		if err != nil {

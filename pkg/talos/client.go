@@ -118,6 +118,50 @@ func (tc *TalosClient) ApplyConfig(ctx context.Context, machineConfig []byte, dr
 	return strings.TrimRight(sb.String(), "\n"), nil
 }
 
+// DryRunConfigDiff applies machineConfig in dry-run and returns the diff
+func (tc *TalosClient) DryRunConfigDiff(ctx context.Context, machineConfig []byte) (string, error) {
+	applyRequest := &machineapi.ApplyConfigurationRequest{
+		Data:           machineConfig,
+		Mode:           machineapi.ApplyConfigurationRequest_AUTO,
+		DryRun:         true,
+		TryModeTimeout: durationpb.New(60 * time.Second),
+	}
+	resp, err := tc.ApplyConfiguration(ctx, applyRequest)
+	if err != nil {
+		if isGracefulStop(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("error dry-run applying configuration: %w", err)
+	}
+	var sb strings.Builder
+	for _, m := range resp.GetMessages() {
+		if diff := configDiffFromDryRun(m.GetModeDetails()); diff != "" {
+			if sb.Len() > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(diff)
+		}
+	}
+	return sb.String(), nil
+}
+
+// configDiffFromDryRun extracts the actual config diff from a Talos dry-run
+// ModeDetails string, returning "" when the node reports no changes. Talos
+// formats the diff as "...Config diff:\n\n<diff or \"No changes.\">", so the text
+// after the "Config diff:" marker is the payload; "No changes." (Talos's
+// no-drift sentinel) and empty payloads both map to "".
+func configDiffFromDryRun(details string) string {
+	const marker = "Config diff:"
+	if idx := strings.LastIndex(details, marker); idx != -1 {
+		details = details[idx+len(marker):]
+	}
+	details = strings.TrimSpace(details)
+	if details == "No changes." {
+		return ""
+	}
+	return details
+}
+
 func (tc *TalosClient) GetTalosVersion(ctx context.Context) (string, error) {
 	// Get the Talos version
 	resp, err := tc.Version(ctx)

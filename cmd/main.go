@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -42,8 +43,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	watcher "github.com/alperencelik/kube-external-watcher/watcher"
 	talosv1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	"github.com/alperencelik/talos-operator/internal/controller"
+	internalwatcher "github.com/alperencelik/talos-operator/internal/watcher"
 	"github.com/alperencelik/talos-operator/pkg/talos"
 	"github.com/alperencelik/talos-operator/pkg/tracing"
 	// +kubebuilder:scaffold:imports
@@ -214,14 +217,52 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosWorker")
 		os.Exit(1)
 	}
-	if err = (&controller.TalosMachineReconciler{
+	talosMachineReconciler := &controller.TalosMachineReconciler{
 		Client:   k8sClient,
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorder("talosmachine-controller"),
-	}).SetupWithManager(mgr); err != nil {
+	}
+
+	watcherLogger := ctrl.Log.WithName("external-watcher")
+	// Skip status-only updates (generation unchanged) to avoid re-registration noise
+	generationFilter := watcher.EventFilter{
+		Update: func(oldObj, newObj client.Object) bool {
+			return oldObj.GetGeneration() != newObj.GetGeneration()
+		},
+	}
+	watcherOpts := []watcher.Option{
+		watcher.WithDefaultPollInterval(60 * time.Second),
+		watcher.WithLogger(watcherLogger),
+	}
+	// Auto-register sub-options shared by all watchers: filter on generation
+	// change and a tighter initial readiness retry for transient startup errors.
+	autoRegisterOpts := []watcher.AutoRegisterOption{
+		watcher.AutoRegisterWithFilter(generationFilter),
+		watcher.AutoRegisterWithReadinessRetry(watcher.ReadinessRetryConfig{
+			InitialInterval: 10 * time.Second,
+		}),
+	}
+
+	// Create external watchers for each resource type with auto-register
+	talosMachineWatcher := watcher.NewExternalWatcher(
+		&internalwatcher.TalosMachineFetcher{
+			Reader:   mgr.GetClient(),
+			Resolver: talosMachineReconciler,
+			Log:      watcherLogger.WithName("talosmachine"),
+		},
+		append(watcherOpts,
+			watcher.WithMetrics("TalosMachine"),
+			watcher.WithComparator(internalwatcher.MachineStateComparator{}),
+			watcher.WithAutoRegister(mgr.GetCache(), &talosv1alpha1.TalosMachine{},
+				internalwatcher.TalosMachineConfigExtractor, autoRegisterOpts...),
+		)...)
+	talosMachineReconciler.Watcher = talosMachineWatcher
+
+	if err = talosMachineReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TalosMachine")
 		os.Exit(1)
 	}
+
 	if err := (&controller.TalosEtcdBackupReconciler{
 		Client: k8sClient,
 		Scheme: mgr.GetScheme(),

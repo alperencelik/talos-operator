@@ -3,14 +3,15 @@ package talos
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	v1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	utils "github.com/alperencelik/talos-operator/pkg/utils"
-	"github.com/siderolabs/talos/cmd/talosctl/cmd/mgmt/gen"
 	clientconfig "github.com/siderolabs/talos/pkg/machinery/client/config"
 	"github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/config/bundle"
+	"github.com/siderolabs/talos/pkg/machinery/config/configpatcher"
 	"github.com/siderolabs/talos/pkg/machinery/config/generate"
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
 	taloscni "github.com/siderolabs/talos/pkg/machinery/config/types/v1alpha1"
@@ -134,14 +135,7 @@ func NewCPBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 		cpPatches = append(cpPatches, *patches...)
 	}
 
-	b, err := gen.GenerateConfigBundle(genOptions,
-		cfg.ClusterName, // Cluster name
-		cfg.Endpoint,    // API endpoint
-		cfg.KubeVersion, // Kubernetes version
-		[]string{},
-		cpPatches, // Control plane patches
-		[]string{},
-	)
+	b, err := newConfigBundle(cfg, genOptions, cpPatches, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate config bundle: %w", err)
 	}
@@ -182,18 +176,39 @@ func NewWorkerBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, erro
 		workerPatches = append(workerPatches, *patches...)
 	}
 
-	b, err := gen.GenerateConfigBundle(genOptions,
-		cfg.ClusterName, // Cluster name
-		cfg.Endpoint,    // API endpoint
-		cfg.KubeVersion, // Kubernetes version
-		[]string{},
-		[]string{},    // No control plane patches for worker nodes
-		workerPatches, // Worker patches
-	)
+	b, err := newConfigBundle(cfg, genOptions, nil, workerPatches)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate worker config: %w", err)
 	}
 	return b, nil
+}
+
+// newConfigBundle builds a Talos config bundle.
+func newConfigBundle(cfg *BundleConfig, genOptions []generate.Option, cpPatches, workerPatches []string) (*bundle.Bundle, error) {
+	opts := []bundle.Option{
+		bundle.WithVerbose(false),
+		bundle.WithInputOptions(&bundle.InputOptions{
+			ClusterName: cfg.ClusterName,
+			Endpoint:    cfg.Endpoint,
+			KubeVersion: strings.TrimPrefix(cfg.KubeVersion, "v"),
+			GenOptions:  genOptions,
+		}),
+	}
+	if len(cpPatches) > 0 {
+		patches, err := configpatcher.LoadPatches(cpPatches)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing control plane config patch: %w", err)
+		}
+		opts = append(opts, bundle.WithPatchControlPlane(patches))
+	}
+	if len(workerPatches) > 0 {
+		patches, err := configpatcher.LoadPatches(workerPatches)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing worker config patch: %w", err)
+		}
+		opts = append(opts, bundle.WithPatchWorker(patches))
+	}
+	return bundle.NewBundle(opts...)
 }
 
 func TalosConfig(b *bundle.Bundle) *clientconfig.Config {

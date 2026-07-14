@@ -55,3 +55,43 @@ func TestMetaKeyTemplateRendering(t *testing.T) {
 		}
 	}
 }
+
+func TestConfigDiffFromDryRun(t *testing.T) {
+	tests := []struct {
+		name    string
+		details string
+		want    string
+	}{
+		{
+			name: "no changes",
+			details: "Dry run summary:\n" +
+				"Applied configuration without a reboot (skipped in dry-run).\n" +
+				"Config diff:\n\nNo changes.",
+			want: "",
+		},
+		{
+			name: "with diff",
+			details: "Dry run summary:\n" +
+				"Applied configuration without a reboot (skipped in dry-run).\n" +
+				"Config diff:\n\n--- a\n+++ b\n-  hostname: old\n+  hostname: new",
+			want: "--- a\n+++ b\n-  hostname: old\n+  hostname: new",
+		},
+		{
+			name:    "empty details",
+			details: "",
+			want:    "",
+		},
+		{
+			name:    "marker missing, no-change sentinel only",
+			details: "No changes.",
+			want:    "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := configDiffFromDryRun(tt.details); got != tt.want {
+				t.Errorf("configDiffFromDryRun() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
