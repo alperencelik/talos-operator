@@ -184,7 +184,8 @@ func NewWorkerBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, erro
 }
 
 // newConfigBundle builds a Talos config bundle.
-func newConfigBundle(cfg *BundleConfig, genOptions []generate.Option, cpPatches, workerPatches []string) (*bundle.Bundle, error) {
+func newConfigBundle(cfg *BundleConfig, genOptions []generate.Option, cpPatches,
+	workerPatches []string) (*bundle.Bundle, error) {
 	opts := []bundle.Option{
 		bundle.WithVerbose(false),
 		bundle.WithInputOptions(&bundle.InputOptions{

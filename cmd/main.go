@@ -230,19 +230,6 @@ func main() {
 			return oldObj.GetGeneration() != newObj.GetGeneration()
 		},
 	}
-	watcherOpts := []watcher.Option{
-		watcher.WithDefaultPollInterval(60 * time.Second),
-		watcher.WithLogger(watcherLogger),
-	}
-	// Auto-register sub-options shared by all watchers: filter on generation
-	// change and a tighter initial readiness retry for transient startup errors.
-	autoRegisterOpts := []watcher.AutoRegisterOption{
-		watcher.AutoRegisterWithFilter(generationFilter),
-		watcher.AutoRegisterWithReadinessRetry(watcher.ReadinessRetryConfig{
-			InitialInterval: 10 * time.Second,
-		}),
-	}
-
 	// Create external watchers for each resource type with auto-register
 	talosMachineWatcher := watcher.NewExternalWatcher(
 		&internalwatcher.TalosMachineFetcher{
@@ -250,12 +237,19 @@ func main() {
 			Resolver: talosMachineReconciler,
 			Log:      watcherLogger.WithName("talosmachine"),
 		},
-		append(watcherOpts,
-			watcher.WithMetrics("TalosMachine"),
-			watcher.WithComparator(internalwatcher.MachineStateComparator{}),
-			watcher.WithAutoRegister(mgr.GetCache(), &talosv1alpha1.TalosMachine{},
-				internalwatcher.TalosMachineConfigExtractor, autoRegisterOpts...),
-		)...)
+		watcher.WithDefaultPollInterval(60*time.Second),
+		watcher.WithLogger(watcherLogger),
+		watcher.WithMetrics("TalosMachine"),
+		watcher.WithComparator(internalwatcher.MachineStateComparator{}),
+		watcher.WithAutoRegister(mgr.GetCache(), &talosv1alpha1.TalosMachine{},
+			internalwatcher.TalosMachineConfigExtractor,
+			watcher.AutoRegisterWithFilter(generationFilter),
+			// Tighter initial readiness retry for transient startup errors.
+			watcher.AutoRegisterWithReadinessRetry(watcher.ReadinessRetryConfig{
+				InitialInterval: 10 * time.Second,
+			}),
+		),
+	)
 	talosMachineReconciler.Watcher = talosMachineWatcher
 
 	if err = talosMachineReconciler.SetupWithManager(mgr); err != nil {
