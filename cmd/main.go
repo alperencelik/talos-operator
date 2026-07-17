@@ -237,7 +237,7 @@ func main() {
 			Resolver: talosMachineReconciler,
 			Log:      watcherLogger.WithName("talosmachine"),
 		},
-		watcher.WithDefaultPollInterval(60*time.Second),
+		watcher.WithDefaultPollInterval(180*time.Second),
 		watcher.WithLogger(watcherLogger),
 		watcher.WithMetrics("TalosMachine"),
 		watcher.WithComparator(internalwatcher.MachineStateComparator{}),

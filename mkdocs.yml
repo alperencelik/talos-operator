@@ -43,6 +43,7 @@ nav:
   - Booting Talos Automatically: operator_manual/talos_auto_boot.md
   - State Secret: operator_manual/state_secret.md
   - Customizing the Machine Config: operator_manual/customizing_machine_config.md
+  - Drift Detection: operator_manual/drift_detection.md
 - Upgrading:
   - Overview: upgrading/index.md
   - v0.3.4: upgrading/v0.3.4.md
