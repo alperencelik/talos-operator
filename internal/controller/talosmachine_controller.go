@@ -540,8 +540,7 @@ func (r *TalosMachineReconciler) metalConfigPatches(ctx context.Context, tm *tal
 		imagePatch = fmt.Sprintf(talos.InstallImage, imageWithVersion)
 	} else {
 		// If the .machineSpec.image is not set, use the default image from the version
-		defaultImageWithVersion := fmt.Sprintf("%s:%s", talos.DefaultTalosImage, config.Version)
-		imagePatch = fmt.Sprintf(talos.InstallImage, defaultImageWithVersion)
+		imagePatch = fmt.Sprintf(talos.InstallImage, talos.DefaultInstallerImage(config.Version))
 	}
 	// patches
 	var patches []string
@@ -801,7 +800,7 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 			}
 		} else {
 			// If the .machineSpec.image is not set, use the default image from the version
-			image = fmt.Sprintf("%s:%s", talos.DefaultTalosImage, tm.Spec.Version)
+			image = talos.DefaultInstallerImage(tm.Spec.Version)
 		}
 		if dryRun {
 			// The Talos upgrade API has no native dry-run support, so just report what would happen

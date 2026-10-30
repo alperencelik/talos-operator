@@ -8,6 +8,7 @@ import (
 
 	v1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
 	utils "github.com/alperencelik/talos-operator/pkg/utils"
+	"github.com/siderolabs/talos/pkg/images"
 	clientconfig "github.com/siderolabs/talos/pkg/machinery/client/config"
 	"github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/config/bundle"
@@ -15,6 +16,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/generate"
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
 	taloscni "github.com/siderolabs/talos/pkg/machinery/config/types/v1alpha1"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -22,6 +24,11 @@ const (
 )
 
 var (
+	// maxVersionContract is the newest config contract the operator generates. Newer contracts move
+	// most of the v1alpha1 fields into multi-document configs, which conflict with the v1alpha1 config
+	// patches used by the operator and its users. Talos still accepts configs of older contracts.
+	maxVersionContract = config.TalosVersion1_13
+
 	removeAdmissionControl = `
 cluster:
   apiServer:
@@ -104,28 +111,29 @@ type SecretBundle *secrets.Bundle
 
 func NewCPBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 	// Set up options for the Talos config generation
-	var genOptions []generate.Option
 	vc, err := versionContract(cfg.Version)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse version contract: %w", err)
 	}
 
-	genOptions = append(genOptions,
+	genOptions := []generate.Option{
 		generate.WithVersionContract(vc),
 		generate.WithSecretsBundle(cfg.SecretsBundle),
 		generate.WithAdditionalSubjectAltNames(cfg.Sans),
-	)
-
-	// Add CNI configuration if provided
-	if cfg.CNI != nil {
-		cniConfig := convertCNIConfig(cfg.CNI)
-		genOptions = append(genOptions, generate.WithClusterCNIConfig(cniConfig))
 	}
 
 	// Apply the CIDR patches
 	cpPatches, err := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate CIDR patches: %w", err)
+	}
+	// Add CNI configuration if provided
+	if cfg.CNI != nil {
+		patch, err := cniPatch(cfg.CNI)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate CNI patch: %w", err)
+		}
+		cpPatches = append(cpPatches, patch)
 	}
 	// Apply the removeAdmissionControl patch
 	cpPatches = append(cpPatches, removeAdmissionControl)
@@ -144,7 +152,6 @@ func NewCPBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 
 func NewWorkerBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, error) {
 	// Set up options for the Talos config generation
-	var genOptions []generate.Option
 	vc, err := versionContract(cfg.Version)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse version contract: %w", err)
@@ -154,21 +161,23 @@ func NewWorkerBundle(cfg *BundleConfig, patches *[]string) (*bundle.Bundle, erro
 
 	// Get the required info from the ControlPlaneConfig
 
-	genOptions = append(genOptions,
+	genOptions := []generate.Option{
 		generate.WithVersionContract(vc),
 		generate.WithSecretsBundle(cfg.SecretsBundle),
 		generate.WithAdditionalSubjectAltNames(cfg.Sans),
-	)
-
-	// Add CNI configuration if provided
-	if cfg.CNI != nil {
-		cniConfig := convertCNIConfig(cfg.CNI)
-		genOptions = append(genOptions, generate.WithClusterCNIConfig(cniConfig))
 	}
 
 	workerPatches, err := cidrPatches(cfg.PodCIDR, cfg.ServiceCIDR)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate CIDR patches: %w", err)
+	}
+	// Add CNI configuration if provided
+	if cfg.CNI != nil {
+		patch, err := cniPatch(cfg.CNI)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate CNI patch: %w", err)
+		}
+		workerPatches = append(workerPatches, patch)
 	}
 
 	// If patches are provided, append them to the worker patches
@@ -221,7 +230,20 @@ func versionContract(version string) (*config.VersionContract, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid version contract %q: %w", version, err)
 	}
+	if contract.Greater(maxVersionContract) {
+		return maxVersionContract, nil
+	}
 	return contract, nil
+}
+
+// DefaultInstallerImage returns the installer image to use for the given Talos version when the
+// user doesn't provide one. The ghcr.io installer is not published starting with Talos v1.14.
+func DefaultInstallerImage(version string) string {
+	contract, err := config.ParseContractFromVersion(version)
+	if err == nil && contract.Greater(config.TalosVersion1_13) {
+		return fmt.Sprintf("%s:%s", images.InstallerImageRepository("metal"), version)
+	}
+	return fmt.Sprintf("%s:%s", DefaultTalosImage, version)
 }
 
 func NewSecretBundle() (SecretBundle, error) {
@@ -269,6 +291,21 @@ func ParseBundleConfig(bc string) (*BundleConfig, error) {
 		return nil, fmt.Errorf("invalid bundle config: missing required fields")
 	}
 	return &cfg, nil
+}
+
+// cniPatch returns a config patch setting the cluster CNI.
+func cniPatch(cni *v1alpha1.CNIConfig) (string, error) {
+	marshaled, err := yaml.Marshal(map[string]any{
+		"cluster": map[string]any{
+			"network": map[string]any{
+				"cni": convertCNIConfig(cni),
+			},
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal CNI config: %w", err)
+	}
+	return string(marshaled), nil
 }
 
 // convertCNIConfig converts our CNI config to Talos CNI config

@@ -356,7 +356,7 @@ func GetSecretBundleFromConfig(ctx context.Context, machineConfig []byte) (*secr
 		return nil, fmt.Errorf("error loading config from machineConfig: %w", err)
 	}
 	// Create a SecretBundle from the configData
-	return secrets.NewBundleFromConfig(secrets.NewFixedClock(time.Now()), cfg), nil
+	return secrets.NewBundleFromConfig(secrets.NewFixedClock(time.Now()), cfg)
 }
 
 // isGracefulStop returns true if the error is a gRPC Unavailable error caused by
