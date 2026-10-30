@@ -13,8 +13,11 @@ import (
 
 const (
 	testTalosVersion      = "v1.14.5"
+	testPreReleaseVersion = "v1.15.0-alpha.2"
 	testKubernetesVersion = "v1.35.0"
 	testClusterName       = "test-cluster"
+	testEndpoint          = "https://1.2.3.4:6443"
+	testCNINone           = "none"
 )
 
 func TestParseBundleConfig(t *testing.T) {
@@ -33,8 +36,8 @@ func TestParseBundleConfig(t *testing.T) {
 	if cfg.ClusterName != "my-cluster" {
 		t.Errorf("expected ClusterName 'my-cluster', got %q", cfg.ClusterName)
 	}
-	if cfg.Endpoint != "https://1.2.3.4:6443" {
-		t.Errorf("expected Endpoint 'https://1.2.3.4:6443', got %q", cfg.Endpoint)
+	if cfg.Endpoint != testEndpoint {
+		t.Errorf("expected Endpoint %q, got %q", testEndpoint, cfg.Endpoint)
 	}
 
 	// 2. Invalid JSON
@@ -80,7 +83,7 @@ func TestGenerateConfigs(t *testing.T) {
 	// Create a BundleConfig
 	cfg := &BundleConfig{
 		ClusterName:   testClusterName,
-		Endpoint:      "https://1.2.3.4:6443",
+		Endpoint:      testEndpoint,
 		Version:       testTalosVersion,
 		KubeVersion:   testKubernetesVersion,
 		SecretsBundle: (*secrets.Bundle)(sb),
@@ -126,7 +129,7 @@ func TestVersionContract(t *testing.T) {
 	}
 
 	// Versions newer than maxVersionContract must be capped
-	for _, version := range []string{"v1.14.5", "v1.15.0-alpha.2", "v2.0.0"} {
+	for _, version := range []string{testTalosVersion, testPreReleaseVersion, "v2.0.0"} {
 		contract, err := versionContract(version)
 		if err != nil {
 			t.Fatalf("versionContract(%s) failed: %v", version, err)
@@ -147,8 +150,8 @@ func TestDefaultInstallerImage(t *testing.T) {
 		{"v1.12.12", DefaultTalosImage + ":v1.12.12"},
 		{"v1.13.12", DefaultTalosImage + ":v1.13.12"},
 		{"v1.14.0", factoryInstaller + ":v1.14.0"},
-		{"v1.14.5", factoryInstaller + ":v1.14.5"},
-		{"v1.15.0-alpha.2", factoryInstaller + ":v1.15.0-alpha.2"},
+		{testTalosVersion, factoryInstaller + ":" + testTalosVersion},
+		{testPreReleaseVersion, factoryInstaller + ":" + testPreReleaseVersion},
 	}
 	for _, tt := range tests {
 		if got := DefaultInstallerImage(tt.version); got != tt.want {
@@ -180,18 +183,20 @@ func TestGeneratedConfigsAreValid(t *testing.T) {
 		AllowSchedulingOnControlPlanes,
 		ImageCache,
 	}
-	versions := []string{"v1.8.4", "v1.9.6", "v1.10.8", "v1.11.6", "v1.12.12", "v1.13.12", "v1.14.5", "v1.15.0-alpha.2"}
+	versions := []string{
+		"v1.8.4", "v1.9.6", "v1.10.8", "v1.11.6", "v1.12.12", "v1.13.12", testTalosVersion, testPreReleaseVersion,
+	}
 	for _, version := range versions {
 		t.Run(version, func(t *testing.T) {
 			cfg := &BundleConfig{
 				ClusterName:   testClusterName,
-				Endpoint:      "https://1.2.3.4:6443",
+				Endpoint:      testEndpoint,
 				Version:       version,
 				KubeVersion:   testKubernetesVersion,
 				SecretsBundle: (*secrets.Bundle)(sb),
 				PodCIDR:       &podCIDR,
 				ServiceCIDR:   &serviceCIDR,
-				CNI:           &v1alpha1.CNIConfig{Name: "none"},
+				CNI:           &v1alpha1.CNIConfig{Name: testCNINone},
 			}
 			cpConfig, err := GenerateControlPlaneConfig(cfg, &patches)
 			if err != nil {
@@ -225,7 +230,7 @@ func TestCNIPatch(t *testing.T) {
 		cni  *v1alpha1.CNIConfig
 		want []string
 	}{
-		{"none", &v1alpha1.CNIConfig{Name: "none"}, []string{"name: none"}},
+		{testCNINone, &v1alpha1.CNIConfig{Name: testCNINone}, []string{"name: " + testCNINone}},
 		{
 			"custom",
 			&v1alpha1.CNIConfig{Name: "custom", URLs: []string{"https://example.com/cni.yaml"}},
@@ -244,7 +249,7 @@ func TestCNIPatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &BundleConfig{
 				ClusterName:   testClusterName,
-				Endpoint:      "https://1.2.3.4:6443",
+				Endpoint:      testEndpoint,
 				Version:       testTalosVersion,
 				KubeVersion:   testKubernetesVersion,
 				SecretsBundle: (*secrets.Bundle)(sb),
