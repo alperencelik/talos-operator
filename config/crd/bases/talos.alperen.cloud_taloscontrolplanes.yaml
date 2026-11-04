@@ -133,7 +133,7 @@ spec:
                 pattern: ^https?://(([a-zA-Z0-9.-]+)|(\[(((([0-9A-Fa-f]{1,4}:){1,7}):([0-9A-Fa-f]{1,4}:){0,6}([0-9A-Fa-f]{1,4}){0,1})|((([0-9A-Fa-f]{1,4}):){7}([0-9A-Fa-f]{1,4})))\]))(:\d+)?$
                 type: string
               kubeVersion:
-                default: v1.35.0
+                default: v1.37.1
                 description: kubeVersion is the version of Kubernetes to use for the
                   control plane.
                 pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
@@ -320,7 +320,7 @@ spec:
                           type: object
                         version:
                           description: version of Talos to use for this machine (controller-manager,
-                            scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
+                            scheduler, kube-apiserver, etcd) -- e.g "v1.14.5"
                           pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
                           type: string
                       type: object
@@ -398,9 +398,9 @@ spec:
                 pattern: ^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$
                 type: string
               version:
-                default: v1.13.0
+                default: v1.14.5
                 description: version of Talos to use for the control plane(controller-manager,
-                  scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
+                  scheduler, kube-apiserver, etcd) -- e.g "v1.14.5"
                 pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
                 type: string
             required:

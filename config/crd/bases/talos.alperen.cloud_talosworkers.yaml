@@ -104,7 +104,7 @@ spec:
                 - preserve
                 type: string
               kubeVersion:
-                default: v1.35.0
+                default: v1.37.1
                 description: kubeVersion is the version of Kubernetes to use for the
                   worker nodes.
                 pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
@@ -291,7 +291,7 @@ spec:
                           type: object
                         version:
                           description: version of Talos to use for this machine (controller-manager,
-                            scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
+                            scheduler, kube-apiserver, etcd) -- e.g "v1.14.5"
                           pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
                           type: string
                       type: object
@@ -356,8 +356,8 @@ spec:
                     creation
                   rule: self == oldSelf
               version:
-                default: v1.13.0
-                description: version of Talos to use for the worker nodes -- e.g "v1.13.0"
+                default: v1.14.5
+                description: version of Talos to use for the worker nodes -- e.g "v1.14.5"
                 pattern: ^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$
                 type: string
             required:

@@ -85,7 +85,7 @@ function TalosResourceForm({ onApplySuccess, onApplyError }: TalosResourceFormPr
   const [namespace, setNamespace] = useState('default');
   const [mode, setMode] = useState('metal');
   const [talosVersion, setTalosVersion] = useState('v1.14.5');
-  const [kubernetesVersion, setKubernetesVersion] = useState('v1.35.0');
+  const [kubernetesVersion, setKubernetesVersion] = useState('v1.37.1');
   const [replicas, setReplicas] = useState(2);
   const [machines, setMachines] = useState('<machine-ip-1>\n<machine-ip-2>');
 
@@ -96,7 +96,7 @@ function TalosResourceForm({ onApplySuccess, onApplyError }: TalosResourceFormPr
 
   // Inline Control Plane
   const [inlineCPTalosVersion, setInlineCPTalosVersion] = useState('v1.14.5');
-  const [inlineCPKubernetesVersion, setInlineCPKubernetesVersion] = useState('v1.35.0');
+  const [inlineCPKubernetesVersion, setInlineCPKubernetesVersion] = useState('v1.37.1');
   const [inlineCPEndpoint, setInlineCPEndpoint] = useState('https://<control-plane-endpoint>:6443');
   const [inlineCPMachines, setInlineCPMachines] = useState(
     '<control-plane-machine-ip-1>\n<control-plane-machine-ip-2>'
@@ -105,7 +105,7 @@ function TalosResourceForm({ onApplySuccess, onApplyError }: TalosResourceFormPr
 
   // Inline Worker
   const [inlineWKTalosVersion, setInlineWKTalosVersion] = useState('v1.14.5');
-  const [inlineWKKubernetesVersion, setInlineWKKubernetesVersion] = useState('v1.35.0');
+  const [inlineWKKubernetesVersion, setInlineWKKubernetesVersion] = useState('v1.37.1');
   const [inlineWKMachines, setInlineWKMachines] = useState(
     '<worker-machine-ip-1>\n<worker-machine-ip-2>'
   );
@@ -130,7 +130,7 @@ function TalosResourceForm({ onApplySuccess, onApplyError }: TalosResourceFormPr
     setNamespace('default');
     setMode('metal');
     setTalosVersion('v1.14.5');
-    setKubernetesVersion('v1.35.0');
+    setKubernetesVersion('v1.37.1');
     setReplicas(2);
     setMachines('<machine-ip-1>\n<machine-ip-2>');
     setControlPlaneRef('taloscontrolplane-sample');
@@ -139,12 +139,12 @@ function TalosResourceForm({ onApplySuccess, onApplyError }: TalosResourceFormPr
     setWorkerControlPlaneRef('taloscontrolplane-sample');
     setTalosClusterDefinitionMode('inline');
     setInlineCPTalosVersion('v1.14.5');
-    setInlineCPKubernetesVersion('v1.35.0');
+    setInlineCPKubernetesVersion('v1.37.1');
     setInlineCPEndpoint('https://<control-plane-endpoint>:6443');
     setInlineCPMachines('<control-plane-machine-ip-1>\n<control-plane-machine-ip-2>');
     setInlineCPReplicas(2);
     setInlineWKTalosVersion('v1.14.5');
-    setInlineWKKubernetesVersion('v1.35.0');
+    setInlineWKKubernetesVersion('v1.37.1');
     setInlineWKMachines('<worker-machine-ip-1>\n<worker-machine-ip-2>');
     setInlineWKReplicas(2);
   }, [resourceType]);

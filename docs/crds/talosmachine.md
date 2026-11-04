@@ -34,7 +34,7 @@ metadata:
   name: my-controlplane-machine-0
 spec:
   endpoint: 192.168.1.101
-  version: v1.13.0
+  version: v1.14.5
   machineSpec:
     installDisk: /dev/sda
     wipe: false

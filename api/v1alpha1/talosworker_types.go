@@ -28,10 +28,10 @@ import (
 // TalosWorkerSpec defines the desired state of TalosWorker.
 type TalosWorkerSpec struct {
 
-	// version of Talos to use for the worker nodes -- e.g "v1.13.0"
+	// version of Talos to use for the worker nodes -- e.g "v1.14.5"
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`
-	// +kubebuilder:default="v1.13.0"
+	// +kubebuilder:default="v1.14.5"
 	Version string `json:"version"`
 
 	// mode specifies the deployment mode for the worker nodes (container, metal, or cloud).
@@ -51,7 +51,7 @@ type TalosWorkerSpec struct {
 	// kubeVersion is the version of Kubernetes to use for the worker nodes.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`
-	// +kubebuilder:default="v1.35.0"
+	// +kubebuilder:default="v1.37.1"
 	KubeVersion string `json:"kubeVersion"`
 
 	// storageClassName is the name of the storage class to use for persistent volumes.

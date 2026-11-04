@@ -43,10 +43,10 @@ kind: TalosControlPlane
 metadata:
   name: my-controlplane
 spec:
-  version: v1.13.0
+  version: v1.14.5
   mode: container
   replicas: 3
-  kubeVersion: v1.35.0
+  kubeVersion: v1.37.1
   clusterDomain: cluster.local
   podCIDR:
     - 10.244.0.0/16
@@ -68,9 +68,9 @@ kind: TalosControlPlane
 metadata:
   name: my-controlplane
 spec:
-  version: v1.13.0
+  version: v1.14.5
   mode: metal
-  kubeVersion: v1.35.0
+  kubeVersion: v1.37.1
   endpoint: https://192.168.1.100:6443
   metalSpec:
     machines:
@@ -99,12 +99,12 @@ spec:
 
 | Field | Type | Required | Default | Validation | Description |
 |-------|------|----------|---------|------------|-------------|
-| `version` | string | Yes | `v1.13.0` | Pattern: `^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` | Talos version for control plane components (controller-manager, scheduler, kube-apiserver, etcd). e.g. `v1.13.0` |
+| `version` | string | Yes | `v1.14.5` | Pattern: `^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` | Talos version for control plane components (controller-manager, scheduler, kube-apiserver, etcd). e.g. `v1.14.5` |
 | `mode` | string | Yes | - | Enum: `container`, `metal`, `cloud` | Deployment mode. **Immutable** after creation. |
 | `replicas` | int32 | No | - | Must be >= 1 when mode is `container` | Number of control-plane machines. Only applies when mode is `container`. |
 | `metalSpec` | [MetalSpec](#metalspec) | No | - | Required when mode is `metal` | Metal-specific configuration. |
 | `endpoint` | string | No | - | Pattern: `^https?://[a-zA-Z0-9.-]+(:\d+)?$` | Kubernetes API Server endpoint URL. |
-| `kubeVersion` | string | Yes | `v1.35.0` | Pattern: `^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` | Kubernetes version for the control plane. |
+| `kubeVersion` | string | Yes | `v1.37.1` | Pattern: `^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` | Kubernetes version for the control plane. |
 | `clusterDomain` | string | No | `cluster.local` | Pattern: `^([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+[a-z]{2,}$` | Cluster DNS domain. **Immutable** after creation. |
 | `storageClassName` | string | No | - | Pattern: `^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$` | StorageClass name for persistent volumes (used by etcd data, etc.). |
 | `podCIDR` | []string | No | - | Max 4 items. Each must match `^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$` | CIDR ranges for pod IPs. |

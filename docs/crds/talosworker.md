@@ -42,10 +42,10 @@ kind: TalosWorker
 metadata:
   name: my-worker
 spec:
-  version: v1.13.0
+  version: v1.14.5
   mode: container
   replicas: 3
-  kubeVersion: v1.35.0
+  kubeVersion: v1.37.1
   controlPlaneRef:
     name: my-controlplane
   storageClassName: standard
@@ -60,9 +60,9 @@ kind: TalosWorker
 metadata:
   name: my-worker
 spec:
-  version: v1.13.0
+  version: v1.14.5
   mode: metal
-  kubeVersion: v1.35.0
+  kubeVersion: v1.37.1
   controlPlaneRef:
     name: my-controlplane
   metalSpec:
@@ -91,11 +91,11 @@ spec:
 
 | Field | Type | Required | Default | Validation | Description |
 |-------|------|----------|---------|------------|-------------|
-| `version` | string | Yes | `v1.13.0` | Pattern: `^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` | Talos version for worker nodes. e.g. `v1.13.0` |
+| `version` | string | Yes | `v1.14.5` | Pattern: `^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` | Talos version for worker nodes. e.g. `v1.14.5` |
 | `mode` | string | Yes | - | Enum: `container`, `metal`, `cloud` | Deployment mode. **Immutable** after creation. |
 | `replicas` | int32 | No | `1` | Must be >= 1 when mode is `container` | Number of worker machines. Only applies when mode is `container`. |
 | `metalSpec` | [MetalSpec](./taloscontrolplane.md#metalspec) | Yes (when mode=metal) | - | - | Metal-specific configuration. Uses the same `MetalSpec` type as `TalosControlPlane`. |
-| `kubeVersion` | string | Yes | `v1.35.0` | Pattern: `^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` | Kubernetes version for worker nodes. |
+| `kubeVersion` | string | Yes | `v1.37.1` | Pattern: `^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` | Kubernetes version for worker nodes. |
 | `storageClassName` | *string | No | - | Pattern: `^[a-zA-Z0-9][-a-zA-Z0-9_.]*[a-zA-Z0-9]$` | StorageClass for persistent volumes. **Immutable** after creation. |
 | `controlPlaneRef` | [LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#localobjectreference-v1-core) | Yes | - | - | Reference to the `TalosControlPlane` this worker belongs to (by name). |
 | `configRef` | [ConfigMapKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#configmapkeyselector-v1-core) | No | - | - | Reference to a ConfigMap key containing the Talos worker configuration. |

@@ -6,4 +6,4 @@ spec:
   version: v1.14.5
   mode: container
   replicas: 2
-  kubeVersion: v1.33.0
+  kubeVersion: v1.37.1

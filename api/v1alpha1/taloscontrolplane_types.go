@@ -37,10 +37,10 @@ const (
 // TalosControlPlaneSpec defines the desired state of TalosControlPlane.
 type TalosControlPlaneSpec struct {
 
-	// version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
+	// version of Talos to use for the control plane(controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.14.5"
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`
-	// +kubebuilder:default="v1.13.0"
+	// +kubebuilder:default="v1.14.5"
 	Version string `json:"version"`
 
 	// mode specifies the deployment mode for the control plane (container, metal, or cloud).
@@ -68,7 +68,7 @@ type TalosControlPlaneSpec struct {
 	// kubeVersion is the version of Kubernetes to use for the control plane.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`
-	// +kubebuilder:default="v1.35.0"
+	// +kubebuilder:default="v1.37.1"
 	KubeVersion string `json:"kubeVersion"`
 
 	// clusterDomain is the domain for the Kubernetes cluster.
@@ -185,7 +185,7 @@ type Machine struct {
 	// address is the IP address of the Talos machine.
 	// +kubebuilder:validation:Pattern=`^(\d{1,3}\.){3}\d{1,3}$`
 	Address *string `json:"address,omitempty"`
-	// version of Talos to use for this machine (controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.13.0"
+	// version of Talos to use for this machine (controller-manager, scheduler, kube-apiserver, etcd) -- e.g "v1.14.5"
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^v\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`
 	Version string `json:"version,omitempty"`

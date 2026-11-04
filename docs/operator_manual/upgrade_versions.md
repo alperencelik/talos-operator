@@ -13,7 +13,7 @@ Once the upgrade is triggered, the TalosMachine controller will send the relevan
 
 - **Installer image:** `ghcr.io/siderolabs/installer` is no longer published starting with Talos v1.14. When `machineSpec.image` is not set, the operator now uses the Image Factory installer with the empty schematic (`factory.talos.dev/metal-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba:<version>`) for those versions. Set `machineSpec.image` if your machines use system extensions or a platform other than `metal`, and mirror the image if they can't reach `factory.talos.dev`.
 - **Machine config format:** the operator keeps generating machine configs with the Talos v1.13 version contract for newer Talos versions, because the multi-document format introduced in v1.14 conflicts with v1alpha1 config patches. Existing clusters keep their config format through the upgrade. New clusters don't get the defaults that Talos v1.14 only adds for its own contract, such as `FilesystemTrimConfig` and workload isolation; add those documents through `additionalConfig` if you want them.
-- **Kubernetes versions:** Talos v1.14 supports Kubernetes v1.33 to v1.37, so upgrade Kubernetes first if your cluster runs an older version.
+- **Kubernetes versions:** Talos v1.14 supports Kubernetes v1.32 to v1.37, so upgrade Kubernetes first if your cluster runs an older version.
 - **etcd metrics:** etcd serves `/metrics` and `/health` on port `2383` instead of `2379` on Talos v1.14. Update any scrape configuration that targets `2379`.
 
 ## Upgrading the Kubernetes Version

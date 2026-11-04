@@ -5,7 +5,7 @@ metadata:
 spec:
   version: v1.14.5 # Talos version
   mode: metal # Deployment mode -- can be 'metal' or 'container'
-  kubeVersion: v1.35.0 # Kubernetes version
+  kubeVersion: v1.37.1 # Kubernetes version
   metalSpec:
     # List of Talos machines(IP Addresses) in the control plane
     machines:
@@ -34,7 +34,7 @@ metadata:
 spec:
   version: v1.14.5
   mode: metal
-  kubeVersion: v1.35.0
+  kubeVersion: v1.37.1
   metalSpec:
     machines:
       - address: "10.0.153.207"
@@ -53,7 +53,7 @@ metadata:
 spec:
   version: v1.14.5
   mode: metal
-  kubeVersion: v1.35.0
+  kubeVersion: v1.37.1
   metalSpec:
     machines:
       - address: "10.0.153.207"

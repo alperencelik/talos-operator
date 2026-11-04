@@ -7,7 +7,7 @@ spec:
   controlPlane:
     version: v1.14.5 # Talos version
     mode: metal # Deployment mode -- can be 'metal' or 'container'
-    kubeVersion: v1.33.0 # Kubernetes version
+    kubeVersion: v1.37.1 # Kubernetes version
     metalSpec:
       # List of Talos machines(IP Addresses) in the control plane
       machines:
@@ -19,7 +19,7 @@ spec:
   worker:
     version: v1.14.5 # Talos version
     mode: metal # Deployment mode -- can be 'metal' or 'container'
-    kubeVersion: v1.33.0 # Kubernetes version
+    kubeVersion: v1.37.1 # Kubernetes version
     # Reference to the Talos control plane to which this worker will connect
     controlPlaneRef:
       name: taloscontrolplane-sample
