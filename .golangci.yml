@@ -38,6 +38,11 @@ linters:
       - linters:
           - staticcheck
         path: test/utils/utils.go
+      # Requeue: true has no exact replacement, RequeueAfter doesn't go through the rate limiter.
+      - linters:
+          - staticcheck
+        path: internal/controller/
+        text: 'SA1019: .*\.Requeue is deprecated'
       
     paths:
       - third_party$

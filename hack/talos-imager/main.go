@@ -76,7 +76,7 @@ func run() error {
 				Path: "./sd-stub-amd64.efi",
 			},
 			BaseInstaller: profile.ContainerAsset{
-				ImageRef: fmt.Sprintf("ghcr.io/siderolabs/talos:installer-base:%s", version),
+				ImageRef: fmt.Sprintf("ghcr.io/siderolabs/installer-base:%s", version),
 			},
 		},
 	}

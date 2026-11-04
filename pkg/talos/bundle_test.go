@@ -1,16 +1,23 @@
 package talos
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
+	v1alpha1 "github.com/alperencelik/talos-operator/api/v1alpha1"
+	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
+	"github.com/siderolabs/talos/pkg/machinery/config/validation"
 )
 
 const (
-	testTalosVersion      = "v1.12.1"
+	testTalosVersion      = "v1.14.5"
+	testPreReleaseVersion = "v1.15.0-alpha.2"
 	testKubernetesVersion = "v1.35.0"
 	testClusterName       = "test-cluster"
+	testEndpoint          = "https://1.2.3.4:6443"
+	testCNINone           = "none"
 )
 
 func TestParseBundleConfig(t *testing.T) {
@@ -29,8 +36,8 @@ func TestParseBundleConfig(t *testing.T) {
 	if cfg.ClusterName != "my-cluster" {
 		t.Errorf("expected ClusterName 'my-cluster', got %q", cfg.ClusterName)
 	}
-	if cfg.Endpoint != "https://1.2.3.4:6443" {
-		t.Errorf("expected Endpoint 'https://1.2.3.4:6443', got %q", cfg.Endpoint)
+	if cfg.Endpoint != testEndpoint {
+		t.Errorf("expected Endpoint %q, got %q", testEndpoint, cfg.Endpoint)
 	}
 
 	// 2. Invalid JSON
@@ -76,7 +83,7 @@ func TestGenerateConfigs(t *testing.T) {
 	// Create a BundleConfig
 	cfg := &BundleConfig{
 		ClusterName:   testClusterName,
-		Endpoint:      "https://1.2.3.4:6443",
+		Endpoint:      testEndpoint,
 		Version:       testTalosVersion,
 		KubeVersion:   testKubernetesVersion,
 		SecretsBundle: (*secrets.Bundle)(sb),
@@ -119,6 +126,150 @@ func TestVersionContract(t *testing.T) {
 	_, err = versionContract(invalidVersion)
 	if err == nil {
 		t.Error("versionContract(invalid) expected error, got nil")
+	}
+
+	// Versions newer than maxVersionContract must be capped
+	for _, version := range []string{testTalosVersion, testPreReleaseVersion, "v2.0.0"} {
+		contract, err := versionContract(version)
+		if err != nil {
+			t.Fatalf("versionContract(%s) failed: %v", version, err)
+		}
+		if contract != maxVersionContract {
+			t.Errorf("versionContract(%s) = %+v, want %+v", version, contract, maxVersionContract)
+		}
+	}
+}
+
+func TestDefaultInstallerImage(t *testing.T) {
+	factoryInstaller := "factory.talos.dev/metal-installer/" +
+		"376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
+	tests := []struct {
+		version string
+		want    string
+	}{
+		{"v1.12.12", DefaultTalosImage + ":v1.12.12"},
+		{"v1.13.12", DefaultTalosImage + ":v1.13.12"},
+		{"v1.14.0", factoryInstaller + ":v1.14.0"},
+		{testTalosVersion, factoryInstaller + ":" + testTalosVersion},
+		{testPreReleaseVersion, factoryInstaller + ":" + testPreReleaseVersion},
+	}
+	for _, tt := range tests {
+		if got := DefaultInstallerImage(tt.version); got != tt.want {
+			t.Errorf("DefaultInstallerImage(%q) = %q, want %q", tt.version, got, tt.want)
+		}
+	}
+}
+
+// validationMode is a metal mode which requires an install section, like the machines managed by the operator.
+type validationMode struct{}
+
+func (validationMode) String() string        { return "metal" }
+func (validationMode) RequiresInstall() bool { return true }
+func (validationMode) InContainer() bool     { return false }
+
+// TestGeneratedConfigsAreValid generates configs with every patch the operator can
+// apply and makes sure the machinery of the pinned Talos version accepts them.
+func TestGeneratedConfigsAreValid(t *testing.T) {
+	sb, err := NewSecretBundle()
+	if err != nil {
+		t.Fatalf("NewSecretBundle() failed: %v", err)
+	}
+	podCIDR, serviceCIDR := []string{"10.100.0.0/16"}, []string{"10.200.0.0/16"}
+	patches := []string{
+		fmt.Sprintf(InstallDisk, "/dev/sda"),
+		fmt.Sprintf(InstallImage, DefaultInstallerImage(testTalosVersion)),
+		fmt.Sprintf(WipeDisk, true),
+		AirGapp,
+		AllowSchedulingOnControlPlanes,
+		ImageCache,
+	}
+	versions := []string{
+		"v1.8.4", "v1.9.6", "v1.10.8", "v1.11.6", "v1.12.12", "v1.13.12", testTalosVersion, testPreReleaseVersion,
+	}
+	for _, version := range versions {
+		t.Run(version, func(t *testing.T) {
+			cfg := &BundleConfig{
+				ClusterName:   testClusterName,
+				Endpoint:      testEndpoint,
+				Version:       version,
+				KubeVersion:   testKubernetesVersion,
+				SecretsBundle: (*secrets.Bundle)(sb),
+				PodCIDR:       &podCIDR,
+				ServiceCIDR:   &serviceCIDR,
+				CNI:           &v1alpha1.CNIConfig{Name: testCNINone},
+			}
+			cpConfig, err := GenerateControlPlaneConfig(cfg, &patches)
+			if err != nil {
+				t.Fatalf("GenerateControlPlaneConfig failed: %v", err)
+			}
+			workerConfig, err := GenerateWorkerConfig(cfg, &patches)
+			if err != nil {
+				t.Fatalf("GenerateWorkerConfig failed: %v", err)
+			}
+			for _, data := range [][]byte{*cpConfig, *workerConfig} {
+				loaded, err := configloader.NewFromBytes(data)
+				if err != nil {
+					t.Fatalf("failed to load generated config: %v", err)
+				}
+				if _, err := loaded.ValidateAsClient(validationMode{}, validation.WithLocal()); err != nil {
+					t.Errorf("generated config is invalid: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestCNIPatch(t *testing.T) {
+	sb, err := NewSecretBundle()
+	if err != nil {
+		t.Fatalf("NewSecretBundle() failed: %v", err)
+	}
+	policies := true
+	tests := []struct {
+		name string
+		cni  *v1alpha1.CNIConfig
+		want []string
+	}{
+		{testCNINone, &v1alpha1.CNIConfig{Name: testCNINone}, []string{"name: " + testCNINone}},
+		{
+			"custom",
+			&v1alpha1.CNIConfig{Name: "custom", URLs: []string{"https://example.com/cni.yaml"}},
+			[]string{"name: custom", "- https://example.com/cni.yaml"},
+		},
+		{
+			"flannel",
+			&v1alpha1.CNIConfig{Name: "flannel", Flannel: &v1alpha1.FlannelCNIConfig{
+				ExtraArgs:                  []string{"--iface=eth1"},
+				KubeNetworkPoliciesEnabled: &policies,
+			}},
+			[]string{"name: flannel", "- --iface=eth1", "kubeNetworkPoliciesEnabled: true"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &BundleConfig{
+				ClusterName:   testClusterName,
+				Endpoint:      testEndpoint,
+				Version:       testTalosVersion,
+				KubeVersion:   testKubernetesVersion,
+				SecretsBundle: (*secrets.Bundle)(sb),
+				CNI:           tt.cni,
+			}
+			for kind, generate := range map[string]func(*BundleConfig, *[]string) (*[]byte, error){
+				"controlplane": GenerateControlPlaneConfig,
+				"worker":       GenerateWorkerConfig,
+			} {
+				data, err := generate(cfg, nil)
+				if err != nil {
+					t.Fatalf("generating %s config failed: %v", kind, err)
+				}
+				for _, want := range tt.want {
+					if !strings.Contains(string(*data), want) {
+						t.Errorf("%s config does not contain %q", kind, want)
+					}
+				}
+			}
+		})
 	}
 }
 

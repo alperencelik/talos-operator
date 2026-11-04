@@ -24,12 +24,14 @@ Documentation is also available at [https://alperencelik.github.io/talos-operato
 
 talos-operator's versions are compatible with the following versions of Talos:
 
-|                         | v1.8  | v1.9  | v1.10 | v1.11 | v1.12 | v1.13 |
-| ----------------------- | ----- | ----- | ----- | ----- | ----- | ----- |
-| talos-operator (v0.3.x) | ✓     | ✓     | ✓     | ★     |       |       |
-| talos-operator (v0.4.x) | ✓     | ✓     | ✓     | ✓     | ★     |       |
-| talos-operator (v0.5.0) | ✓     | ✓     | ✓     | ✓     | ★     | ★     |
-| talos-operator (v0.5.2) | ✓     | ✓     | ✓     | ✓     | ★     | ★     |
+|                         | v1.8  | v1.9  | v1.10 | v1.11 | v1.12 | v1.13 | v1.14 |
+| ----------------------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
+| talos-operator (v0.3.x) | ✓     | ✓     | ✓     | ★     |       |       |       |
+| talos-operator (v0.4.x) | ✓     | ✓     | ✓     | ✓     | ★     |       |       |
+| talos-operator (v0.5.0) | ✓     | ✓     | ✓     | ✓     | ★     | ★     |       |
+| talos-operator (v0.5.2) | ✓     | ✓     | ✓     | ✓     | ★     | ★     |       |
+| talos-operator (v0.6.x) | ✓     | ✓     | ✓     | ✓     | ★     | ★     |       |
+| talos-operator (main)   | ✓     | ✓     | ✓     | ✓     | ✓     | ★     | ★     |
 
 Legend: ★ recommended · ✓ supported (backwards compatible)
 
@@ -60,7 +62,7 @@ Alternatively, you can use the `make` commands to build and deploy the operator 
 To create your first Talos cluster using the `talos-operator`, you need to define a `TalosCluster` custom resource. You can find an examples of `TalosCluster` in the `examples/` directory.
 
 ### Prerequisites
-- go version v1.24.0+
+- go version v1.26.8+
 - docker version 17.03+.
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
