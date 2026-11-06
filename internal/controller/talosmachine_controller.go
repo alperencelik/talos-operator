@@ -810,8 +810,11 @@ func (r *TalosMachineReconciler) UpgradeOrApplyConfig(ctx context.Context, tm *t
 		}
 		// Add an event
 		r.Recorder.Eventf(tm, nil, corev1.EventTypeNormal, "Upgrading", "Upgrading", fmt.Sprintf("Upgrading Talos version to %s using image %s", tm.Spec.Version, image))
-		if err := tc.UpgradeTalosVersion(ctx, actualVersion, image); err != nil {
-			return fmt.Errorf("failed to upgrade Talos version for TalosMachine %s: %w", tm.Name, err)
+		start := time.Now()
+		upgradeErr := tc.UpgradeTalosVersion(ctx, actualVersion, image)
+		observeOperation(operationTalosUpgrade, tm.Namespace, tm.Name, start, upgradeErr)
+		if upgradeErr != nil {
+			return fmt.Errorf("failed to upgrade Talos version for TalosMachine %s: %w", tm.Name, upgradeErr)
 		}
 		// Update it to Upgrading state
 		orig := tm.DeepCopy()

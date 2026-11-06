@@ -1,15 +1,25 @@
 ---
+# Panel definitions for `make custom-dashboard` (kubebuilder grafana plugin).
+# It renders grafana/custom-metrics/custom-metrics-dashboard.json.
+# Keep the \" escapes: the expr is pasted into a JSON string.
 customMetrics:
-#  - metric: # Raw custom metric (required)
-#    type:   # Metric type: counter/gauge/histogram (required)
-#    expr:   # Prom_ql for the metric (optional)
-#    unit:   # Unit of measurement, examples: s,none,bytes,percent,etc. (optional)
-#
-#
-# Example:
-# ---
-# customMetrics:
-#   - metric: foo_bar
-#     unit: none
-#     type: histogram
-#   	expr: histogram_quantile(0.90, sum by(instance, le) (rate(foo_bar{job=\"$job\", namespace=\"$namespace\"}[5m])))
+  - metric: talos_operator_operation_duration_seconds
+    type: histogram
+    unit: s
+    expr: histogram_quantile(0.90, sum by(operation, le) (rate(talos_operator_operation_duration_seconds_bucket{job=\"$job\", namespace=\"$namespace\"}[5m])))
+  - metric: talos_operator_operation_duration_seconds_count
+    type: counter
+    unit: none
+    expr: sum by(operation, result) (rate(talos_operator_operation_duration_seconds_count{job=\"$job\", namespace=\"$namespace\"}[5m]))
+  - metric: kube_external_watcher_drift_detected_total
+    type: counter
+    unit: none
+    expr: sum by(exported_namespace, name) (rate(kube_external_watcher_drift_detected_total{job=\"$job\", namespace=\"$namespace\"}[5m]))
+  - metric: kube_external_watcher_fetch_external_errors_total
+    type: counter
+    unit: none
+    expr: sum by(exported_namespace, name) (rate(kube_external_watcher_fetch_external_errors_total{job=\"$job\", namespace=\"$namespace\"}[5m]))
+  - metric: kube_external_watcher_registered_resources
+    type: gauge
+    unit: none
+    expr: kube_external_watcher_registered_resources{job=\"$job\", namespace=\"$namespace\"}

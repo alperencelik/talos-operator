@@ -945,7 +945,10 @@ func (r *TalosControlPlaneReconciler) BootstrapCluster(ctx context.Context, tcp 
 	}
 	defer talosClient.Close() //nolint:errcheck
 	//  Bootstrap the Talos node
-	if err := talosClient.BootstrapNode(ctx); err != nil {
+	start := time.Now()
+	err = talosClient.BootstrapNode(ctx)
+	observeOperation(operationBootstrap, tcp.Namespace, tcp.Name, start, err)
+	if err != nil {
 		return fmt.Errorf("failed to bootstrap Talos node for ControlPlane %s: %w", tcp.Name, err)
 	}
 	// Get the object again since the status might have been updated

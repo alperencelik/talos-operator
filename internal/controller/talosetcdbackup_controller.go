@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/alperencelik/talos-operator/pkg/storage"
 	"github.com/alperencelik/talos-operator/pkg/talos"
@@ -114,21 +115,24 @@ func (r *TalosEtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// Perform the backup
-	if err := r.performBackup(ctx, &teb); err != nil {
-		logger.Error(err, "Failed to perform backup")
+	start := time.Now()
+	backupErr := r.performBackup(ctx, &teb)
+	observeOperation(operationEtcdBackup, teb.Namespace, teb.Spec.TalosControlPlaneRef.Name, start, backupErr)
+	if backupErr != nil {
+		logger.Error(backupErr, "Failed to perform backup")
 
 		// Set failed condition
 		meta.SetStatusCondition(&teb.Status.Conditions, metav1.Condition{
 			Type:    talosv1alpha1.ConditionFailed,
 			Status:  metav1.ConditionTrue,
 			Reason:  "BackupFailed",
-			Message: fmt.Sprintf("Failed to backup etcd: %v", err),
+			Message: fmt.Sprintf("Failed to backup etcd: %v", backupErr),
 		})
 		if statusErr := r.Status().Update(ctx, &teb); statusErr != nil {
 			logger.Error(statusErr, "Failed to update status after backup failure")
 		}
 
-		return ctrl.Result{}, err
+		return ctrl.Result{}, backupErr
 	}
 
 	// Set ready condition
