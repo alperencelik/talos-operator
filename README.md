@@ -32,6 +32,7 @@ talos-operator's versions are compatible with the following versions of Talos:
 | talos-operator (v0.5.2) | ✓     | ✓     | ✓     | ✓     | ★     | ★     |       |
 | talos-operator (v0.6.x) | ✓     | ✓     | ✓     | ✓     | ★     | ★     |       |
 | talos-operator (v0.7.x) | ✓     | ✓     | ✓     | ✓     | ✓     | ★     | ★     |
+| talos-operator (v0.8.x) | ✓     | ✓     | ✓     | ✓     | ✓     | ★     | ★     |
 | talos-operator (main)   | ✓     | ✓     | ✓     | ✓     | ✓     | ★     | ★     |
 
 Legend: ★ recommended · ✓ supported (backwards compatible)
