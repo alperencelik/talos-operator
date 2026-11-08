@@ -1,0 +1,56 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+  {{ super() }}
+  <section class="tx-hero">
+    <div class="tx-hero__inner md-typeset">
+      <img
+        src="{{ 'images/logo.png' | url }}"
+        alt="talos-operator"
+        class="tx-hero__logo"
+        draggable="false"
+      >
+      <h1 class="tx-hero__title">talos-operator</h1>
+      <p class="tx-hero__subtitle">
+        Declaratively manage Talos Linux clusters<br>
+        with Kubernetes-native Custom Resources
+      </p>
+      <div class="tx-hero__actions">
+        <a
+          href="{{ 'getting_started/' | url }}"
+          class="md-button md-button--primary tx-cta-primary"
+        >
+          Get Started &rarr;
+        </a>
+        <a
+          href="{{ 'crds/' | url }}"
+          class="md-button tx-cta-secondary"
+        >
+          CRD Reference
+        </a>
+      </div>
+      <div class="tx-hero__badges">
+        <a href="https://github.com/alperencelik/talos-operator/releases" target="_blank" rel="noopener">
+          <img
+            src="https://img.shields.io/github/v/release/alperencelik/talos-operator?style=flat-square&logo=github&labelColor=18181b&color=FF6B35"
+            alt="Latest Release"
+          >
+        </a>
+        <a href="https://github.com/alperencelik/talos-operator/blob/main/LICENSE" target="_blank" rel="noopener">
+          <img
+            src="https://img.shields.io/github/license/alperencelik/talos-operator?style=flat-square&labelColor=18181b&color=FF6B35"
+            alt="License"
+          >
+        </a>
+        <a href="https://github.com/alperencelik/talos-operator/stargazers" target="_blank" rel="noopener">
+          <img
+            src="https://img.shields.io/github/stars/alperencelik/talos-operator?style=flat-square&logo=github&labelColor=18181b&color=FF6B35"
+            alt="GitHub Stars"
+          >
+        </a>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block content %}{{ super() }}{% endblock %}

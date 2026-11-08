@@ -1,0 +1,435 @@
+/*
+ * Design tokens — matches the UI (ui/src/index.css + ui/tailwind.config.js)
+ *
+ * bg:        #09090b  (zinc-950)
+ * surface:   #18181b  (zinc-900)
+ * elevated:  #27272a  (zinc-800)
+ * border:    #3f3f46  (zinc-700)
+ * muted:     #a1a1aa  (zinc-400)
+ * text:      #f4f4f5  (zinc-100)
+ * brand:     #FF6B35
+ * brand-dim: rgba(255, 107, 53, 0.12)
+ * brand-hov: #ff7c4d
+ */
+
+/* ═══════════════════════════════════════════════════════════
+   DARK MODE — ZINC PALETTE
+   ═══════════════════════════════════════════════════════════ */
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color:           #09090b;
+  --md-default-bg-color--light:    #111113;
+  --md-default-bg-color--lighter:  #18181b;
+  --md-default-bg-color--lightest: #27272a;
+
+  --md-default-fg-color:           #f4f4f5;
+  --md-default-fg-color--light:    #a1a1aa;
+  --md-default-fg-color--lighter:  #71717a;
+  --md-default-fg-color--lightest: #3f3f46;
+
+  --md-code-bg-color:  #18181b;
+  --md-code-fg-color:  #e4e4e7;
+
+  --tx-brand:           #FF6B35;
+  --tx-brand-dim:       rgba(255, 107, 53, 0.12);
+  --tx-brand-hover:     #ff7c4d;
+
+  --tx-card-bg:         rgba(255, 255, 255, 0.03);
+  --tx-card-border:     #3f3f46;
+  --tx-card-hover-border: rgba(255, 107, 53, 0.5);
+  --tx-card-glow:       rgba(255, 107, 53, 0.06);
+}
+
+[data-md-color-scheme="default"] {
+  --tx-brand:           #FF6B35;
+  --tx-brand-dim:       rgba(255, 107, 53, 0.10);
+  --tx-brand-hover:     #ff7c4d;
+
+  --tx-card-bg:         #ffffff;
+  --tx-card-border:     #e4e4e7;
+  --tx-card-hover-border: rgba(255, 107, 53, 0.4);
+  --tx-card-glow:       rgba(255, 107, 53, 0.04);
+}
+
+/* Override Material's primary color to match exact brand hex */
+:root {
+  --md-primary-fg-color:       #FF6B35;
+  --md-primary-fg-color--light: #ff7c4d;
+  --md-primary-fg-color--dark:  #e55a25;
+  --md-accent-fg-color:        #ff7c4d;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   HERO SECTION
+   ═══════════════════════════════════════════════════════════ */
+
+.tx-hero {
+  background: linear-gradient(
+    160deg,
+    #141210 0%,
+    #0e0d0b 35%,
+    #0b0b0a 65%,
+    #09090b 100%
+  );
+  padding: 5rem 1.5rem 4.5rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ambient orange glow — matches how the UI uses brand-dim */
+.tx-hero::before,
+.tx-hero::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.tx-hero::before {
+  width: 640px;
+  height: 640px;
+  top: -200px;
+  left: -160px;
+  background: radial-gradient(circle, rgba(255, 107, 53, 0.14) 0%, transparent 65%);
+}
+
+.tx-hero::after {
+  width: 560px;
+  height: 560px;
+  bottom: -200px;
+  right: -120px;
+  background: radial-gradient(circle, rgba(255, 107, 53, 0.08) 0%, transparent 65%);
+}
+
+.tx-hero__inner {
+  max-width: 780px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+/* Floating logo with orange glow */
+.tx-hero__logo {
+  width: 88px;
+  height: 88px;
+  margin-bottom: 2rem;
+  filter: drop-shadow(0 0 28px rgba(255, 107, 53, 0.6))
+          drop-shadow(0 0 8px rgba(255, 107, 53, 0.3));
+  animation: tx-float 6s ease-in-out infinite;
+}
+
+@keyframes tx-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+
+/* Orange → peach gradient title */
+.tx-hero__title {
+  font-size: clamp(2.4rem, 5vw, 3.8rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 0 0 1.2rem;
+  background: linear-gradient(135deg, #FF6B35 0%, #FFA07A 55%, #FFD4B8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.tx-hero__subtitle {
+  font-size: 1.2rem;
+  color: #a1a1aa;
+  line-height: 1.75;
+  margin-bottom: 2.5rem;
+}
+
+/* CTA buttons */
+.tx-hero__actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+}
+
+.tx-hero .tx-cta-primary.md-button--primary {
+  background: #FF6B35;
+  border: none;
+  color: #ffffff !important;
+  padding: 0.75rem 2.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 20px rgba(255, 107, 53, 0.35);
+}
+
+.tx-hero .tx-cta-primary.md-button--primary:hover {
+  background: #ff7c4d;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(255, 107, 53, 0.5);
+}
+
+.tx-hero .tx-cta-secondary.md-button {
+  border: 1px solid #3f3f46;
+  color: #a1a1aa !important;
+  padding: 0.75rem 2.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.tx-hero .tx-cta-secondary.md-button:hover {
+  background: rgba(255, 107, 53, 0.08);
+  border-color: rgba(255, 107, 53, 0.4);
+  color: #FF6B35 !important;
+  transform: translateY(-2px);
+}
+
+/* Badges */
+.tx-hero__badges {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  opacity: 0.85;
+}
+
+.tx-hero__badges img {
+  height: 22px;
+  border-radius: 3px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   FEATURE CARDS (grid cards)
+   ═══════════════════════════════════════════════════════════ */
+
+.md-typeset .grid.cards > :is(ul, ol) > li {
+  background: var(--tx-card-bg);
+  border: 1px solid var(--tx-card-border);
+  border-radius: 8px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 1px 8px var(--tx-card-glow);
+}
+
+.md-typeset .grid.cards > :is(ul, ol) > li:hover {
+  transform: translateY(-4px);
+  border-color: var(--tx-card-hover-border);
+  box-shadow: 0 8px 28px rgba(255, 107, 53, 0.15);
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   CODE BLOCKS
+   ═══════════════════════════════════════════════════════════ */
+
+[data-md-color-scheme="slate"] .highlight pre {
+  background: #18181b !important;
+}
+
+[data-md-color-scheme="slate"] .highlight {
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+}
+
+/* Inline code — matches brand-dim */
+[data-md-color-scheme="slate"] .md-typeset code:not(.highlight code) {
+  background: rgba(255, 107, 53, 0.12);
+  color: #FFA07A;
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+}
+
+/* Copy button */
+.md-clipboard {
+  color: #71717a !important;
+  transition: color 0.2s;
+}
+.md-clipboard:hover {
+  color: #FF6B35 !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   HEADER
+   ═══════════════════════════════════════════════════════════ */
+
+[data-md-color-scheme="slate"] .md-header {
+  background: rgba(9, 9, 11, 0.9) !important;
+  box-shadow: 0 1px 0 #3f3f46;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+[data-md-color-scheme="slate"] .md-tabs {
+  background: #09090b;
+  border-bottom: 1px solid #27272a;
+}
+
+.md-tabs__link--active,
+.md-tabs__link:focus,
+.md-tabs__link:hover {
+  color: #FF6B35 !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   SIDEBAR / NAV
+   ═══════════════════════════════════════════════════════════ */
+
+[data-md-color-scheme="slate"] .md-nav__link--active {
+  color: #FF6B35 !important;
+  font-weight: 600;
+}
+
+[data-md-color-scheme="slate"] .md-nav__link:hover {
+  color: #ff7c4d;
+}
+
+[data-md-color-scheme="slate"] .md-nav__title {
+  color: #52525b;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+}
+
+[data-md-color-scheme="slate"] .md-sidebar {
+  background: #09090b;
+  border-right: 1px solid #27272a;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   ADMONITIONS
+   ═══════════════════════════════════════════════════════════ */
+
+[data-md-color-scheme="slate"] .md-typeset .admonition,
+[data-md-color-scheme="slate"] .md-typeset details {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: #3f3f46;
+  border-left-width: 3px;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .note > .admonition-title,
+[data-md-color-scheme="slate"] .md-typeset .info > .admonition-title {
+  border-color: #FF6B35;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .tip > .admonition-title,
+[data-md-color-scheme="slate"] .md-typeset .hint > .admonition-title {
+  border-color: #22c55e;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .warning > .admonition-title,
+[data-md-color-scheme="slate"] .md-typeset .caution > .admonition-title {
+  border-color: #eab308;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   SEARCH
+   ═══════════════════════════════════════════════════════════ */
+
+[data-md-color-scheme="slate"] .md-search__form {
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+[data-md-color-scheme="slate"] .md-search__form:focus-within {
+  border-color: rgba(255, 107, 53, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+[data-md-color-scheme="slate"] .md-search-result__article,
+[data-md-color-scheme="slate"] .md-search-result__meta {
+  background: #18181b;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   TYPOGRAPHY
+   ═══════════════════════════════════════════════════════════ */
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+[data-md-color-scheme="slate"] .md-typeset h2 {
+  border-bottom: 1px solid #27272a;
+  padding-bottom: 0.4rem;
+}
+
+.md-typeset .headerlink {
+  color: #3f3f46 !important;
+  transition: color 0.2s;
+}
+
+.md-typeset .headerlink:hover {
+  color: #FF6B35 !important;
+}
+
+/* Tables */
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  background: #27272a;
+  color: #e4e4e7;
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) tr:hover {
+  background: rgba(255, 107, 53, 0.05);
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) {
+  border: 1px solid #3f3f46;
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) td,
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  border-color: #3f3f46;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════════════════ */
+
+[data-md-color-scheme="slate"] .md-footer {
+  background: #09090b;
+  border-top: 1px solid #27272a;
+}
+
+[data-md-color-scheme="slate"] .md-footer-meta {
+  background: #09090b;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   SCROLLBAR — matches ui/src/index.css exactly
+   ═══════════════════════════════════════════════════════════ */
+
+[data-md-color-scheme="slate"] ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+[data-md-color-scheme="slate"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-md-color-scheme="slate"] ::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 9999px;
+}
+
+[data-md-color-scheme="slate"] ::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
